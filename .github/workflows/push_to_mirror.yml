@@ -19,4 +19,3 @@ jobs:
         with:
           target_repo_url: ${{ vars.MIRROR_URL }}
           ssh_private_key: ${{ secrets.GIT_SSH_PRIVATE_KEY }}
-
