@@ -9,6 +9,9 @@ all:
 	$(STACK) build $(STACK_BUILD_FLAGS)
 	@find $(STACK_WORK_DIR)/install -type f -name $(STACK_BINARY_NAME) -exec cp {} ./${NAME} \;
 
+tests:
+	$(STACK) test $(STACK_BUILD_FLAGS)
+
 clean:
 	$(STACK) clean
 
