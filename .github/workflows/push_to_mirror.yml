@@ -7,6 +7,7 @@ on:
 
 jobs:
   push_to_mirror:
+    name: Push to mirror
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
