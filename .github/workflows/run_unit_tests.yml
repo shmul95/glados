@@ -1,0 +1,32 @@
+name: run_unit_tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  run_unit_tests:
+    name: Run Haskell Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Haskell Stack
+        uses: haskell/actions/setup@v2
+        with:
+          toolchain-cache: true
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.stack
+            .stack-work
+          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml', '**/*.cabal') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-
+
+      - name: Run Tests
+        run: make tests
