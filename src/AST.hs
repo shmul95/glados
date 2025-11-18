@@ -20,7 +20,6 @@ data Ast = Define Ast Ast
     | Lambda [Ast] Ast
     | If Ast Ast Ast
     | AstInteger Int
-    | AstFloat Float
     | AstSymbol String
     | AstBoolean Bool
     | AstList [Ast]
@@ -61,27 +60,33 @@ sexprToAST (List exprs) = do
 
 type Environment = [(Ast, Ast)]
 
-compAst :: Ast -> Ast -> Bool
-compAst (AstInteger a) (AstInteger b) = a == b
-compAst (AstSymbol a) (AstSymbol b)   = a == b
-compAst (AstBoolean a) (AstBoolean b) = a == b
-compAst (List a) (List b)               = and $ zipWith compAst a b
-compAst _ _                           = False
+extractString :: Environment -> Ast -> Maybe String
+extractString env (AstSymbol val) = Just val
+extractString _ _ = Nothing
 
-extractInteger :: Ast -> Maybe Int
-extractInteger ast = case evalAST ast of
+compEnv :: Environment -> [(Ast, Ast)] -> String -> Maybe Ast
+compEnv _ [] _ = Nothing
+compEnv env ((symbol, value):xs) str = do
+    strSymbol <- extractString env symbol
+    if strSymbol == str then Just value
+    else compEnv env xs str
+
+extractInteger :: Environment -> Ast -> Maybe Int
+extractInteger env ast = case evalAST env ast of
     Just (AstInteger val) -> Just val
     _                     -> Nothing
 
-handleString :: String -> Ast
-handleString "#t" = AstBoolean True
-handleString "#f" = AstBoolean False
-handleString s = AstSymbol s
+handleString :: Environment -> String -> Maybe Ast
+handleString _ "#t" = Just (AstBoolean True)
+handleString _ "#f" = Just (AstBoolean False)
+handleString env s = case compEnv env env s of
+    Just value -> evalAST env value
+    _          -> Just (AstSymbol s)
 
 handleCall :: Environment -> String -> [Ast] -> Maybe Ast
 handleCall env op (x:y:_) | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] = do
-    a <- extractInteger x
-    b <- extractInteger y
+    a <- extractInteger env x
+    b <- extractInteger env y
     case op of
         "+" -> Just (AstInteger (a + b))
         "-" -> Just (AstInteger (a - b))
@@ -91,26 +96,25 @@ handleCall env op (x:y:_) | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] 
         "eq?" -> Just (AstBoolean (a == b))
         "<" -> Just (AstBoolean (a < b))
         _   -> Nothing
-handleCall _ _ = Nothing
+handleCall _ _ _ = Nothing
 
-handleCondition :: Ast -> Ast -> Ast -> Maybe Ast
-handleCondition c t e = do
-        evaluatedCond <- evalAST c
+handleCondition :: Environment -> Ast -> Ast -> Ast -> Maybe Ast
+handleCondition env c t e = do
+        evaluatedCond <- evalAST env c
         case evaluatedCond of
-            AstBoolean True  -> evalAST t
-            AstBoolean False -> evalAST e
+            AstBoolean True  -> evalAST env t
+            AstBoolean False -> evalAST env e
             _                -> Nothing
 
 evalAST :: Environment -> Ast -> Maybe Ast
 evalAST env (Define varName value) = do
-    evaluatedValue <- evalAST value
+    evaluatedValue <- evalAST env value
     Just (Define varName evaluatedValue)
-evalAST env (Call func args) = handleCall func args
+evalAST env (Call func args) = handleCall env func args
 evalAST env (AstInteger n) = Just (AstInteger n)
-evalAST env (AstFloat f)   = Just (AstFloat f)
-evalAST env (AstSymbol s)  = Just (handleString s)
+evalAST env (AstSymbol s)  = handleString env s
 evalAST env (AstBoolean b) = Just (AstBoolean b)
-evalAST env (If cond thenExpr elseExpr) = handleCondition cond thenExpr elseExpr
+evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
 evalAST env (AstList exprs) = do
-    astExprs <- mapM evalAST exprs
+    astExprs <- mapM (evalAST env) exprs
     Just (AstList astExprs)
