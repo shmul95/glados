@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -11,7 +11,7 @@ homepage:       https://github.com/arrty00m/glados#readme
 bug-reports:    https://github.com/arrty00m/glados/issues
 author:         Samuel
 maintainer:     samuel.gross@epitech.eu
-copyright:      2024 Samuel
+copyright:      2025 Samuel
 license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
@@ -26,6 +26,8 @@ source-repository head
 library
   exposed-modules:
       Lib
+      ParserLib
+      Type
   other-modules:
       Paths_glados
   autogen-modules:
