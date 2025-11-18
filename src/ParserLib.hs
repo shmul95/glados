@@ -24,6 +24,7 @@ module ParserLib
     sepBy,
     parseString,
     parseAnyCharNot,
+    parseSpaces
   )
 where
 
@@ -34,16 +35,16 @@ import Type (Parser (..), (<|>))
 parseChar :: Char -> Parser Char
 parseChar c = Parser parse
   where
-    parse [] = Left "Empty String"
+    parse [] = Nothing
     parse (s : str)
-      | c == s = Right (c, str)
-      | otherwise = Left "Not found"
+      | c == s = Just (c, str)
+      | otherwise = Nothing
 
 parseOr :: Parser a -> Parser a -> Parser a
 parseOr a b = a <|> b
 
 parseAnyChar :: String -> Parser Char
-parseAnyChar = foldr ((<|>) . parseChar) (Parser $ const $ Left "Not found")
+parseAnyChar = foldr ((<|>) . parseChar) (Parser $ const Nothing)
 
 parseAndWith :: (a -> b -> c) -> Parser a -> Parser b -> Parser c
 parseAndWith f a b = f <$> a <*> b
@@ -89,8 +90,11 @@ parseTruple = do
   _ <- parseChar ')'
   return (a, b, c)
 
+parseSpaces :: Parser String
+parseSpaces = parseMany (parseAnyChar " \n\t")
+
 parseWord :: Parser String
-parseWord = parseSome . parseAnyChar $ ['a' .. 'z'] ++ ['A' .. 'Z']
+parseWord = parseSome . parseAnyChar $ ['a' .. 'z'] ++ ['A' .. 'Z'] ++ ['-', '+', '*', '/', '_', '=','<','>','!','?']
 
 parseIgnoreSpaces :: Parser ()
 parseIgnoreSpaces = (parseMany . parseAnyChar $ " \n\t") $> ()
@@ -107,7 +111,7 @@ parseString = mapM parseChar
 parseAnyCharNot :: String -> Parser Char
 parseAnyCharNot forbidden = Parser parse
   where
-    parse [] = Left "Unexpected end"
+    parse [] = Nothing
     parse (x : xs)
-      | x `elem` forbidden = Left ("Char not allowed: " ++ [x])
-      | otherwise = Right (x, xs)
+      | x `elem` forbidden = Nothing
+      | otherwise = Just (x, xs)

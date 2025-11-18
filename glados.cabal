@@ -25,7 +25,12 @@ source-repository head
 
 library
   exposed-modules:
+      AST
       Lib
+      Parser
+      ParserLib
+      SExpr
+      Type
   other-modules:
       Paths_glados
   autogen-modules:
