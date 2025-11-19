@@ -1,8 +1,12 @@
-import ParserLibSpec (spec)
+module Main (main) where
+import LexerSpec (lexerTests)
+
 import Test.Tasty
 
 main :: IO ()
-main = defaultMain tests
-
-tests :: TestTree
-tests = testGroup "ParserLib Tests" [ParserLibSpec.spec]
+main =
+  defaultMain $
+    testGroup
+      "Rune Test Suites"
+      [ lexerTests
+      ]
