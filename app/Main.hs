@@ -5,8 +5,4 @@ import Logger (logError)
 import System.Environment (getArgs)
 
 main :: IO ()
-main = do
-    args <- getArgs
-    case parseArgs args of
-        Left err -> logError err
-        Right action -> runCLI action
+main = getArgs >>= either logError runCLI . parseArgs
