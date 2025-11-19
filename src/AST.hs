@@ -10,7 +10,8 @@ module AST (
     sexprToAST,
     handleCall,
     handleString,
-    evalAST
+    evalAST,
+    evalASTWithEnv
 ) where
 
 import SExpr (SExpr(..))
@@ -106,15 +107,38 @@ handleCondition env c t e = do
             AstBoolean False -> evalAST env e
             _                -> Nothing
 
+evalASTWithEnv :: Environment -> [Ast] -> Maybe Ast
+evalASTWithEnv _ [] = Nothing
+evalASTWithEnv env [expr] =
+    case evalAST env expr of
+        Just result -> Just result
+        Nothing -> Nothing
+evalASTWithEnv env ((Define varName value):exprs) =
+        case evalAST env value of
+            Just evaluatedValue ->
+                let newEnv = (varName, evaluatedValue) : env
+                in evalASTWithEnv newEnv exprs
+            Nothing -> Nothing
+evalASTWithEnv env (expr:exprs) =
+            case evalAST env expr of
+                Just _ -> evalASTWithEnv env exprs
+                Nothing -> Nothing
+
 evalAST :: Environment -> Ast -> Maybe Ast
 evalAST env (Define varName value) = do
     evaluatedValue <- evalAST env value
-    Just (Define varName evaluatedValue)
+    Just evaluatedValue
 evalAST env (Call func args) = handleCall env func args
 evalAST env (AstInteger n) = Just (AstInteger n)
-evalAST env (AstSymbol s)  = handleString env s
+evalAST env (AstSymbol s) = handleString env s
 evalAST env (AstBoolean b) = Just (AstBoolean b)
 evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
-evalAST env (AstList exprs) = do
-    astExprs <- mapM (evalAST env) exprs
-    Just (AstList astExprs)
+evalAST env (Lambda params body) = Just (Lambda params body)
+evalAST env (AstList []) = Just (AstList [])
+evalAST env (AstList [expr]) = evalAST env expr
+evalAST env (AstList (func:args)) = do
+    evaluatedFunc <- evalAST env func
+    case evaluatedFunc of
+        AstSymbol op | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] ->
+            handleCall env op args
+        _ -> evalASTWithEnv env (func:args)

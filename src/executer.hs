@@ -20,4 +20,4 @@ executeLisp :: String -> Maybe Ast
 executeLisp input = do
     (sexpr, _) <- runParser parseLispDocument input
     ast <- sexprToAST sexpr
-    evalAST [(AstSymbol "foo", AstInteger 42)] ast
+    evalAST [] ast
