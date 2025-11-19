@@ -1,1 +1,1 @@
-module Rune.Pipeline where
+module Rune.Pipeline () where
