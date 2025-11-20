@@ -26,8 +26,11 @@ source-repository head
 library
   exposed-modules:
       CLI
-      Lib
       Logger
+      Rune.AST.Nodes
+      Rune.AST.Parser
+      Rune.AST.Printer
+      Rune.AST.Visitor
       Rune.Lexer.Lexer
       Rune.Lexer.LexerDelimiters
       Rune.Lexer.LexerIdentifiers
