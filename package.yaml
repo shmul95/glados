@@ -14,9 +14,12 @@ description: Please see the README on GitHub at <https://github.com/arrty00m/gla
 
 dependencies:
   - base >= 4.7 && < 5
+  - megaparsec
 
 ghc-options:
   - -Wall
+  - -Wextra
+  - -Werror
   - -Wcompat
   - -Widentities
   - -Wincomplete-record-updates
@@ -43,9 +46,8 @@ executables:
 tests:
   glados-test:
     main: Spec.hs
-    source-dirs: test
-    other-modules:
-      - ParserLibSpec
+    source-dirs:
+      - test
     ghc-options:
       - -threaded
       - -rtsopts

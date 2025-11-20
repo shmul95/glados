@@ -1,6 +1,8 @@
 module Main (main) where
 
-import Lib
+import CLI (parseArgs, runCLI)
+import Logger (logError)
+import System.Environment (getArgs)
 
 main :: IO ()
-main = someFunc
+main = getArgs >>= either logError runCLI . parseArgs
