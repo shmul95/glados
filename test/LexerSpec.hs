@@ -5,6 +5,23 @@ import Rune.Lexer.Tokens
 import Test.Tasty
 import Test.Tasty.HUnit
 
+--
+-- public
+--
+
+lexerTests :: TestTree
+lexerTests =
+  testGroup
+    "Rune Lexer Tests"
+    [ exampleTests,
+      unitTests,
+      positionTests
+    ]
+
+--
+-- private
+--
+
 checkLexer :: String -> [TokenKind] -> Assertion
 checkLexer input expectedKinds =
   case lexer input of
@@ -242,13 +259,4 @@ positionTests =
             assertEqual "Main col" 1 (tokenColumn tmain)
           Left err -> assertFailure $ show err
           Right tokens -> assertFailure $ "Expected 2 tokens, got " ++ show (length tokens)
-    ]
-
-lexerTests :: TestTree
-lexerTests =
-  testGroup
-    "Rune Lexer Tests"
-    [ exampleTests,
-      unitTests,
-      positionTests
     ]
