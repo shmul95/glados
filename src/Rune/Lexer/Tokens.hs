@@ -14,6 +14,7 @@ data TokenKind
   | KwFor
   | KwTo
   | KwOverride
+  | KwIn
   | -- primitive types
     TypeI8
   | TypeI16
@@ -50,8 +51,9 @@ data TokenKind
   | OpGt -- >
   | OpGte -- >=
   | OpAnd -- &&
-  | OpOr -- ||
-  | OpErrorProp -- ?
+  | OpOr
+  | -- | |
+    OpErrorProp -- ?
   | OpArrow -- ->
   | OpSquigArrow -- ~>
   | -- delimiters
@@ -64,7 +66,7 @@ data TokenKind
   | Colon -- :
   | Dot -- .
   | EOF
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data Token = Token
   { tokenKind :: TokenKind,
@@ -72,4 +74,4 @@ data Token = Token
     tokenLine :: Int,
     tokenColumn :: Int
   }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
