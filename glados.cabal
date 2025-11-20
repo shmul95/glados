@@ -36,7 +36,7 @@ library
       Rune.Lexer.LexerParser
       Rune.Lexer.LexerPrimitives
       Rune.Lexer.Tokens
-      Rune.Pipeline
+      Rune.Pipelines
       Type
   other-modules:
       Paths_glados
@@ -71,6 +71,7 @@ test-suite glados-test
   main-is: Spec.hs
   other-modules:
       LexerSpec
+      PipelinesSpec
       Paths_glados
   autogen-modules:
       Paths_glados
