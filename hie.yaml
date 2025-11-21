@@ -1,0 +1,25 @@
+cradle:
+  multi:
+    - path: "src"
+      config:
+        cradle:
+          stack:
+            component: "glados:lib"
+
+    - path: "app"
+      config:
+        cradle:
+          stack:
+            component: "glados"
+
+    - path: "test"
+      config:
+        cradle:
+          stack:
+            component: "glados"
+
+    - path: "./"
+      config:
+        cradle:
+          stack:
+            component: "glados:lib"

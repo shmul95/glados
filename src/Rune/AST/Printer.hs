@@ -1,14 +1,19 @@
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE TupleSections #-}
 
 module Rune.AST.Printer (prettyPrint) where
 
-import Data.List (intercalate)
+import Control.Monad (void)
 import Rune.AST.Nodes
 import Rune.AST.Visitor (RuneVisitor (..))
 
+--
+-- state Monad for pretty-printing using ShowS (Efficient string building)
+--
+
 data PrinterState = PrinterState
   { psIndent :: Int,
-    psOutput :: String
+    psOutput :: ShowS
   }
 
 newtype Printer a = Printer {runState :: PrinterState -> (a, PrinterState)}
@@ -31,146 +36,184 @@ instance Monad Printer where
         (Printer p') = f x
      in p' s'
 
+--
+-- public
+--
+
 prettyPrint :: Program -> String
 prettyPrint prog =
-  let initialState = PrinterState 0 ""
+  let initialState = PrinterState 0 id
       (_, finalState) = runState (visitProgram prog) initialState
-   in psOutput finalState
+   in psOutput finalState ""
+
+--
+-- private AST visitor instanciation
+--
 
 instance RuneVisitor Printer where
+  visitProgram :: Program -> Printer ()
+  visitProgram (Program name defs) = do
+    emit $ "Program: " ++ name
+    indent
+    mapM_ (\d -> newLine >> visitTopLevel d) defs
+    dedent
+
+  visitFunction :: TopLevelDef -> Printer ()
   visitFunction (DefFunction name params retType body) = do
-    emit $ "def " ++ name
-    emitParams params
-    emit $ " -> " ++ showType retType
+    emit $ "DefFunction " ++ name
+    indent
+    emitBlock "Parameters:" (mapM_ emitParam params)
     newLine
-    emit "{"
-    visitBody body
-    newLine
-    emit "}"
-    newLine
-    newLine
+    emit $ "ReturnType: " ++ showType retType
+    emitBlock "Body:" (visitBody body)
+    dedent
   visitFunction _ = return ()
 
+  visitStruct :: TopLevelDef -> Printer ()
   visitStruct (DefStruct name fields methods) = do
-    emit $ "struct " ++ name
-    newLine
-    emit "{"
+    emit $ "DefStruct " ++ name
     indent
-    mapM_ (\f -> newLine >> emitField f) fields
-    mapM_ (\m -> newLine >> visitTopLevel m) methods
+    emitBlock "Fields:" (mapM_ emitField fields)
+    emitBlock "Methods:" (mapM_ (\m -> newLine >> visitTopLevel m) methods)
     dedent
-    newLine
-    emit "}"
-    newLine
-    newLine
     where
-      emitField (Field n t) = emit (n ++ ": " ++ showType t ++ ";")
+      emitField (Field n t) = newLine >> emit (n ++ ": " ++ showType t)
   visitStruct _ = return ()
 
+  visitOverride :: TopLevelDef -> Printer ()
   visitOverride (DefOverride name params retType body) = do
-    emit $ "override def " ++ name
-    emitParams params
-    emit $ " -> " ++ showType retType
+    emit $ "DefOverride " ++ name
+    indent
+    emitBlock "Parameters:" (mapM_ emitParam params)
     newLine
-    emit "{"
-    visitBody body
-    newLine
-    emit "}"
-    newLine
-    newLine
+    emit $ "ReturnType: " ++ showType retType
+    emitBlock "Body:" (visitBody body)
+    dedent
   visitOverride _ = return ()
 
+  visitVarDecl :: String -> Maybe Type -> Expression -> Printer ()
   visitVarDecl name maybeType expr = do
-    emit name
+    emit $ "StmtVarDecl " ++ name
     case maybeType of
-      Just t -> emit $ ": " ++ showType t
+      Just t -> emit $ " : " ++ showType t
       Nothing -> return ()
-    emit " = "
-    visitExpression expr
-    emit ";"
+    emitBlock "Value:" (newLine >> visitExpression expr)
 
+  visitReturn :: Maybe Expression -> Printer ()
   visitReturn maybeExpr = do
-    emit "return"
+    emit "StmtReturn"
     case maybeExpr of
-      Just e -> emit " " >> visitExpression e
-      Nothing -> return ()
-    emit ";"
-
-  visitIf cond thenB elseB = do
-    emit "if "
-    visitExpression cond
-    emit " {"
-    visitBody thenB
-    newLine
-    emit "}"
-    case elseB of
-      Just eb -> do
-        emit " else {"
-        visitBody eb
+      Just e -> do
+        indent
         newLine
-        emit "}"
+        visitExpression e
+        dedent
       Nothing -> return ()
 
+  visitIf :: Expression -> Block -> Maybe Block -> Printer ()
+  visitIf cond thenB elseB = do
+    emit "StmtIf"
+    indent
+    emitBlock "Condition:" (newLine >> visitExpression cond)
+    emitBlock "Then:" (visitBody thenB)
+    case elseB of
+      Just eb -> emitBlock "Else:" (visitBody eb)
+      Nothing -> return ()
+    dedent
+
+  visitFor :: String -> Expression -> Expression -> Block -> Printer ()
   visitFor name start end body = do
-    emit $ "for " ++ name ++ " = "
-    visitExpression start
-    emit " to "
-    visitExpression end
-    emit " {"
-    visitBody body
-    newLine
-    emit "}"
+    emit $ "StmtFor " ++ name
+    indent
+    emitBlock "Start:" (newLine >> visitExpression start)
+    emitBlock "End:" (newLine >> visitExpression end)
+    emitBlock "Body:" (visitBody body)
+    dedent
 
+  visitForEach :: String -> Expression -> Block -> Printer ()
   visitForEach name iterable body = do
-    emit $ "for " ++ name ++ " in "
-    visitExpression iterable
-    emit " {"
-    visitBody body
+    emit $ "StmtForEach " ++ name
+    indent
+    emitBlock "Iterable:" (newLine >> visitExpression iterable)
+    emitBlock "Body:" (visitBody body)
+    dedent
+
+  -- Implementation complète de visitStatement pour éviter l'erreur de non-exhaustivité
+  visitStatement :: Statement -> Printer ()
+  visitStatement (StmtVarDecl name typeDecl expr) = visitVarDecl name typeDecl expr
+  visitStatement (StmtReturn expr) = visitReturn expr
+  visitStatement (StmtIf cond thenB elseB) = visitIf cond thenB elseB
+  visitStatement (StmtFor var start end body) = visitFor var start end body
+  visitStatement (StmtForEach var iterable body) = visitForEach var iterable body
+  visitStatement (StmtExpr expr) = do
+    emit "StmtExpr"
+    indent
     newLine
-    emit "}"
+    visitExpression expr
+    dedent
 
+  visitExpression :: Expression -> Printer ()
   visitExpression (ExprBinary op l r) = do
-    emit "("
+    emit $ "ExprBinary " ++ showBinaryOp op
+    indent
+    newLine
     visitExpression l
-    emit $ " " ++ showBinaryOp op ++ " "
+    newLine
     visitExpression r
-    emit ")"
+    dedent
   visitExpression (ExprUnary op val) = do
-    emit (showUnaryOp op)
-    emit "("
+    emit $ "ExprUnary " ++ showUnaryOp op
+    indent
+    newLine
     visitExpression val
-    emit ")"
+    dedent
   visitExpression (ExprCall name args) = do
-    emit $ name ++ "("
-    printArgs args
-    emit ")"
+    emit $ "ExprCall " ++ name
+    emitBlock "Arguments:" (mapM_ (\a -> newLine >> visitExpression a) args)
   visitExpression (ExprStructInit name fields) = do
-    emit $ name ++ " { "
-    printInitFields fields
-    emit " }"
+    emit $ "ExprStructInit " ++ name
+    emitBlock "Fields:" (mapM_ emitInitField fields)
+    where
+      emitInitField (n, e) = do
+        newLine
+        emit $ n ++ ":"
+        emitBlock "" (newLine >> visitExpression e)
   visitExpression (ExprAccess target field) = do
+    emit $ "ExprAccess ." ++ field
+    indent
+    newLine
     visitExpression target
-    emit $ "." ++ field
-  visitExpression (ExprLitInt i) = emit $ show i
-  visitExpression (ExprLitFloat f) = emit $ show f
-  visitExpression (ExprLitString s) = emit $ show s
-  visitExpression (ExprLitBool b) = emit $ if b then "true" else "false"
-  visitExpression ExprLitNull = emit "null"
-  visitExpression (ExprVar v) = emit v
+    dedent
+  visitExpression (ExprLitInt i) = emit $ "ExprLitInt " ++ show i
+  visitExpression (ExprLitFloat f) = emit $ "ExprLitFloat " ++ show f
+  visitExpression (ExprLitString s) = emit $ "ExprLitString " ++ show s
+  visitExpression (ExprLitBool b) = emit $ "ExprLitBool " ++ show b
+  visitExpression ExprLitNull = emit "ExprLitNull"
+  visitExpression (ExprVar v) = emit $ "ExprVar " ++ v
 
-visitBody :: Block -> Printer ()
-visitBody block = do
-  indent
-  mapM_ (\stmt -> newLine >> visitStatement stmt) block
-  dedent
+--
+-- private helpers
+--
 
 emit :: String -> Printer ()
-emit str = Printer $ \s -> ((), s {psOutput = psOutput s ++ str})
+emit str = Printer $ \s -> ((), s {psOutput = psOutput s . showString str})
+
+emitBlock :: String -> Printer a -> Printer ()
+emitBlock label action = do
+  newLine
+  emit label
+  indent
+  void action
+  dedent
+
+visitBody :: Block -> Printer ()
+visitBody = mapM_ (\stmt -> newLine >> visitStatement stmt)
 
 newLine :: Printer ()
 newLine = Printer $ \s ->
-  let indentStr = replicate (psIndent s * 4) ' '
-   in ((), s {psOutput = psOutput s ++ "\n" ++ indentStr})
+  let indentStr = replicate (psIndent s * 2) ' '
+      newlineAndIndent = showString "\n" . showString indentStr
+   in ((), s {psOutput = psOutput s . newlineAndIndent})
 
 indent :: Printer ()
 indent = Printer $ \s -> ((), s {psIndent = psIndent s + 1})
@@ -178,22 +221,8 @@ indent = Printer $ \s -> ((), s {psIndent = psIndent s + 1})
 dedent :: Printer ()
 dedent = Printer $ \s -> ((), s {psIndent = psIndent s - 1})
 
-emitParams :: [Parameter] -> Printer ()
-emitParams params = do
-  emit "("
-  let pStrs = map (\p -> paramName p ++ ": " ++ showType (paramType p)) params
-  emit (intercalate ", " pStrs)
-  emit ")"
-
-printArgs :: [Expression] -> Printer ()
-printArgs [] = return ()
-printArgs [x] = visitExpression x
-printArgs (x : xs) = visitExpression x >> emit ", " >> printArgs xs
-
-printInitFields :: [(String, Expression)] -> Printer ()
-printInitFields [] = return ()
-printInitFields [(n, e)] = emit (n ++ ": ") >> visitExpression e
-printInitFields ((n, e) : xs) = emit (n ++ ": ") >> visitExpression e >> emit ", " >> printInitFields xs
+emitParam :: Parameter -> Printer ()
+emitParam p = newLine >> emit (paramName p ++ ": " ++ showType (paramType p))
 
 showType :: Type -> String
 showType TypeI8 = "i8"

@@ -2,10 +2,10 @@ module Rune.Pipelines (compilePipeline, interpretPipeline) where
 
 import Control.Exception (IOException, try)
 import Logger (logError)
-import Rune.AST.Parser (parseRune)
+import Rune.AST.Nodes (Program)
+import Rune.AST.Parser.Parser (parseRune)
 import Rune.AST.Printer (prettyPrint)
 import Rune.Lexer.Lexer (lexer)
-import Rune.AST.Nodes (Program)
 import Text.Megaparsec (errorBundlePretty)
 
 --

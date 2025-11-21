@@ -11,7 +11,7 @@ class Monad m => RuneVisitor m where
   
   -- | program entry-point
   visitProgram :: Program -> m ()
-  visitProgram (Program defs) = mapM_ visitTopLevel defs
+  visitProgram (Program _ defs) = mapM_ visitTopLevel defs
 
   -- | dispatcher for top-level declarations
   visitTopLevel :: TopLevelDef -> m ()

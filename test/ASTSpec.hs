@@ -1,7 +1,7 @@
 module ASTSpec (astTests) where
 
 import Control.Exception (try)
-import Rune.AST.Parser (parseRune)
+import Rune.AST.Parser.Parser (parseRune)
 import Rune.AST.Printer (prettyPrint)
 import Rune.Lexer.Lexer (lexer)
 import System.IO.Error (isDoesNotExistError)

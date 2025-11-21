@@ -1,0 +1,4 @@
+*.hs linguist-language=haskell
+*.ru linguist-language=rune
+*.yml linguist-language=yaml
+
