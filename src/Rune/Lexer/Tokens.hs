@@ -5,8 +5,8 @@ module Rune.Lexer.Tokens
 where
 
 data TokenKind
-  = -- keywords
-    KwDef
+  -- | keywords
+  = KwDef
   | KwReturn
   | KwStruct
   | KwIf
@@ -15,8 +15,8 @@ data TokenKind
   | KwTo
   | KwOverride
   | KwIn
-  | -- primitive types
-    TypeI8
+  -- | primitive types
+  | TypeI8
   | TypeI16
   | TypeI32
   | TypeI64
@@ -29,16 +29,16 @@ data TokenKind
   | TypeString
   | TypeAny
   | TypeNull
-  | -- literals
-    LitInt Int
+  -- | literals
+  | LitInt Int
   | LitFloat Double
   | LitString String
   | LitBool Bool
   | LitNull
-  | -- identifiers
-    Identifier String
-  | -- operators
-    OpPlus -- +
+  -- | identifiers
+  | Identifier String
+  -- | operators
+  | OpPlus -- +
   | OpMinus -- -
   | OpMul
   | OpDiv -- /
@@ -52,12 +52,12 @@ data TokenKind
   | OpGte -- >=
   | OpAnd -- &&
   | OpOr
-  | -- | |
-    OpErrorProp -- ?
+  -- | | |
+  | OpErrorProp -- ?
   | OpArrow -- ->
   | OpSquigArrow -- ~>
-  | -- delimiters
-    LParen
+  -- | delimiters
+  | LParen
   | RParen -- ( )
   | LBrace
   | RBrace -- { }

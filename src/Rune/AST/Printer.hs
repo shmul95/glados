@@ -138,7 +138,6 @@ instance RuneVisitor Printer where
     emitBlock "Body:" (visitBody body)
     dedent
 
-  -- Implementation complète de visitStatement pour éviter l'erreur de non-exhaustivité
   visitStatement :: Statement -> Printer ()
   visitStatement (StmtVarDecl name typeDecl expr) = visitVarDecl name typeDecl expr
   visitStatement (StmtReturn expr) = visitReturn expr

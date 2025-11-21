@@ -7,8 +7,7 @@ import Control.Monad (void)
 import Rune.AST.Nodes
 
 -- | ast-node-visitor pattern
-class Monad m => RuneVisitor m where
-  
+class (Monad m) => RuneVisitor m where
   -- | program entry-point
   visitProgram :: Program -> m ()
   visitProgram (Program _ defs) = mapM_ visitTopLevel defs
@@ -21,6 +20,7 @@ class Monad m => RuneVisitor m where
 
   -- | virtual methods
   visitFunction :: TopLevelDef -> m ()
+
   visitStruct :: TopLevelDef -> m ()
   visitOverride :: TopLevelDef -> m ()
 
@@ -39,10 +39,11 @@ class Monad m => RuneVisitor m where
 
   -- | virtual methods for statements
   visitVarDecl :: String -> Maybe Type -> Expression -> m ()
+
   visitReturn :: Maybe Expression -> m ()
   visitIf :: Expression -> Block -> Maybe Block -> m ()
   visitFor :: String -> Expression -> Expression -> Block -> m ()
-  visitForEach :: String -> Expression -> Block -> m () -- << Added
+  visitForEach :: String -> Expression -> Block -> m ()
 
   -- | expressions
   visitExpression :: Expression -> m ()
@@ -50,5 +51,5 @@ class Monad m => RuneVisitor m where
   visitExpression (ExprUnary _ val) = visitExpression val
   visitExpression (ExprCall _ args) = mapM_ visitExpression args
   visitExpression (ExprStructInit _ fields) = mapM_ (visitExpression . snd) fields
-  visitExpression (ExprAccess target _ ) = visitExpression target
+  visitExpression (ExprAccess target _) = visitExpression target
   visitExpression _ = return ()

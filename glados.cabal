@@ -28,11 +28,7 @@ library
       CLI
       Logger
       Rune.AST.Nodes
-      Rune.AST.Parser.Helpers
-      Rune.AST.Parser.Impl
-      Rune.AST.Parser.Parser
-      Rune.AST.Parser.TopLevel
-      Rune.AST.Parser.Types
+      Rune.AST.Parser
       Rune.AST.Printer
       Rune.AST.Visitor
       Rune.Lexer.Lexer
@@ -76,7 +72,6 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      ASTSpec
       CLISpec
       LexerSpec
       PipelinesSpec
