@@ -53,7 +53,10 @@ data UnaryOp
   | PropagateError
   deriving (Show, Eq)
 
-newtype Program = Program [TopLevelDef]
+data Program = Program 
+  { programName :: String,
+    programDefs :: [TopLevelDef]
+  }
   deriving (Show, Eq)
 
 data TopLevelDef
