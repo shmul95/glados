@@ -28,6 +28,18 @@ library
       AST
       Parser
       SExpr
+      CLI
+      Logger
+      Rune.Lexer.Lexer
+      Rune.Lexer.LexerDelimiters
+      Rune.Lexer.LexerIdentifiers
+      Rune.Lexer.LexerKeywords
+      Rune.Lexer.LexerLiterals
+      Rune.Lexer.LexerOperators
+      Rune.Lexer.LexerParser
+      Rune.Lexer.LexerPrimitives
+      Rune.Lexer.Tokens
+      Rune.Pipelines
   other-modules:
       Paths_glados
   autogen-modules:
@@ -38,6 +50,7 @@ library
   build-depends:
       base >=4.7 && <5
     , parsec
+    , megaparsec
   default-language: Haskell2010
 
 executable glados-exe
@@ -53,6 +66,8 @@ executable glados-exe
       base >=4.7 && <5
     , glados
     , parsec 
+    , megaparsec
+    
   default-language: Haskell2010
 
 test-suite glados-test
@@ -61,6 +76,7 @@ test-suite glados-test
   main-is:             Spec.hs
   build-depends:       base >= 4.7 && < 5
                      , hspec
+                     , megaparsec
                      , tasty
                      , tasty-hspec
                      , parsec
@@ -70,5 +86,8 @@ test-suite glados-test
                      , SExpr
                      , Parser
                      , AST
+                     , CLISpec
+                     , LexerSpec
+                     , PipelinesSpec
   ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
