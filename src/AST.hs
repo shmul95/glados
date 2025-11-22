@@ -11,7 +11,10 @@ module AST (
     handleCall,
     handleString,
     evalAST,
-    evalASTWithEnv
+    evalASTWithEnv,
+    extractInteger,
+    extractString,
+    compEnv
 ) where
 
 import SExpr (SExpr(..))
@@ -61,16 +64,17 @@ sexprToAST (List exprs) = do
 
 type Environment = [(Ast, Ast)]
 
-extractString :: Environment -> Ast -> Maybe String
-extractString env (AstSymbol val) = Just val
-extractString _ _ = Nothing
+extractString :: Ast -> Maybe String
+extractString (AstSymbol val) = Just val
+extractString _ = Nothing
 
-compEnv :: Environment -> [(Ast, Ast)] -> String -> Maybe Ast
-compEnv _ [] _ = Nothing
-compEnv env ((symbol, value):xs) str = do
-    strSymbol <- extractString env symbol
-    if strSymbol == str then Just value
-    else compEnv env xs str
+compEnv :: [(Ast, Ast)] -> String -> Maybe Ast
+compEnv [] _ = Nothing
+compEnv ((symbol, value):xs) str = do
+    strSymbol <- extractString symbol
+    if strSymbol == str
+        then Just value
+        else compEnv xs str
 
 extractInteger :: Environment -> Ast -> Maybe Int
 extractInteger env ast = case evalAST env ast of
@@ -80,7 +84,7 @@ extractInteger env ast = case evalAST env ast of
 handleString :: Environment -> String -> Maybe Ast
 handleString _ "#t" = Just (AstBoolean True)
 handleString _ "#f" = Just (AstBoolean False)
-handleString env s = case compEnv env env s of
+handleString env s = case compEnv env s of
     Just value -> evalAST env value
     _          -> Just (AstSymbol s)
 
@@ -96,7 +100,6 @@ handleCall env op (x:y:_) | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] 
         "mod" -> if b /= 0 then Just (AstInteger (a `mod` b)) else Nothing
         "eq?" -> Just (AstBoolean (a == b))
         "<" -> Just (AstBoolean (a < b))
-        _   -> Nothing
 handleCall _ _ _ = Nothing
 
 handleCondition :: Environment -> Ast -> Ast -> Ast -> Maybe Ast
@@ -125,16 +128,14 @@ evalASTWithEnv env (expr:exprs) =
                 Nothing -> Nothing
 
 evalAST :: Environment -> Ast -> Maybe Ast
-evalAST env (Define varName value) = do
-    evaluatedValue <- evalAST env value
-    Just evaluatedValue
+evalAST _ (Define _ _) = Just (AstSymbol "")
 evalAST env (Call func args) = handleCall env func args
-evalAST env (AstInteger n) = Just (AstInteger n)
+evalAST _ (AstInteger n) = Just (AstInteger n)
 evalAST env (AstSymbol s) = handleString env s
-evalAST env (AstBoolean b) = Just (AstBoolean b)
+evalAST _ (AstBoolean b) = Just (AstBoolean b)
 evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
-evalAST env (Lambda params body) = Just (Lambda params body)
-evalAST env (AstList []) = Just (AstList [])
+evalAST _ (Lambda params body) = Just (Lambda params body)
+evalAST _ (AstList []) = Just (AstList [])
 evalAST env (AstList [expr]) = evalAST env expr
 evalAST env (AstList (func:args)) = do
     evaluatedFunc <- evalAST env func

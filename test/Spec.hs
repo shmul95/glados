@@ -1,8 +1,17 @@
-import ParserLibSpec (spec)
 import Test.Tasty
+import Test.Tasty.Hspec
+
+import qualified SExprSpec
+import qualified ParserSpec
+import qualified ASTSpec
 
 main :: IO ()
-main = defaultMain tests
-
-tests :: TestTree
-tests = testGroup "ParserLib Tests" [ParserLibSpec.spec]
+main = do
+  sexprTests <- testSpec "SExpr" SExprSpec.spec
+  parserTests <- testSpec "Parser" ParserSpec.spec
+  astTests <- testSpec "AST" ASTSpec.spec
+  defaultMain $ testGroup "GLaDOS Tests" [
+    sexprTests,
+    parserTests,
+    astTests
+    ]
