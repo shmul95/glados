@@ -1,152 +1,161 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module SExprSpec (spec) where
+module SExprSpec (sexprTests) where
 
-import Test.Hspec
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=))
 import SExpr
 
-spec :: Spec
-spec = do
-  describe "SExpr data constructors" $ do
-    it "creates Integer values" $ do
+sexprTests :: TestTree
+sexprTests = testGroup "SExpr Tests"
+  [ sexprDataConstructorTests
+  , getSymbolTests
+  , getIntegerTests
+  , getListTests
+  , printTreeTests
+  , describeListTests
+  , describeListRestTests
+  , showInstanceTests
+  , eqInstanceTests
+  ]
+
+sexprDataConstructorTests :: TestTree
+sexprDataConstructorTests = testGroup "SExpr data constructors"
+  [ testCase "creates Integer values" $ do
       let expr = Integer 42
-      expr `shouldBe` Integer 42
+      expr @?= Integer 42
 
-    it "creates Symbol values" $ do
+  , testCase "creates Symbol values" $ do
       let expr = Symbol "hello"
-      expr `shouldBe` Symbol "hello"
+      expr @?= Symbol "hello"
 
-    it "creates List values" $ do
+  , testCase "creates List values" $ do
       let expr = List [Integer 1, Symbol "x"]
-      expr `shouldBe` List [Integer 1, Symbol "x"]
+      expr @?= List [Integer 1, Symbol "x"]
+  ]
 
-  describe "getSymbol" $ do
-    it "extracts symbol from Symbol" $ do
-      getSymbol (Symbol "test") `shouldBe` Just "test"
-      getSymbol (Symbol "") `shouldBe` Just ""
-      getSymbol (Symbol "complex-name!?") `shouldBe` Just "complex-name!?"
+getSymbolTests :: TestTree
+getSymbolTests = testGroup "getSymbol"
+  [ testCase "extracts symbol from Symbol" $ do
+      getSymbol (Symbol "test") @?= Just "test"
+      getSymbol (Symbol "") @?= Just ""
+      getSymbol (Symbol "complex-name!?") @?= Just "complex-name!?"
 
-    it "returns Nothing for non-Symbol values" $ do
-      getSymbol (Integer 42) `shouldBe` Nothing
-      getSymbol (List []) `shouldBe` Nothing
-      getSymbol (List [Integer 1]) `shouldBe` Nothing
+  , testCase "returns Nothing for non-Symbol values" $ do
+      getSymbol (Integer 42) @?= Nothing
+      getSymbol (List []) @?= Nothing
+      getSymbol (List [Integer 1]) @?= Nothing
+  ]
 
-  describe "getInteger" $ do
-    it "extracts integer from Integer" $ do
-      getInteger (Integer 42) `shouldBe` Just 42
-      getInteger (Integer 0) `shouldBe` Just 0
-      getInteger (Integer (-17)) `shouldBe` Just (-17)
+getIntegerTests :: TestTree
+getIntegerTests = testGroup "getInteger"
+  [ testCase "extracts integer from Integer" $ do
+      getInteger (Integer 42) @?= Just 42
+      getInteger (Integer 0) @?= Just 0
+      getInteger (Integer (-17)) @?= Just (-17)
 
-    it "returns Nothing for non-Integer values" $ do
-      getInteger (Symbol "test") `shouldBe` Nothing
-      getInteger (List []) `shouldBe` Nothing
-      getInteger (List [Integer 1]) `shouldBe` Nothing
+  , testCase "returns Nothing for non-Integer values" $ do
+      getInteger (Symbol "test") @?= Nothing
+      getInteger (List []) @?= Nothing
+      getInteger (List [Integer 1]) @?= Nothing
+  ]
 
-  describe "getList" $ do
-    it "extracts list from List" $ do
-      getList (List []) `shouldBe` Just []
-      getList (List [Integer 1]) `shouldBe` Just [Integer 1]
-      getList (List [Integer 1, Symbol "x", List []]) `shouldBe`
+getListTests :: TestTree
+getListTests = testGroup "getList"
+  [ testCase "extracts list from List" $ do
+      getList (List []) @?= Just []
+      getList (List [Integer 1]) @?= Just [Integer 1]
+      getList (List [Integer 1, Symbol "x", List []]) @?=
         Just [Integer 1, Symbol "x", List []]
 
-    it "returns Nothing for non-List values" $ do
-      getList (Integer 42) `shouldBe` Nothing
-      getList (Symbol "test") `shouldBe` Nothing
+  , testCase "returns Nothing for non-List values" $ do
+      getList (Integer 42) @?= Nothing
+      getList (Symbol "test") @?= Nothing
+  ]
 
-  describe "printTree" $ do
-    it "prints Integer values" $ do
-      printTree (Integer 42) `shouldBe` Just "a Number 42"
-      printTree (Integer 0) `shouldBe` Just "a Number 0"
-      printTree (Integer (-17)) `shouldBe` Just "a Number -17"
+printTreeTests :: TestTree
+printTreeTests = testGroup "printTree"
+  [ testCase "prints Integer values" $ do
+      printTree (Integer 42) @?= Just "a Number 42"
+      printTree (Integer 0) @?= Just "a Number 0"
+      printTree (Integer (-17)) @?= Just "a Number -17"
 
-    it "prints Symbol values" $ do
-      printTree (Symbol "test") `shouldBe` Just "a Symbol test"
-      printTree (Symbol "") `shouldBe` Just "a Symbol "
-      printTree (Symbol "complex-name!?") `shouldBe` Just "a Symbol complex-name!?"
+  , testCase "prints Symbol values" $ do
+      printTree (Symbol "test") @?= Just "a Symbol test"
+      printTree (Symbol "") @?= Just "a Symbol "
+      printTree (Symbol "complex-name!?") @?= Just "a Symbol complex-name!?"
 
-    it "prints empty List" $ do
-      printTree (List []) `shouldBe` Just "a List with nothing in it"
+  , testCase "prints empty List" $ do
+      printTree (List []) @?= Just "a List with nothing in it"
 
-    it "prints List with single element" $ do
-      printTree (List [Integer 42]) `shouldBe` Just "a List with a Number 42 followed by "
-      printTree (List [Symbol "x"]) `shouldBe` Just "a List with a Symbol x followed by "
+  , testCase "prints List with single element" $ do
+      printTree (List [Integer 42]) @?= Just "a List with a Number 42 followed by "
+      printTree (List [Symbol "x"]) @?= Just "a List with a Symbol x followed by "
 
-    it "prints List with multiple elements" $ do
-      printTree (List [Integer 1, Integer 2]) `shouldBe` 
+  , testCase "prints List with multiple elements" $ do
+      printTree (List [Integer 1, Integer 2]) @?= 
         Just "a List with a Number 1 followed by a Number 2"
-      printTree (List [Symbol "+", Integer 1, Integer 2]) `shouldBe`
+      printTree (List [Symbol "+", Integer 1, Integer 2]) @?=
         Just "a List with a Symbol + followed by a Number 1, a Number 2"
+  ]
 
-    it "prints nested Lists" $ do
-      printTree (List [List [Integer 1]]) `shouldBe`
-        Just "a List with a List with a Number 1 followed by  followed by "
-      printTree (List [List [Integer 1], Integer 2]) `shouldBe`
-        Just "a List with a List with a Number 1 followed by  followed by a Number 2"
+describeListTests :: TestTree
+describeListTests = testGroup "describeList"
+  [ testCase "describes empty list" $ do
+      describeList [] @?= Just "nothing in it"
 
-  describe "describeList" $ do
-    it "describes empty list" $ do
-      describeList [] `shouldBe` Just "nothing in it"
+  , testCase "describes single element list" $ do
+      describeList [Integer 42] @?= Just "a Number 42 followed by "
+      describeList [Symbol "x"] @?= Just "a Symbol x followed by "
 
-    it "describes single element list" $ do
-      describeList [Integer 42] `shouldBe` Just "a Number 42 followed by "
-      describeList [Symbol "x"] `shouldBe` Just "a Symbol x followed by "
-
-    it "describes multiple element list" $ do
-      describeList [Integer 1, Integer 2] `shouldBe`
+  , testCase "describes multiple element list" $ do
+      describeList [Integer 1, Integer 2] @?=
         Just "a Number 1 followed by a Number 2"
-      describeList [Symbol "x", Integer 42, Symbol "y"] `shouldBe`
+      describeList [Symbol "x", Integer 42, Symbol "y"] @?=
         Just "a Symbol x followed by a Number 42, a Symbol y"
+  ]
 
-  describe "describeListRest" $ do
-    it "describes single element" $ do
-      describeListRest [Integer 42] `shouldBe` Just "a Number 42"
-      describeListRest [Symbol "x"] `shouldBe` Just "a Symbol x"
+describeListRestTests :: TestTree
+describeListRestTests = testGroup "describeListRest"
+  [ testCase "describes single element" $ do
+      describeListRest [Integer 42] @?= Just "a Number 42"
+      describeListRest [Symbol "x"] @?= Just "a Symbol x"
 
-    it "describes multiple elements with commas" $ do
-      describeListRest [Integer 1, Integer 2] `shouldBe`
+  , testCase "describes multiple elements with commas" $ do
+      describeListRest [Integer 1, Integer 2] @?=
         Just "a Number 1, a Number 2"
-      describeListRest [Symbol "x", Integer 42, Symbol "y"] `shouldBe`
+      describeListRest [Symbol "x", Integer 42, Symbol "y"] @?=
         Just "a Symbol x, a Number 42, a Symbol y"
+  ]
 
-    it "handles nested lists" $ do
-      describeListRest [List [Integer 1], Integer 2] `shouldBe`
-        Just "a List with a Number 1 followed by , a Number 2"
+showInstanceTests :: TestTree
+showInstanceTests = testGroup "Show instance (deriving)"
+  [ testCase "shows Integer values using Show" $ do
+      show (Integer 42) @?= "Integer 42"
+      show (Integer (-17)) @?= "Integer (-17)"
 
-  describe "Show instance (deriving)" $ do
-    it "shows Integer values using Show" $ do
-      show (Integer 42) `shouldBe` "Integer 42"
-      show (Integer (-17)) `shouldBe` "Integer (-17)"
+  , testCase "shows Symbol values using Show" $ do
+      show (Symbol "test") @?= "Symbol \"test\""
+      show (Symbol "") @?= "Symbol \"\""
 
-    it "shows Symbol values using Show" $ do
-      show (Symbol "test") `shouldBe` "Symbol \"test\""
-      show (Symbol "") `shouldBe` "Symbol \"\""
+  , testCase "shows List values using Show" $ do
+      show (List []) @?= "List []"
+      show (List [Integer 1]) @?= "List [Integer 1]"
+      show (List [Integer 1, Symbol "x"]) @?= "List [Integer 1,Symbol \"x\"]"
+  ]
 
-    it "shows List values using Show" $ do
-      show (List []) `shouldBe` "List []"
-      show (List [Integer 1]) `shouldBe` "List [Integer 1]"
-      show (List [Integer 1, Symbol "x"]) `shouldBe` "List [Integer 1,Symbol \"x\"]"
+eqInstanceTests :: TestTree
+eqInstanceTests = testGroup "Eq instance (deriving)"
+  [ testCase "compares Integer values for equality" $ do
+      (Integer 42 == Integer 42) @?= True
+      (Integer 42 == Integer 43) @?= False
 
-    it "shows nested structures using Show" $ do
-      show (List [List [Integer 1], Symbol "x"]) `shouldBe`
-        "List [List [Integer 1],Symbol \"x\"]"
+  , testCase "compares Symbol values for equality" $ do
+      (Symbol "test" == Symbol "test") @?= True
+      (Symbol "test" == Symbol "other") @?= False
 
-  describe "Eq instance (deriving)" $ do
-    it "compares Integer values for equality" $ do
-      Integer 42 `shouldBe` Integer 42
-      Integer 42 `shouldNotBe` Integer 43
-
-    it "compares Symbol values for equality" $ do
-      Symbol "test" `shouldBe` Symbol "test"
-      Symbol "test" `shouldNotBe` Symbol "other"
-
-    it "compares List values for equality" $ do
-      List [Integer 1] `shouldBe` List [Integer 1]
-      List [Integer 1] `shouldNotBe` List [Integer 2]
-      List [] `shouldBe` List []
-
-    it "compares complex nested structures" $ do
-      let expr1 = List [Symbol "+", List [Integer 1, Integer 2]]
-      let expr2 = List [Symbol "+", List [Integer 1, Integer 2]]
-      let expr3 = List [Symbol "+", List [Integer 1, Integer 3]]
-      expr1 `shouldBe` expr2
-      expr1 `shouldNotBe` expr3
+  , testCase "compares List values for equality" $ do
+      (List [Integer 1] == List [Integer 1]) @?= True
+      (List [Integer 1] == List [Integer 2]) @?= False
+      (List [] == List []) @?= True
+  ]

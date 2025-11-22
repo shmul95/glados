@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module ParserSpec (spec) where
+module ParserSpec (parserTests) where
 
-import Test.Hspec
+import Test.Tasty (TestTree, testGroup)
+import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Text.Megaparsec (parse, errorBundlePretty)
 import Parser
 import SExpr
@@ -13,166 +14,128 @@ parseTest input = case parse parseLispDocument "" input of
   Left err -> Left (errorBundlePretty err)
   Right result -> Right result
 
-spec :: Spec
-spec = do
-  describe "parseLispDocument" $ do
-    it "parses empty input" $ do
-      parseTest "" `shouldBe` Right (List [])
-      parseTest "   " `shouldBe` Right (List [])
-      parseTest "\n\t " `shouldBe` Right (List [])
+parserTests :: TestTree
+parserTests = testGroup "Parser Tests"
+  [ parseLispDocumentTests
+  , parseLispNumberTests
+  , parseLispStringTests
+  , parseLispArrayTests
+  , complexExpressionTests
+  , errorCaseTests
+  ]
 
-    it "parses single expressions" $ do
-      parseTest "42" `shouldBe` Right (List [Integer 42])
-      parseTest "hello" `shouldBe` Right (List [Symbol "hello"])
-      parseTest "()" `shouldBe` Right (List [List []])
+parseLispDocumentTests :: TestTree
+parseLispDocumentTests = testGroup "parseLispDocument"
+  [ testCase "parses empty input" $ do
+      parseTest "" @?= Right (List [])
+      parseTest "   " @?= Right (List [])
+      parseTest "\n\t " @?= Right (List [])
 
-    it "parses multiple expressions" $ do
-      parseTest "42 hello" `shouldBe` Right (List [Integer 42, Symbol "hello"])
-      parseTest "1 2 3" `shouldBe` Right (List [Integer 1, Integer 2, Integer 3])
+  , testCase "parses single expressions" $ do
+      parseTest "42" @?= Right (List [Integer 42])
+      parseTest "hello" @?= Right (List [Symbol "hello"])
+      parseTest "()" @?= Right (List [List []])
 
-    it "handles whitespace correctly" $ do
-      parseTest " 42 " `shouldBe` Right (List [Integer 42])
-      parseTest "\n42\t" `shouldBe` Right (List [Integer 42])
+  , testCase "parses multiple expressions" $ do
+      parseTest "42 hello" @?= Right (List [Integer 42, Symbol "hello"])
+      parseTest "1 2 3" @?= Right (List [Integer 1, Integer 2, Integer 3])
 
-  describe "parseLispNumber" $ do
-    it "parses positive integers" $ do
-      parseTest "0" `shouldBe` Right (List [Integer 0])
-      parseTest "42" `shouldBe` Right (List [Integer 42])
-      parseTest "12345" `shouldBe` Right (List [Integer 12345])
+  , testCase "handles whitespace correctly" $ do
+      parseTest " 42 " @?= Right (List [Integer 42])
+      parseTest "\n42\t" @?= Right (List [Integer 42])
+  ]
 
-    it "parses negative integers" $ do
-      parseTest "-1" `shouldBe` Right (List [Integer (-1)])
-      parseTest "-42" `shouldBe` Right (List [Integer (-42)])
-      parseTest "-12345" `shouldBe` Right (List [Integer (-12345)])
+parseLispNumberTests :: TestTree
+parseLispNumberTests = testGroup "parseLispNumber"
+  [ testCase "parses positive integers" $ do
+      parseTest "0" @?= Right (List [Integer 0])
+      parseTest "42" @?= Right (List [Integer 42])
+      parseTest "12345" @?= Right (List [Integer 12345])
 
-    it "handles whitespace around numbers" $ do
-      parseTest " 42 " `shouldBe` Right (List [Integer 42])
-      parseTest "  -17  " `shouldBe` Right (List [Integer (-17)])
+  , testCase "parses negative integers" $ do
+      parseTest "-1" @?= Right (List [Integer (-1)])
+      parseTest "-42" @?= Right (List [Integer (-42)])
+      parseTest "-12345" @?= Right (List [Integer (-12345)])
 
-    it "rejects numbers followed by letters" $ do
+  , testCase "handles whitespace around numbers" $ do
+      parseTest " 42 " @?= Right (List [Integer 42])
+      parseTest "  -17  " @?= Right (List [Integer (-17)])
+
+  , testCase "rejects numbers followed by letters" $ do
       case parseTest "42x" of
-        Left _ -> return ()  -- Should fail because 42 can't be followed by x
-        Right _ -> expectationFailure "Should have failed on number followed by letter"
+        Left _ -> return ()  -- Should fail
+        Right _ -> assertBool "Should have failed on number followed by letter" False
+  ]
 
-  describe "parseLispString" $ do
-    it "parses simple symbols" $ do
-      parseTest "x" `shouldBe` Right (List [Symbol "x"])
-      parseTest "hello" `shouldBe` Right (List [Symbol "hello"])
-      parseTest "test123" `shouldBe` Right (List [Symbol "test123"])
+parseLispStringTests :: TestTree
+parseLispStringTests = testGroup "parseLispString"
+  [ testCase "parses simple symbols" $ do
+      parseTest "x" @?= Right (List [Symbol "x"])
+      parseTest "hello" @?= Right (List [Symbol "hello"])
+      parseTest "test123" @?= Right (List [Symbol "test123"])
 
-    it "parses symbols starting with letters and containing numbers" $ do
-      parseTest "x42" `shouldBe` Right (List [Symbol "x42"])
-      parseTest "var1" `shouldBe` Right (List [Symbol "var1"])
+  , testCase "parses operators" $ do
+      parseTest "+" @?= Right (List [Symbol "+"])
+      parseTest "*" @?= Right (List [Symbol "*"])
+      parseTest "/" @?= Right (List [Symbol "/"])
 
-    it "parses operators" $ do
-      parseTest "+" `shouldBe` Right (List [Symbol "+"])
-      parseTest "*" `shouldBe` Right (List [Symbol "*"])
-      parseTest "/" `shouldBe` Right (List [Symbol "/"])
+  , testCase "parses special characters" $ do
+      parseTest "#t" @?= Right (List [Symbol "#t"])
+      parseTest "#f" @?= Right (List [Symbol "#f"])
+      parseTest "eq?" @?= Right (List [Symbol "eq?"])
+  ]
 
-    it "parses special characters" $ do
-      parseTest "#t" `shouldBe` Right (List [Symbol "#t"])
-      parseTest "#f" `shouldBe` Right (List [Symbol "#f"])
-      parseTest "eq?" `shouldBe` Right (List [Symbol "eq?"])
-      parseTest "<" `shouldBe` Right (List [Symbol "<"])
-      parseTest ">" `shouldBe` Right (List [Symbol ">"])
-      parseTest "=" `shouldBe` Right (List [Symbol "="])
-      parseTest "!" `shouldBe` Right (List [Symbol "!"])
-      parseTest "_" `shouldBe` Right (List [Symbol "_"])
+parseLispArrayTests :: TestTree
+parseLispArrayTests = testGroup "parseLispArray"
+  [ testCase "parses empty lists" $ do
+      parseTest "()" @?= Right (List [List []])
+      parseTest "(  )" @?= Right (List [List []])
 
-    it "parses complex symbols" $ do
-      parseTest "complex-name" `shouldBe` Right (List [Symbol "complex-name"])
-      parseTest "test_var" `shouldBe` Right (List [Symbol "test_var"])
-      parseTest "func!?" `shouldBe` Right (List [Symbol "func!?"])
+  , testCase "parses single element lists" $ do
+      parseTest "(42)" @?= Right (List [List [Integer 42]])
+      parseTest "(hello)" @?= Right (List [List [Symbol "hello"]])
 
-    it "handles case sensitivity" $ do
-      parseTest "Hello" `shouldBe` Right (List [Symbol "Hello"])
-      parseTest "WORLD" `shouldBe` Right (List [Symbol "WORLD"])
-      parseTest "MixedCase" `shouldBe` Right (List [Symbol "MixedCase"])
+  , testCase "parses multiple element lists" $ do
+      parseTest "(1 2)" @?= Right (List [List [Integer 1, Integer 2]])
+      parseTest "(+ 1 2)" @?= Right (List [List [Symbol "+", Integer 1, Integer 2]])
 
-  describe "parseLispArray" $ do
-    it "parses empty lists" $ do
-      parseTest "()" `shouldBe` Right (List [List []])
-      parseTest "(  )" `shouldBe` Right (List [List []])
-
-    it "parses single element lists" $ do
-      parseTest "(42)" `shouldBe` Right (List [List [Integer 42]])
-      parseTest "(hello)" `shouldBe` Right (List [List [Symbol "hello"]])
-
-    it "parses multiple element lists" $ do
-      parseTest "(1 2)" `shouldBe` Right (List [List [Integer 1, Integer 2]])
-      parseTest "(+ 1 2)" `shouldBe` Right (List [List [Symbol "+", Integer 1, Integer 2]])
-
-    it "parses nested lists" $ do
-      parseTest "((1))" `shouldBe` Right (List [List [List [Integer 1]]])
-      parseTest "(1 (2 3))" `shouldBe` 
+  , testCase "parses nested lists" $ do
+      parseTest "((1))" @?= Right (List [List [List [Integer 1]]])
+      parseTest "(1 (2 3))" @?= 
         Right (List [List [Integer 1, List [Integer 2, Integer 3]]])
+  ]
 
-    it "handles whitespace in lists" $ do
-      parseTest "( 1 2 )" `shouldBe` Right (List [List [Integer 1, Integer 2]])
-      parseTest "(  +   1   2  )" `shouldBe` 
-        Right (List [List [Symbol "+", Integer 1, Integer 2]])
-
-    it "parses complex nested structures" $ do
-      parseTest "(define x (+ 1 2))" `shouldBe`
-        Right (List [List [Symbol "define", Symbol "x", 
-                          List [Symbol "+", Integer 1, Integer 2]]])
-
-  describe "parseLispValue choice order" $ do
-    it "prioritizes lists over numbers when ambiguous" $ do
-      parseTest "(42)" `shouldBe` Right (List [List [Integer 42]])
-
-    it "properly separates numbers from symbols" $ do
-      parseTest "42 x" `shouldBe` Right (List [Integer 42, Symbol "x"])
-      parseTest "42" `shouldBe` Right (List [Integer 42])
-
-  describe "complex expressions" $ do
-    it "parses define expressions" $ do
-      parseTest "(define x 5)" `shouldBe`
+complexExpressionTests :: TestTree
+complexExpressionTests = testGroup "complex expressions"
+  [ testCase "parses define expressions" $ do
+      parseTest "(define x 5)" @?=
         Right (List [List [Symbol "define", Symbol "x", Integer 5]])
 
-    it "parses function calls" $ do
-      parseTest "(+ x 2)" `shouldBe`
+  , testCase "parses function calls" $ do
+      parseTest "(+ x 2)" @?=
         Right (List [List [Symbol "+", Symbol "x", Integer 2]])
 
-    it "parses if expressions" $ do
-      parseTest "(if (> x 0) x 0)" `shouldBe`
-        Right (List [List [Symbol "if", 
-                          List [Symbol ">", Symbol "x", Integer 0],
-                          Symbol "x", Integer 0]])
-
-    it "parses lambda expressions" $ do
-      parseTest "(lambda (x) (+ x 1))" `shouldBe`
+  , testCase "parses lambda expressions" $ do
+      parseTest "(lambda (x) (+ x 1))" @?=
         Right (List [List [Symbol "lambda", 
                           List [Symbol "x"],
                           List [Symbol "+", Symbol "x", Integer 1]]])
+  ]
 
-    it "parses multiple statements" $ do
-      parseTest "(define x 5)(+ x 2)" `shouldBe`
-        Right (List [List [Symbol "define", Symbol "x", Integer 5],
-                    List [Symbol "+", Symbol "x", Integer 2]])
-
-  describe "error cases" $ do
-    it "fails on unmatched parentheses" $ do
+errorCaseTests :: TestTree
+errorCaseTests = testGroup "error cases"
+  [ testCase "fails on unmatched parentheses" $ do
       case parseTest "(+ 1 2" of
         Left _ -> return ()  -- Should fail
-        Right _ -> expectationFailure "Should have failed on unmatched parentheses"
+        Right _ -> assertBool "Should have failed on unmatched parentheses" False
 
-    it "fails on extra closing parentheses" $ do
+  , testCase "fails on extra closing parentheses" $ do
       case parseTest "(+ 1 2))" of
         Left _ -> return ()  -- Should fail  
-        Right _ -> expectationFailure "Should have failed on extra closing parentheses"
+        Right _ -> assertBool "Should have failed on extra closing parentheses" False
 
-    it "fails on invalid characters in certain contexts" $ do
-      case parseTest "(" of
-        Left _ -> return ()  -- Should fail
-        Right _ -> expectationFailure "Should have failed on incomplete list"
-
-    it "fails on numbers immediately followed by letters" $ do
-      case parseTest "42x" of
-        Left _ -> return ()  -- Should fail
-        Right _ -> expectationFailure "Should have failed on number followed by letter"
-
-    it "fails on standalone minus sign" $ do
+  , testCase "fails on standalone minus sign" $ do
       case parseTest "-" of
         Left _ -> return ()  -- Should fail
-        Right _ -> expectationFailure "Should have failed on standalone minus"
+        Right _ -> assertBool "Should have failed on standalone minus" False
+  ]

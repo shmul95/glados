@@ -1,17 +1,18 @@
 import Test.Tasty
-import Test.Tasty.Hspec
 
-import qualified SExprSpec
-import qualified ParserSpec
-import qualified ASTSpec
+import ASTSpec (astTests)
+import ParserSpec (parserTests)
+import SExprSpec (sexprTests)
+import CLISpec (cliTests)
+import LexerSpec (lexerTests)
+import PipelinesSpec (pipelinesTests)
 
 main :: IO ()
-main = do
-  sexprTests <- testSpec "SExpr" SExprSpec.spec
-  parserTests <- testSpec "Parser" ParserSpec.spec
-  astTests <- testSpec "AST" ASTSpec.spec
-  defaultMain $ testGroup "GLaDOS Tests" [
-    sexprTests,
-    parserTests,
-    astTests
-    ]
+main = defaultMain $ testGroup "All Tests"
+  [ astTests
+  , parserTests
+  , sexprTests
+  , cliTests
+  , lexerTests
+  , pipelinesTests
+  ]
