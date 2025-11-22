@@ -11,47 +11,50 @@ module Parser (parseLispDocument,
                 parseLispString,
                 parseLispValue) where
 
-import Text.Parsec
-import Text.Parsec.String (Parser)
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import Data.Void (Void)
 import SExpr (SExpr(..))
+
+type Parser = Parsec Void String
 
 parseLispDocument :: Parser SExpr
 parseLispDocument = do
-    spaces
+    space
     exprs <- many parseLispValue
-    spaces
+    space
     eof
     return (List exprs)
 
 parseLispValue :: Parser SExpr
 parseLispValue = do
-    spaces
+    space
     choice [parseLispArray, parseLispNumber, parseLispString]
 
 parseLispNumber :: Parser SExpr
 parseLispNumber = do
-    spaces
-    sign <- optionMaybe (char '-')
-    digits <- many1 digit
+    space
+    sign <- optional (char '-')
+    digits <- some digitChar
     notFollowedBy (oneOf (['a'..'z'] ++ ['A'..'Z'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']))
-    spaces
     let num = read digits :: Int
+    space
     return $ Integer $ case sign of
         Just _ -> -num
         Nothing -> num
 
 parseLispString :: Parser SExpr
 parseLispString = do
-    spaces
-    word <- many1 (oneOf (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']))
+    space
+    word <- some (oneOf (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']))
     return (Symbol word)
 
 parseLispArray :: Parser SExpr
 parseLispArray = do
-    spaces
+    space
     _ <- char '('
-    spaces
+    space
     exprs <- many parseLispValue
-    spaces
+    space
     _ <- char ')'
     return (List exprs)

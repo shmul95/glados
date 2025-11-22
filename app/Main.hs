@@ -1,12 +1,15 @@
 module Main (main) where
 
+-- import CLI (parseArgs, runCLI)
+-- import Logger (logError)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
-import Text.Parsec (parse)
+import Text.Megaparsec (parse, errorBundlePretty)
 import Parser (parseLispDocument)
 import SExpr (printTree)
 
 main :: IO ()
+-- main = getArgs >>= either logError runCLI . parseArgs
 main = do
     args <- getArgs
     case args of
@@ -16,9 +19,10 @@ main = do
         (input:_) -> do
             case parse parseLispDocument "" input of
                 Left err -> do
-                    hPutStrLn stderr $ "Parse error: " ++ show err
+                    hPutStrLn stderr $ "Parse error: " ++ errorBundlePretty err
                     return ()
                 Right sexpr -> do
                     case printTree sexpr of
                         Just output -> putStrLn output
                         Nothing -> putStrLn "Error: Could not print tree"
+

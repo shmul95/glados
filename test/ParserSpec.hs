@@ -3,14 +3,14 @@
 module ParserSpec (spec) where
 
 import Test.Hspec
-import Text.Parsec (parse)
+import Text.Megaparsec (parse, errorBundlePretty)
 import Parser
 import SExpr
 
 -- Helper function to test parsing
 parseTest :: String -> Either String SExpr
 parseTest input = case parse parseLispDocument "" input of
-  Left err -> Left (show err)
+  Left err -> Left (errorBundlePretty err)
   Right result -> Right result
 
 spec :: Spec

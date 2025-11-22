@@ -56,18 +56,20 @@ floatLitParser = try $ do
 
   return $ mkLiteralConstructor (LitFloat num) val
 
-boolLitParser :: Parser (Int -> Int -> Token)
-boolLitParser =
-  choice
-    [ mkBoolParser True "true",
-      mkBoolParser False "false"
-    ]
-  where
-    mkBoolParser b str = try $ do
-      void $ string str
-      notFollowedBy (alphaNumChar <|> char '_')
+trueLitParser :: Parser (Int -> Int -> Token)
+trueLitParser = try $ do
+  void $ string "true"
+  notFollowedBy (alphaNumChar <|> char '_')
+  return $ mkLiteralConstructor (LitBool True) "true"
 
-      return $ mkLiteralConstructor (LitBool b) str
+falseLitParser :: Parser (Int -> Int -> Token)
+falseLitParser = try $ do
+  void $ string "false"
+  notFollowedBy (alphaNumChar <|> char '_')
+  return $ mkLiteralConstructor (LitBool False) "false"
+
+boolLitParser :: Parser (Int -> Int -> Token)
+boolLitParser = choice [trueLitParser, falseLitParser]
 
 stringLitParser :: Parser (Int -> Int -> Token)
 stringLitParser = do
