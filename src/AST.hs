@@ -11,7 +11,10 @@ module AST (
     handleCall,
     handleString,
     evalAST,
-    evalASTWithEnv
+    evalASTWithEnv,
+    extractInteger,
+    extractString,
+    compEnv
 ) where
 
 import SExpr (SExpr(..))
@@ -84,11 +87,12 @@ handleString :: Environment -> String -> Maybe Ast
 handleString _ "#t" = Just (AstBoolean True)
 handleString _ "#f" = Just (AstBoolean False)
 handleString env s = case compEnv env s of
+handleString env s = case compEnv env s of
     Just value -> evalAST env value
     _          -> Just (AstSymbol s)
 
 handleCall :: Environment -> String -> [Ast] -> Maybe Ast
-handleCall env op (x:y:_) | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] = do
+handleCall env op [x, y] | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] = do
     a <- extractInteger env x
     b <- extractInteger env y
     case op of
@@ -99,7 +103,7 @@ handleCall env op (x:y:_) | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] 
         "mod" -> if b /= 0 then Just (AstInteger (a `mod` b)) else Nothing
         "eq?" -> Just (AstBoolean (a == b))
         "<" -> Just (AstBoolean (a < b))
-        _   -> Nothing
+        _ -> Nothing
 handleCall _ _ _ = Nothing
 
 handleCondition :: Environment -> Ast -> Ast -> Ast -> Maybe Ast
@@ -130,9 +134,9 @@ evalASTWithEnv env (expr:exprs) =
 evalAST :: Environment -> Ast -> Maybe Ast
 evalAST env (Define _ _) = Just (AstSymbol "")
 evalAST env (Call func args) = handleCall env func args
-evalAST env (AstInteger n) = Just (AstInteger n)
+evalAST _ (AstInteger n) = Just (AstInteger n)
 evalAST env (AstSymbol s) = handleString env s
-evalAST env (AstBoolean b) = Just (AstBoolean b)
+evalAST _ (AstBoolean b) = Just (AstBoolean b)
 evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
 evalAST env (Lambda params body _) = Just (Lambda params body env)
 evalAST env (AstList []) = Just (AstList [])

@@ -5,34 +5,56 @@
 -- Parser.hs
 -}
 
-module Parser (parseLispDocument) where
+module Parser (parseLispDocument,
+                parseLispArray,
+                parseLispNumber,
+                parseLispString,
+                parseLispValue) where
 
-import ParserLib
-    ( parseChar
-    , parseSpaces
-    , parseMany
-    , parseSome
-    , parseWord
-    , parseInt
-    )
-
-import Type (Parser (..), (<|>))
+import Text.Megaparsec
+import Text.Megaparsec.Char
+import Data.Void (Void)
 import SExpr (SExpr(..))
 
+type Parser = Parsec Void String
+
 parseLispDocument :: Parser SExpr
-parseLispDocument = List <$> parseMany parseLispValue
+parseLispDocument = do
+    space
+    exprs <- many parseLispValue
+    space
+    eof
+    return (List exprs)
 
 parseLispValue :: Parser SExpr
-parseLispValue =
-        parseLispArray
-    <|> parseLispNumber
-    <|> parseLispString
+parseLispValue = do
+    space
+    choice [parseLispArray, parseLispNumber, parseLispString]
 
 parseLispNumber :: Parser SExpr
-parseLispNumber = Integer <$> (parseSpaces *> parseInt)
+parseLispNumber = do
+    space
+    sign <- optional (char '-')
+    digits <- some digitChar
+    notFollowedBy (oneOf (['a'..'z'] ++ ['A'..'Z'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']))
+    let num = read digits :: Int
+    space
+    return $ Integer $ case sign of
+        Just _ -> -num
+        Nothing -> num
 
 parseLispString :: Parser SExpr
-parseLispString = Symbol <$> (parseSpaces *> parseWord)
+parseLispString = do
+    space
+    word <- some (oneOf (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']))
+    return (Symbol word)
 
 parseLispArray :: Parser SExpr
-parseLispArray = List <$> (parseSpaces *> parseChar '(' *> parseMany parseLispValue <* parseChar ')')
+parseLispArray = do
+    space
+    _ <- char '('
+    space
+    exprs <- many parseLispValue
+    space
+    _ <- char ')'
+    return (List exprs)

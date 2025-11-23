@@ -1,8 +1,18 @@
-import ParserLibSpec (spec)
 import Test.Tasty
 
-main :: IO ()
-main = defaultMain tests
+import ASTSpec (astTests)
+import ParserSpec (parserTests)
+import SExprSpec (sexprTests)
+import CLISpec (cliTests)
+import LexerSpec (lexerTests)
+import PipelinesSpec (pipelinesTests)
 
-tests :: TestTree
-tests = testGroup "ParserLib Tests" [ParserLibSpec.spec]
+main :: IO ()
+main = defaultMain $ testGroup "All Tests"
+  [ astTests
+  , parserTests
+  , sexprTests
+  , cliTests
+  , lexerTests
+  , pipelinesTests
+  ]

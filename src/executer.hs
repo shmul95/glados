@@ -12,12 +12,11 @@ module Executer (
 import AST (Ast(..), evalAST, sexprToAST)
 import SExpr (SExpr)
 import Parser (parseLispDocument)
-import Type (Parser (..))
-
-
+import Text.Parsec (parse)
 
 executeLisp :: String -> Maybe Ast
-executeLisp input = do
-    (sexpr, _) <- runParser parseLispDocument input
-    ast <- sexprToAST sexpr
-    evalAST [] ast
+executeLisp input = case parse parseLispDocument "" input of
+        Left _ -> Nothing
+        Right sexpr -> do
+            ast <- sexprToAST sexpr
+            evalAST [] ast
