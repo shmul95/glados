@@ -9,14 +9,14 @@ This module takes the parsed S-expressions from our Lisp code and converts them 
 Our AST can represent different kinds of Lisp expressions:
 
 ```haskell
-data Ast = Define Ast Ast          -- (define x 5)
-    | Call String [Ast]            -- (+ 1 2)
-    | Lambda [Ast] Ast             -- (lambda (x) (* x x))
-    | If Ast Ast Ast               -- (if #t x 0)
-    | AstInteger Int               -- 42
-    | AstSymbol String             -- x, foo, +
-    | AstBoolean Bool              -- #t, #f
-    | AstList [Ast]                -- lists and programs
+data Ast = Define String Ast          -- (define x 5)
+    | Call String [Ast]               -- (+ 1 2)
+    | Lambda [String] Ast Environment -- (lambda (x) (* x x))
+    | If Ast Ast Ast                  -- (if #t x 0)
+    | AstInteger Int                  -- 42
+    | AstSymbol String                -- x, foo, +
+    | AstBoolean Bool                 -- #t, #f
+    | AstList [Ast]                   -- lists and programs
 ```
 
 Each constructor handles a specific type of expression:
@@ -40,21 +40,35 @@ sexprToAST (Symbol s)  = Just (AstSymbol s)
 
 ### Special forms
 
-**Variable definitions** need exactly 3 parts: `(define variable value)`
+**Variable definitions** can take two forms:
+
+1. Simple variable definition: `(define variable value)`
 ```haskell
-sexprToAST (List [Symbol "define", varName, valueExpr]) = do
+sexprToAST (List [Symbol "define", Symbol s, valueExpr]) = do
     astValue <- sexprToAST valueExpr
-    astVarName <- sexprToAST varName
-    Just (Define astVarName astValue)
+    Just (Define s astValue)
+```
+
+2. Function definition (syntactic sugar): `(define (funcName param1 param2) body)`
+```haskell
+sexprToAST (List [Symbol "define", List (Symbol funcName : params), body]) = do
+    astBody <- sexprToAST body
+    paramNames <- mapM extractParam params
+    Just (Define funcName (Lambda paramNames astBody []))
 ```
 
 **Lambda functions** expect: `(lambda (param1 param2 ...) body)`
 ```haskell
 sexprToAST (List [Symbol "lambda", List args, body]) = do
     astValue <- sexprToAST body
-    astArgs <- mapM sexprToAST args
-    Just (Lambda astArgs astValue)
+    let extractParam se = case se of
+            Symbol s -> Just s
+            _ -> Nothing
+    astArgs <- mapM extractParam args
+    Just (Lambda astArgs astValue [])
 ```
+
+Note: Lambda captures the current environment as a closure for proper lexical scoping.
 
 **Function calls** are detected by looking at the first symbol. If it's one of our built-in operators (`+`, `-`, `*`, etc.), we create a `Call`. Otherwise, it becomes a generic list.
 
@@ -64,12 +78,12 @@ sexprToAST (List [Symbol "lambda", List args, body]) = do
 
 We keep track of variables using a simple list of pairs:
 ```haskell
-type Environment = [(Ast, Ast)]
+type Environment = [(String, Ast)]
 ```
 
 So after running `(define x 5)(define y 10)`, our environment looks like:
 ```haskell
-[(AstSymbol "x", AstInteger 5), (AstSymbol "y", AstInteger 10)]
+[("x", AstInteger 5), ("y", AstInteger 10)]
 ```
 
 ### The main evaluator
@@ -83,6 +97,14 @@ So after running `(define x 5)(define y 10)`, our environment looks like:
 **Function calls** like `(+ 1 2)` get handled by `handleCall`, which do arithmetic and comparisons with arguments.
 
 **If statements** evaluate the condition first, then pick the right branch based on whether it's true or false.
+
+**Lambda evaluation** is handled specially. When a lambda is called:
+1. The function's arguments are evaluated
+2. Parameters are bound to the evaluated arguments
+3. A new environment is created by combining the bindings with the lambda's closure environment
+4. The body is evaluated in this new environment
+
+This ensures proper lexical scoping and closure behavior.
 
 ### Arithmetic and comparisons
 
@@ -105,3 +127,12 @@ Here's what happens with `(define x 5)(+ x 2)`:
 2. Process `(define x 5)`: evaluate `5`, add `x → 5` to environment
 3. Process `(+ x 2)`: look up `x` (gets `5`), compute `5 + 2 = 7`
 4. Return `7`
+
+### Helper functions
+
+The module exports several helper functions:
+- `compEnv :: Environment -> String -> Maybe Ast` - looks up a variable in the environment
+- `extractInteger :: Environment -> Ast -> Maybe Int` - evaluates an AST and extracts an integer value
+- `handleString :: Environment -> String -> Maybe Ast` - handles string symbols and boolean literals (#t, #f)
+- `handleCall :: Environment -> String -> [Ast] -> Maybe Ast` - handles built-in function calls
+- `handleCondition :: Environment -> Ast -> Ast -> Ast -> Maybe Ast` - evaluates if expressions (internal helper)

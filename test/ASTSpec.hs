@@ -11,7 +11,6 @@ astTests :: TestTree
 astTests = testGroup "AST Tests"
   [ astDataConstructorTests
   , sexprToASTTests
-  , extractStringTests
   , compEnvTests
   , extractIntegerTests
   , handleStringTests
@@ -25,14 +24,14 @@ astTests = testGroup "AST Tests"
 astDataConstructorTests :: TestTree
 astDataConstructorTests = testGroup "Ast data constructors"
   [ testCase "creates all Ast types" $ do
-      let define = Define (AstSymbol "x") (AstInteger 5)
+      let define = Define "x" (AstInteger 5)
       let call = Call "+" [AstInteger 1, AstInteger 2]
-      let lambda = Lambda [AstSymbol "x"] (AstInteger 1)
+      let lambda = Lambda ["x"] (AstInteger 1) []
       let ifExpr = If (AstBoolean True) (AstInteger 1) (AstInteger 0)
 
-      define @?= Define (AstSymbol "x") (AstInteger 5)
+      define @?= Define "x" (AstInteger 5)
       call @?= Call "+" [AstInteger 1, AstInteger 2]
-      lambda @?= Lambda [AstSymbol "x"] (AstInteger 1)
+      lambda @?= Lambda ["x"] (AstInteger 1) []
       ifExpr @?= If (AstBoolean True) (AstInteger 1) (AstInteger 0)
   ]
 
@@ -50,7 +49,7 @@ sexprToASTTests = testGroup "sexprToAST"
 
   , testCase "converts define expressions" $ do
       let sexpr = List [Symbol "define", Symbol "x", Integer 5]
-      sexprToAST sexpr @?= Just (Define (AstSymbol "x") (AstInteger 5))
+      sexprToAST sexpr @?= Just (Define "x" (AstInteger 5))
 
   , testCase "rejects malformed define expressions" $ do
       sexprToAST (List [Symbol "define"]) @?= Nothing
@@ -59,12 +58,12 @@ sexprToASTTests = testGroup "sexprToAST"
 
   , testCase "converts lambda expressions" $ do
       let sexpr = List [Symbol "lambda", List [Symbol "x"], Integer 1]
-      sexprToAST sexpr @?= Just (Lambda [AstSymbol "x"] (AstInteger 1))
+      sexprToAST sexpr @?= Just (Lambda ["x"] (AstInteger 1) [])
 
       let sexpr2 = List [Symbol "lambda", List [Symbol "x", Symbol "y"],
                         List [Symbol "+", Symbol "x", Symbol "y"]]
-      sexprToAST sexpr2 @?= Just (Lambda [AstSymbol "x", AstSymbol "y"]
-                    (Call "+" [AstSymbol "x", AstSymbol "y"]))
+      sexprToAST sexpr2 @?= Just (Lambda ["x", "y"]
+                    (Call "+" [AstSymbol "x", AstSymbol "y"]) [])
 
   , testCase "rejects malformed lambda expressions" $ do
       sexprToAST (List [Symbol "lambda"]) @?= Nothing
@@ -92,28 +91,29 @@ sexprToASTTests = testGroup "sexprToAST"
   , testCase "converts regular lists" $ do
       let sexpr = List [Integer 1, Integer 2, Integer 3]
       sexprToAST sexpr @?= Just (AstList [AstInteger 1, AstInteger 2, AstInteger 3])
-  ]
 
-extractStringTests :: TestTree
-extractStringTests = testGroup "extractString"
-  [ testCase "extracts string from AstSymbol" $ do
-      extractString (AstSymbol "test") @?= Just "test"
-      extractString (AstSymbol "") @?= Just ""
+  , testCase "converts named function definitions (easy to read)" $ do
+      let sexpr = List [Symbol "define", List [Symbol "square", Symbol "x"],
+                        List [Symbol "*", Symbol "x", Symbol "x"]]
+      sexprToAST sexpr @?= Just (Define "square" (Lambda ["x"]
+                    (Call "*" [AstSymbol "x", AstSymbol "x"]) []))
 
-  , testCase "returns Nothing for non-symbols" $ do
-      extractString (AstInteger 42) @?= Nothing
-      extractString (AstBoolean True) @?= Nothing
+  , testCase "converts named function with multiple parameters" $ do
+      let sexpr = List [Symbol "define", List [Symbol "add", Symbol "x", Symbol "y"],
+                        List [Symbol "+", Symbol "x", Symbol "y"]]
+      sexprToAST sexpr @?= Just (Define "add" (Lambda ["x", "y"]
+                    (Call "+" [AstSymbol "x", AstSymbol "y"]) []))
   ]
 
 compEnvTests :: TestTree
 compEnvTests = testGroup "compEnv"
   [ testCase "finds variables in environment" $ do
-      let env = [(AstSymbol "x", AstInteger 5), (AstSymbol "y", AstInteger 10)]
+      let env = [("x", AstInteger 5), ("y", AstInteger 10)]
       compEnv env "x" @?= Just (AstInteger 5)
       compEnv env "y" @?= Just (AstInteger 10)
 
   , testCase "returns Nothing for non-existent variables" $ do
-      let env = [(AstSymbol "x", AstInteger 5)]
+      let env = [("x", AstInteger 5)]
       compEnv env "z" @?= Nothing
 
   , testCase "returns Nothing for empty environment" $ do
@@ -128,7 +128,7 @@ extractIntegerTests = testGroup "extractInteger"
       extractInteger env (AstInteger 0) @?= Just 0
 
   , testCase "extracts integers from variables in environment" $ do
-      let env = [(AstSymbol "x", AstInteger 5)]
+      let env = [("x", AstInteger 5)]
       extractInteger env (AstSymbol "x") @?= Just 5
 
   , testCase "returns Nothing for non-integer values" $ do
@@ -145,7 +145,7 @@ handleStringTests = testGroup "handleString"
       handleString env "#f" @?= Just (AstBoolean False)
 
   , testCase "looks up variables in environment" $ do
-      let env = [(AstSymbol "x", AstInteger 5)]
+      let env = [("x", AstInteger 5)]
       handleString env "x" @?= Just (AstInteger 5)
 
   , testCase "returns symbol for undefined variables" $ do
@@ -200,7 +200,7 @@ handleCallTests = testGroup "handleCall"
       handleCall env "<" [AstInteger 5, AstInteger 3] @?= Just (AstBoolean False)
 
   , testCase "works with variables from environment" $ do
-      let env = [(AstSymbol "x", AstInteger 10), (AstSymbol "y", AstInteger 3)]
+      let env = [("x", AstInteger 10), ("y", AstInteger 3)]
       handleCall env "+" [AstSymbol "x", AstSymbol "y"] @?= Just (AstInteger 13)
       handleCall env "<" [AstSymbol "y", AstSymbol "x"] @?= Just (AstBoolean True)
 
@@ -224,7 +224,7 @@ evalASTTests = testGroup "evalAST"
       evalAST env (AstBoolean False) @?= Just (AstBoolean False)
 
   , testCase "evaluates symbols" $ do
-      let env = [(AstSymbol "x", AstInteger 5)]
+      let env = [("x", AstInteger 5)]
       evalAST env (AstSymbol "x") @?= Just (AstInteger 5)
       evalAST env (AstSymbol "#t") @?= Just (AstBoolean True)
 
@@ -239,12 +239,12 @@ evalASTTests = testGroup "evalAST"
 
   , testCase "evaluates lambda expressions" $ do
       let env = []
-      let lambda = Lambda [AstSymbol "x"] (AstInteger 1)
+      let lambda = Lambda ["x"] (AstInteger 1) []
       evalAST env lambda @?= Just lambda
 
   , testCase "evaluates define expressions" $ do
       let env = []
-      evalAST env (Define (AstSymbol "x") (AstInteger 5)) @?= Just (AstSymbol "")
+      evalAST env (Define "x" (AstInteger 5)) @?= Just (AstSymbol "")
 
   , testCase "evaluates empty lists" $ do
       let env = []
@@ -257,6 +257,26 @@ evalASTTests = testGroup "evalAST"
   , testCase "evaluates function calls in lists" $ do
       let env = []
       evalAST env (AstList [AstSymbol "+", AstInteger 1, AstInteger 2]) @?= Just (AstInteger 3)
+
+  , testCase "evaluates lambda application with single argument" $ do
+      let env = []
+      let lambda = Lambda ["x"] (Call "*" [AstSymbol "x", AstInteger 2]) []
+      evalAST env (AstList [lambda, AstInteger 5]) @?= Just (AstInteger 10)
+
+  , testCase "evaluates lambda application with multiple arguments" $ do
+      let env = []
+      let lambda = Lambda ["x", "y"] (Call "+" [AstSymbol "x", AstSymbol "y"]) []
+      evalAST env (AstList [lambda, AstInteger 3, AstInteger 7]) @?= Just (AstInteger 10)
+
+  , testCase "evaluates lambda with closure" $ do
+      let env = [("z", AstInteger 10)]
+      let lambda = Lambda ["x"] (Call "+" [AstSymbol "x", AstSymbol "z"]) env
+      evalAST [] (AstList [lambda, AstInteger 5]) @?= Just (AstInteger 15)
+
+  , testCase "rejects lambda application with wrong number of arguments" $ do
+      let env = []
+      let lambda = Lambda ["x", "y"] (Call "+" [AstSymbol "x", AstSymbol "y"]) []
+      evalAST env (AstList [lambda, AstInteger 5]) @?= Nothing
   ]
 
 evalASTWithEnvTests :: TestTree
@@ -268,14 +288,36 @@ evalASTWithEnvTests = testGroup "evalASTWithEnv"
       evalASTWithEnv [] [AstInteger 42] @?= Just (AstInteger 42)
 
   , testCase "handles define statements" $ do
-      let exprs = [Define (AstSymbol "x") (AstInteger 5), AstSymbol "x"]
+      let exprs = [Define "x" (AstInteger 5), AstSymbol "x"]
       evalASTWithEnv [] exprs @?= Just (AstInteger 5)
 
   , testCase "handles multiple defines" $ do
-      let exprs = [Define (AstSymbol "x") (AstInteger 5),
-                  Define (AstSymbol "y") (AstInteger 10),
+      let exprs = [Define "x" (AstInteger 5),
+                  Define "y" (AstInteger 10),
                   Call "+" [AstSymbol "x", AstSymbol "y"]]
       evalASTWithEnv [] exprs @?= Just (AstInteger 15)
+
+  , testCase "handles named function definition and call" $ do
+      let exprs = [Define "double" (Lambda ["x"] (Call "*" [AstSymbol "x", AstInteger 2]) []),
+                  AstList [AstSymbol "double", AstInteger 5]]
+      evalASTWithEnv [] exprs @?= Just (AstInteger 10)
+
+  , testCase "handles named function with multiple parameters" $ do
+      let exprs = [Define "add" (Lambda ["x", "y"] (Call "+" [AstSymbol "x", AstSymbol "y"]) []),
+                  AstList [AstSymbol "add", AstInteger 3, AstInteger 7]]
+      evalASTWithEnv [] exprs @?= Just (AstInteger 10)
+
+  , testCase "handles closure capturing environment" $ do
+      let exprs = [Define "x" (AstInteger 5),
+                  Define "addX" (Lambda ["y"] (Call "+" [AstSymbol "x", AstSymbol "y"]) []),
+                  AstList [AstSymbol "addX", AstInteger 3]]
+      evalASTWithEnv [] exprs @?= Just (AstInteger 8)
+
+  , testCase "handles nested lambda calls" $ do
+      let exprs = [Define "makeAdder" (Lambda ["x"] (Lambda ["y"] (Call "+" [AstSymbol "x", AstSymbol "y"]) []) []),
+                  Define "add5" (AstList [AstSymbol "makeAdder", AstInteger 5]),
+                  AstList [AstSymbol "add5", AstInteger 3]]
+      evalASTWithEnv [] exprs @?= Just (AstInteger 8)
   ]
 
 showInstanceTests :: TestTree

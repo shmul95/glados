@@ -13,7 +13,6 @@ module AST (
     evalAST,
     evalASTWithEnv,
     extractInteger,
-    extractString,
     compEnv
 ) where
 
