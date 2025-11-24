@@ -4,6 +4,7 @@ module Rune.AST.ParserHelper
     peek,
     advance,
     expect,
+    expectIdent,
     check,
     match,
     try,
@@ -78,7 +79,12 @@ expect kind = do
   advance
   pure t
 
--- -}
+expectIdent :: String -> Parser ()
+expectIdent name = do
+  t <- peek
+  case T.tokenKind t of
+    T.Identifier s | s == name -> advance
+    _ -> failParse $ "Expected identifier: " ++ name
 
 -- | check if current token matches kind
 check :: T.TokenKind -> Parser Bool
