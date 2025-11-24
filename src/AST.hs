@@ -39,12 +39,11 @@ sexprToAST (List [Symbol "define", List (Symbol funcName : params), body]) = do
             Symbol s -> Just s
             _ -> Nothing
     paramNames <- mapM extractParam params
-    Just (Define funcName (Lambda paramNames astBody []))
-sexprToAST (List [Symbol "define", varName, valueExpr]) = do
+    let lambda = Lambda paramNames astBody []
+    Just (Define funcName lambda)
+sexprToAST (List [Symbol "define", Symbol varName, valueExpr]) = do
     astValue <- sexprToAST valueExpr
-    case varName of
-        Symbol s -> Just (Define s astValue)
-        _ -> Nothing
+    Just (Define varName astValue)
 sexprToAST (List (Symbol "define" : _)) = Nothing
 sexprToAST (List [Symbol "lambda", List args, body]) = do
     astValue <- sexprToAST body
@@ -114,17 +113,15 @@ handleCondition env c t e = do
 
 evalASTWithEnv :: Environment -> [Ast] -> Maybe Ast
 evalASTWithEnv _ [] = Nothing
-evalASTWithEnv env [expr] =
-    case evalAST env expr of
-        Just result -> Just result
-        Nothing -> Nothing
-evalASTWithEnv env ((Define varName value):exprs) =
-        case evalAST env value of
-            Just evaluatedValue ->
-                let newEnv = (varName, evaluatedValue) : env
-                in evalASTWithEnv newEnv exprs
-            Nothing -> Nothing
-evalASTWithEnv env (expr:exprs) = evalASTWithEnv env exprs
+evalASTWithEnv env [expr] = evalAST env expr
+evalASTWithEnv env (Define varName value : exprs) = do
+    evaluatedValue <- evalAST env value
+    let newEnv = (varName, evaluatedValue) : env
+    evalASTWithEnv newEnv exprs
+
+evalASTWithEnv env (expr : exprs) = do
+    _ <- evalAST env expr
+    evalASTWithEnv env exprs
 
 evalAST :: Environment -> Ast -> Maybe Ast
 evalAST _ (Define _ _) = Just (AstSymbol "")
@@ -133,19 +130,34 @@ evalAST _ (AstInteger n) = Just (AstInteger n)
 evalAST env (AstSymbol s) = handleString env s
 evalAST _ (AstBoolean b) = Just (AstBoolean b)
 evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
-evalAST env (Lambda params body closureEnv) = Just (Lambda params body (if null closureEnv then env else closureEnv))
+evalAST env (Lambda params body closureEnv) =
+    Just (Lambda params body (if null closureEnv then env else closureEnv))
 evalAST _ (AstList []) = Just (AstList [])
 evalAST env (AstList [expr]) = evalAST env expr
-evalAST env (AstList (func:args)) = do
+evalAST env (AstList (AstSymbol funcName : args)) =
+    case compEnv env funcName of
+        Just (Lambda params body closureEnv) -> do
+            evaluatedArgs <- mapM (evalAST env) args
+            if length params /= length evaluatedArgs
+                then Nothing
+                else do
+                    let bindings = zip params evaluatedArgs
+                    let recursiveEnv = (funcName, Lambda params body closureEnv) : bindings ++ closureEnv ++ env
+                    evalAST recursiveEnv body
+        _ -> case funcName of
+            op | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] ->
+                handleCall env op args
+            _ -> Nothing
+
+evalAST env (AstList (func : args)) = do
     evaluatedFunc <- evalAST env func
     case evaluatedFunc of
-        AstSymbol op | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] ->
-            handleCall env op args
         Lambda params body closureEnv -> do
             evaluatedArgs <- mapM (evalAST env) args
-            if length params /= length evaluatedArgs then Nothing
-            else do
-                let bindings = zip params evaluatedArgs
-                let newEnv = bindings ++ closureEnv
-                evalAST newEnv body
-        _ -> evalASTWithEnv env (func:args)
+            if length params /= length evaluatedArgs
+                then Nothing
+                else do
+                    let bindings = zip params evaluatedArgs
+                    let newEnv = bindings ++ closureEnv
+                    evalAST newEnv body
+        _ -> evalASTWithEnv env (func : args)

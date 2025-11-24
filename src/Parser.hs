@@ -30,28 +30,27 @@ parseLispValue :: Parser SExpr
 parseLispValue = do
     space
     choice [parseLispArray, parseLispNumber, parseLispString]
+    <* space
 
 parseLispNumber :: Parser SExpr
-parseLispNumber = do
-    space
+parseLispNumber = try $ do
     sign <- optional (char '-')
     digits <- some digitChar
-    notFollowedBy (oneOf (['a'..'z'] ++ ['A'..'Z'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']))
+    notFollowedBy (alphaNumChar <|> oneOf "!?_-+*/=<>#")
     let num = read digits :: Int
-    space
     return $ Integer $ case sign of
         Just _ -> -num
         Nothing -> num
 
 parseLispString :: Parser SExpr
 parseLispString = do
-    space
-    word <- some (oneOf (['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9'] ++ ['#', '<', '-', '+', '*', '/', '_', '=', '>', '!', '?']))
+    first <- letterChar <|> oneOf "!?_-+*/=<>#"
+    rest <- many (alphaNumChar <|> oneOf "!?_-+*/=<>#")
+    let word = first : rest
     return (Symbol word)
 
 parseLispArray :: Parser SExpr
 parseLispArray = do
-    space
     _ <- char '('
     space
     exprs <- many parseLispValue
