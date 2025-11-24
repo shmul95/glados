@@ -9,16 +9,16 @@ import SExpr
 
 astTests :: TestTree
 astTests = testGroup "AST Tests"
-  [ astDataConstructorTests
-  , sexprToASTTests
-  , compEnvTests
-  , extractIntegerTests
-  , handleStringTests
-  , handleCallTests
-  , evalASTTests
-  , evalASTWithEnvTests
-  , showInstanceTests
-  , eqInstanceTests
+  [ astDataConstructorTests,
+    sexprToASTTests,
+    compEnvTests,
+    extractIntegerTests,
+    handleStringTests,
+    handleCallTests,
+    evalASTTests,
+    evalASTWithEnvTests,
+    showInstanceTests,
+    eqInstanceTests
   ]
 
 astDataConstructorTests :: TestTree
