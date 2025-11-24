@@ -6,7 +6,8 @@
 -}
 
 module Executor (
-    executeLisp
+    executeLisp,
+    astToString
 ) where
 
 import AST (Ast(..), evalAST, sexprToAST)
@@ -23,9 +24,10 @@ executeLisp input = case parse parseLispDocument "" input of
                     Nothing -> Left "Evaluation error"
                     Just result -> Right result
 
--- AstInteger n -> show n
--- AstBoolean True -> "#t"
--- AstBoolean False -> "#f"
--- AstSymbol s -> s
--- AstLambda _ _ _ -> "#\<procedure\>"
--- _ -> ""
+astToString :: Ast -> String
+astToString (AstInteger n) = show n
+astToString (AstBoolean True) = "#t"
+astToString (AstBoolean False) = "#f"
+astToString (AstSymbol s) = s
+astToString (Lambda _ _ _) = "#<procedure>"
+astToString _ = ""
