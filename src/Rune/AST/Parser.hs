@@ -58,18 +58,19 @@ parseTopLevelDef = do
     _ -> failParse "Expected top-level definition (def, struct, override)"
 
 parseFunction :: Parser TopLevelDef
-parseFunction =
-  DefFunction
-    <$> (expect T.KwDef *> parseIdentifier)
-    <*> parseParams
-    <*> parseReturnType
-    <*> parseBlock
+parseFunction = do
+  _ <- expect T.KwDef
+  name <- parseIdentifier
+  params <- withContext ("parameters of function '" ++ name ++ "'") parseParams
+  retType <- withContext ("return type of function '" ++ name ++ "'") parseReturnType
+  body <- withContext ("body of function '" ++ name ++ "'") parseBlock
+  pure $ DefFunction name params retType body
 
 parseStruct :: Parser TopLevelDef
 parseStruct = do
   name <- expect T.KwStruct *> parseIdentifier
   _ <- expect T.LBrace
-  (fields, methods) <- parseStructBody
+  (fields, methods) <- withContext ("body of struct '" ++ name ++ "'") parseStructBody
   pure $ DefStruct name fields methods
 
 parseStructBody :: Parser ([Field], [TopLevelDef])
@@ -96,12 +97,13 @@ parseStructItem = do
     _ -> failParse "Expected struct field or method"
 
 parseOverride :: Parser TopLevelDef
-parseOverride =
-  DefOverride
-    <$> (expect T.KwOverride *> expect T.KwDef *> parseIdentifier)
-    <*> parseParams
-    <*> parseReturnType
-    <*> parseBlock
+parseOverride = do
+  _ <- expect T.KwOverride *> expect T.KwDef
+  name <- parseIdentifier
+  params <- withContext ("parameters of override '" ++ name ++ "'") parseParams
+  retType <- withContext ("return type of override '" ++ name ++ "'") parseReturnType
+  body <- withContext ("body of override '" ++ name ++ "'") parseBlock
+  pure $ DefOverride name params retType body
 
 parseParams :: Parser [Parameter]
 parseParams = between (expect T.LParen) (expect T.RParen) (sepBy parseParameter (expect T.Comma))
@@ -118,7 +120,7 @@ parseTypedParam =
   Parameter
     <$> parseIdentifier
     <*> (expect T.Colon *> parseType)
-      <|> failParse "Expected typed parameter"
+      <|> failParse "Expected typed parameter (name: type)"
 
 parseReturnType :: Parser Type
 parseReturnType =
@@ -157,15 +159,15 @@ parseStatement = do
 parseReturn :: Parser Statement
 parseReturn =
   expect T.KwReturn
-    *> (StmtReturn <$> optional parseExpression)
+    *> (StmtReturn <$> optional (withContext "return value" parseExpression))
     <* expect T.Semicolon
 
 parseIf :: Parser Statement
 parseIf =
   StmtIf
-    <$> (expect T.KwIf *> parseExpression)
-    <*> parseBlock
-    <*> optional (expect T.KwElse *> (parseBlock <|> (pure <$> parseIf)))
+    <$> (expect T.KwIf *> withContext "if condition" parseExpression)
+    <*> withContext "if block" parseBlock
+    <*> optional (expect T.KwElse *> (withContext "else block" (parseBlock <|> (pure <$> parseIf))))
 
 parseFor :: Parser Statement
 parseFor = do
@@ -176,16 +178,16 @@ parseForRange :: Parser Statement
 parseForRange =
   StmtFor
     <$> parseIdentifier
-    <*> (expect T.OpAssign *> parseExpression)
-    <*> (expect T.KwTo *> parseExpression)
-    <*> parseBlock
+    <*> (expect T.OpAssign *> withContext "start index" parseExpression)
+    <*> (expect T.KwTo *> withContext "end index" parseExpression)
+    <*> withContext "for block" parseBlock
 
 parseForEach :: Parser Statement
 parseForEach =
   StmtForEach
     <$> parseIdentifier
-    <*> (expect T.KwIn *> parseExpression)
-    <*> parseBlock
+    <*> (expect T.KwIn *> withContext "iterable expression" parseExpression)
+    <*> withContext "for-each block" parseBlock
 
 parseVarDeclOrExpr :: Parser Statement
 parseVarDeclOrExpr = do
@@ -210,7 +212,7 @@ parseVarDecl =
     <$> parseIdentifier
     <*> optional (expect T.Colon *> parseType)
     <* expect T.OpAssign
-    <*> parseExpression
+    <*> withContext "assigned value" parseExpression
     <* expect T.Semicolon
 
 parseExprStmt :: Parser Statement
@@ -223,7 +225,7 @@ parseExprStmt = do
         if isEnd
           then pure (StmtReturn (Just expr))
           else empty,
-      failParse "Expected ';' after expression or implicit return at block end"
+      failParse "Expected ';' after expression"
     ]
 
 --
@@ -281,7 +283,7 @@ parsePostfix = chainPostfix parsePrimary op
     op =
       choice
         [ do
-            args <- between (expect T.LParen) (expect T.RParen) (sepBy parseExpression (expect T.Comma))
+            args <- between (expect T.LParen) (expect T.RParen) (sepBy (withContext "argument" parseExpression) (expect T.Comma))
             pure $ \e -> ExprCall (getExprName e) args,
           do
             f <- expect T.Dot *> parseIdentifier
@@ -305,9 +307,9 @@ parsePrimary =
       parseLitBool,
       ExprLitNull <$ expect T.LitNull,
       parseStructInitOrVar,
-      between (expect T.LParen) (expect T.RParen) parseExpression
+      between (expect T.LParen) (expect T.RParen) (withContext "parenthesized expression" parseExpression)
     ]
-    <|> failParse "Expected the start of an expression"
+    <|> failParse "Expected expression (literal, variable, or '('...)"
 
 parseLitInt :: Parser Expression
 parseLitInt =
@@ -344,16 +346,20 @@ parseStructInitOrVar :: Parser Expression
 parseStructInitOrVar = try parseStructInit <|> (ExprVar <$> parseIdentifier)
 
 parseStructInit :: Parser Expression
-parseStructInit =
-  ExprStructInit
-    <$> parseIdentifier
-    <*> between (expect T.LBrace) (expect T.RBrace) parseStructFields
+parseStructInit = do
+  name <- parseIdentifier
+  fields <- between (expect T.LBrace) (expect T.RBrace) parseStructFields
+  pure $ ExprStructInit name fields
 
 parseStructFields :: Parser [(String, Expression)]
 parseStructFields = sepEndBy parseStructField (expect T.Comma)
 
 parseStructField :: Parser (String, Expression)
-parseStructField = (,) <$> parseIdentifier <*> (expect T.Colon *> parseExpression)
+parseStructField = do
+  name <- parseIdentifier
+  _ <- expect T.Colon
+  val <- withContext ("value of field '" ++ name ++ "'") parseExpression
+  pure (name, val)
 
 --
 -- Types & Identifiers
