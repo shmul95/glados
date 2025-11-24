@@ -30,21 +30,33 @@ parseProgram :: Parser Program
 parseProgram =
   Program
     <$> (psFilePath <$> getParserState)
-    <*> many parseTopLevelDef
+    <*> parseTopLevelDefs
     <* expect T.EOF
+
+-- | recursively parses definitions until EOF is reached.
+-- the error is propagated instead of the parser assuming the list ended.
+parseTopLevelDefs :: Parser [TopLevelDef]
+parseTopLevelDefs = do
+  isEnd <- check T.EOF
+  if isEnd
+    then pure []
+    else do
+      def <- parseTopLevelDef
+      defs <- parseTopLevelDefs
+      pure (def : defs)
 
 --
 -- Top Level
 --
 
 parseTopLevelDef :: Parser TopLevelDef
-parseTopLevelDef =
-  choice
-    [ parseFunction,
-      parseStruct,
-      parseOverride
-    ]
-    <|> failParse "Expected top-level definition (def, struct, override)"
+parseTopLevelDef = do
+  t <- peek
+  case T.tokenKind t of
+    T.KwDef -> parseFunction
+    T.KwStruct -> parseStruct
+    T.KwOverride -> parseOverride
+    _ -> failParse "Expected top-level definition (def, struct, override)"
 
 parseFunction :: Parser TopLevelDef
 parseFunction =
@@ -55,11 +67,13 @@ parseFunction =
     <*> parseBlock
 
 parseStruct :: Parser TopLevelDef
-parseStruct =
-  DefStruct
-    <$> (expect T.KwStruct *> parseIdentifier)
-    <*> (expect T.LBrace *> (fst <$> parseStructBody))
-    <*> (snd <$> parseStructBody <* expect T.RBrace)
+parseStruct = do
+  name <- expect T.KwStruct *> parseIdentifier
+  _ <- expect T.LBrace
+  -- Parse body ONCE
+  (fields, methods) <- parseStructBody
+  -- Note: parseStructBody handles the closing RBrace
+  pure $ DefStruct name fields methods
 
 parseStructBody :: Parser ([Field], [TopLevelDef])
 parseStructBody = go [] []
