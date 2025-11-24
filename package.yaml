@@ -56,3 +56,4 @@ tests:
       - glados
       - tasty
       - tasty-hunit
+      - directory

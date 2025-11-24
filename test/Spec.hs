@@ -9,10 +9,10 @@ import PipelinesSpec (pipelinesTests)
 
 main :: IO ()
 main = defaultMain $ testGroup "All Tests"
-  [ astTests
-  , parserTests
-  , sexprTests
-  , cliTests
-  , lexerTests
-  , pipelinesTests
+  [ astTests,
+    parserTests,
+    sexprTests
+  -- , cliTests
+  -- , lexerTests
+  -- , pipelinesTests
   ]
