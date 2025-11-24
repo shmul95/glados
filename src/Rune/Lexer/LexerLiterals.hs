@@ -36,10 +36,10 @@ mkLiteralConstructor = Token
 
 intLitParser :: Parser (Int -> Int -> Token)
 intLitParser = try $ do
-  sign <- optional (char '-')
+  sign <- optional $ char '-'
   digits <- some digitChar
 
-  notFollowedBy (char '.')
+  notFollowedBy $ char '.'
   let val = maybe digits (: digits) sign
       num = read val :: Int
 
@@ -47,7 +47,7 @@ intLitParser = try $ do
 
 floatLitParser :: Parser (Int -> Int -> Token)
 floatLitParser = try $ do
-  sign <- optional (char '-')
+  sign <- optional $ char '-'
   whole <- some digitChar
   void $ char '.'
   decimal <- some digitChar

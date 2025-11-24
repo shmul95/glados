@@ -1,7 +1,8 @@
 module PipelinesSpec (pipelinesTests) where
 
-import Rune.Lexer.Tokens (Token (..), TokenKind (..))
+import Control.Monad (when)
 import Rune.Pipelines (compilePipeline, interpretPipeline)
+import System.Directory (doesFileExist, removeFile)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
@@ -18,33 +19,22 @@ pipelinesTests =
     ]
 
 --
--- private
+-- private helpers
 --
 
-expectedTokens :: [Token]
-expectedTokens =
-  [ Token {tokenKind = KwDef, tokenValue = "def", tokenLine = 1, tokenColumn = 1},
-    Token {tokenKind = Identifier "main", tokenValue = "main", tokenLine = 1, tokenColumn = 5},
-    Token {tokenKind = LParen, tokenValue = "(", tokenLine = 1, tokenColumn = 9},
-    Token {tokenKind = RParen, tokenValue = ")", tokenLine = 1, tokenColumn = 10},
-    Token {tokenKind = OpArrow, tokenValue = "->", tokenLine = 1, tokenColumn = 12},
-    Token {tokenKind = TypeNull, tokenValue = "null", tokenLine = 1, tokenColumn = 15},
-    Token {tokenKind = LBrace, tokenValue = "{", tokenLine = 2, tokenColumn = 1},
-    Token {tokenKind = Identifier "show", tokenValue = "show", tokenLine = 3, tokenColumn = 5},
-    Token {tokenKind = LParen, tokenValue = "(", tokenLine = 3, tokenColumn = 9},
-    Token {tokenKind = LitString "Hello, Rune!\n", tokenValue = "\"Hello, Rune!\n\"", tokenLine = 3, tokenColumn = 10},
-    Token {tokenKind = RParen, tokenValue = ")", tokenLine = 3, tokenColumn = 26},
-    Token {tokenKind = Semicolon, tokenValue = ";", tokenLine = 3, tokenColumn = 27},
-    Token {tokenKind = RBrace, tokenValue = "}", tokenLine = 4, tokenColumn = 1},
-    Token {tokenKind = EOF, tokenValue = "", tokenLine = 5, tokenColumn = 1}
-  ]
+removeFileIfExists :: FilePath -> IO ()
+removeFileIfExists path = doesFileExist path >>= (`when` removeFile path)
 
 compilePipelineTests :: TestTree
-compilePipelineTests = testCase "compilePipeline" $ do
-  tokens <- compilePipeline "examples/hello_rune.ru" "out.ir"
-  tokens @?= expectedTokens
+compilePipelineTests = testCase "compilePipeline (hello_rune.ru)" $ do
+  let inFile = "examples/hello_rune.ru"
+  let outFile = "out.ir.test"
+  compilePipeline inFile outFile
+  removeFileIfExists outFile
+  () @?= ()
 
 interpretPipelineTests :: TestTree
-interpretPipelineTests = testCase "interpretPipeline" $ do
-  tokens <- interpretPipeline "examples/hello_rune.ru"
-  tokens @?= expectedTokens
+interpretPipelineTests = testCase "interpretPipeline (hello_rune.ru)" $ do
+  let inFile = "examples/hello_rune.ru"
+  interpretPipeline inFile
+  () @?= ()

@@ -30,34 +30,27 @@ usage =
     ]
 
 parseArgs :: [String] -> Either String Action
-parseArgs xs = case xs of
-  [] -> Left "No command provided. Use 'glados help'."
-  (cmd : rest) -> parseCommand cmd rest
+parseArgs [] = Left "No command provided. Use 'glados help'."
+parseArgs (cmd : rest) = parseCommand cmd rest
 
 runCLI :: Action -> IO ()
 runCLI ShowUsage = putStrLn usage >> exitSuccess
-
-runCLI (Interpret inFile) = do
-  tokens <- interpretPipeline inFile
-  print tokens
-
-runCLI (Compile inFile maybeOutFile) = do
+runCLI (Interpret inFile) = interpretPipeline inFile
+runCLI (Compile inFile maybeOutFile) =
   let outFile = fromMaybe "out" maybeOutFile
-  tokens <- compilePipeline inFile outFile
-  print tokens
+  in compilePipeline inFile outFile
 
 parseCommand :: String -> [String] -> Either String Action
-parseCommand cmd rest = case cmd of
-  "help" -> pure ShowUsage
-  "--help" -> pure ShowUsage
-  "-h" -> pure ShowUsage
-  "run" -> parseRun rest
-  "--run" -> parseRun rest
-  "-r" -> parseRun rest
-  "build" -> parseBuild rest
-  "--build" -> parseBuild rest
-  "-b" -> parseBuild rest
-  _ -> Left $ "Invalid command: " ++ cmd ++ ". Use 'glados help'."
+parseCommand "help" _ = pure ShowUsage
+parseCommand "--help" _ = pure ShowUsage
+parseCommand "-h" _ = pure ShowUsage
+parseCommand "run" rest = parseRun rest
+parseCommand "--run" rest = parseRun rest
+parseCommand "-r" rest = parseRun rest
+parseCommand "build" rest = parseBuild rest
+parseCommand "--build" rest = parseBuild rest
+parseCommand "-b" rest = parseBuild rest
+parseCommand cmd _ = Left $ "Invalid command: " ++ cmd ++ ". Use 'glados help'."
 
 parseRun :: [String] -> Either String Action
 parseRun [file] = Right (Interpret file)

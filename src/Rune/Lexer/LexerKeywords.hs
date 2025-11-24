@@ -1,7 +1,7 @@
 module Rune.Lexer.LexerKeywords (keyword) where
 
-import Rune.Lexer.Tokens (Token (..), TokenKind (..))
 import Rune.Lexer.LexerParser (Parser, applyPosition, makeReservedTokenParser)
+import Rune.Lexer.Tokens (Token (..), TokenKind (..))
 
 --
 -- public
@@ -23,6 +23,7 @@ keywordMap =
     (KwElse, "else"),
     (KwFor, "for"),
     (KwTo, "to"),
+    (KwIn, "in"),
     (KwOverride, "override")
   ]
 

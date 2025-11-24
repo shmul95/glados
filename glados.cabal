@@ -26,8 +26,13 @@ source-repository head
 library
   exposed-modules:
       CLI
-      Lib
       Logger
+      Rune.AST.Nodes
+      Rune.AST.Parser
+      Rune.AST.ParserHelper
+      Rune.AST.ParserTypes
+      Rune.AST.Printer
+      Rune.AST.Visitor
       Rune.Lexer.Lexer
       Rune.Lexer.LexerDelimiters
       Rune.Lexer.LexerIdentifiers
@@ -38,7 +43,6 @@ library
       Rune.Lexer.LexerPrimitives
       Rune.Lexer.Tokens
       Rune.Pipelines
-      Type
   other-modules:
       Paths_glados
   autogen-modules:
@@ -70,6 +74,7 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      ASTParserSpec
       CLISpec
       LexerSpec
       PipelinesSpec
@@ -81,6 +86,7 @@ test-suite glados-test
   ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , directory
     , glados
     , megaparsec
     , tasty

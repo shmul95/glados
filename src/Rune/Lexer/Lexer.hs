@@ -50,17 +50,17 @@ tokens = do
   spaceConsumer
   ts <- many token
   pos <- getSourcePos
-  let line = unPos (sourceLine pos)
-      col = unPos (sourceColumn pos)
+  let line = unPos $ sourceLine pos
+      col = unPos $ sourceColumn pos
       eofToken = Token EOF "" line col
   eof
-  return (ts ++ [eofToken])
+  return $ ts ++ [eofToken]
 
 token :: Parser Token
 token = do
   pos <- getSourcePos
-  let line = unPos (sourceLine pos)
-      col = unPos (sourceColumn pos)
+  let line = unPos $ sourceLine pos
+      col = unPos $ sourceColumn pos
   choice (getToken line col) <* spaceConsumer
 
 getToken :: Int -> Int -> [Parser Token]
