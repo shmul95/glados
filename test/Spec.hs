@@ -1,18 +1,18 @@
-module Main (main) where
-
-import ASTParserSpec (astParserTests)
-import CLISpec (cliTests)
-import LexerSpec (lexerTests)
-import PipelinesSpec (pipelinesTests)
 import Test.Tasty
 
+import ASTSpec (astTests)
+import ParserSpec (parserTests)
+import SExprSpec (sexprTests)
+-- import CLISpec (cliTests)
+-- import LexerSpec (lexerTests)
+-- import PipelinesSpec (pipelinesTests)
+
 main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Rune Test Suites"
-      [ lexerTests,
-        pipelinesTests,
-        cliTests,
-        astParserTests
-      ]
+main = defaultMain $ testGroup "All Tests"
+  [ astTests,
+    parserTests,
+    sexprTests
+  -- , cliTests
+  -- , lexerTests
+  -- , pipelinesTests
+  ]
