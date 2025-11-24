@@ -12,6 +12,7 @@ module Rune.AST.ParserHelper
     between,
     sepBy,
     sepBy1,
+    sepEndBy,
     chainl1,
     chainUnary,
     chainPostfix,
@@ -123,6 +124,21 @@ sepBy p sep = sepBy1 p sep <|> pure []
 -- parses: 1, 2, 3 (but fails on empty)
 sepBy1 :: Parser a -> Parser s -> Parser [a]
 sepBy1 p sep = (:) <$> p <*> many (sep *> p)
+
+-- | parse list of `p` separated and optionally ended by `sep`
+-- example: sepEndBy parseExpr (expect Comma)
+-- parses: expr1, expr2, expr3, OR expr1, expr2, expr3,
+sepEndBy :: Parser a -> Parser s -> Parser [a]
+sepEndBy p sep =
+  choice
+    [ do
+        x <- p
+        choice
+          [ sep *> ((x :) <$> sepEndBy p sep),
+            pure [x]
+          ],
+      pure []
+    ]
 
 -- | parse left-associative binary operators
 -- used for arithmetic: 1 - 2 - 3 becomes ((1 - 2) - 3)
