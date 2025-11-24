@@ -5,10 +5,9 @@ def factorial(n: i32) ~> i32
     }
     if n == 0 {
         1
-    } else {
-        res = factorial(n - 1)?;
-        n * res
     }
+    res = factorial(n - 1)?;
+    n * res
 }
 
 def main() -> null
