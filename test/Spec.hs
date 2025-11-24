@@ -1,5 +1,6 @@
 module Main (main) where
 
+import ASTParserSpec (astParserTests)
 import CLISpec (cliTests)
 import LexerSpec (lexerTests)
 import PipelinesSpec (pipelinesTests)
@@ -12,5 +13,6 @@ main =
       "Rune Test Suites"
       [ lexerTests,
         pipelinesTests,
-        cliTests
+        cliTests,
+        astParserTests
       ]
