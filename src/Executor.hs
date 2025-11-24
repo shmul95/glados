@@ -23,9 +23,9 @@ executeLisp input = case parse parseLispDocument "" input of
                     Nothing -> Left "Evaluation error"
                     Just result -> Right result
 
-AstInteger n -> show n
-AstBoolean True -> "#t"
-AstBoolean False -> "#f"
-AstSymbol s -> s
-AstLambda _ _ _ -> "#\<procedure\>"
-AstList _ _ _ -> 
+-- AstInteger n -> show n
+-- AstBoolean True -> "#t"
+-- AstBoolean False -> "#f"
+-- AstSymbol s -> s
+-- AstLambda _ _ _ -> "#\<procedure\>"
+-- _ -> ""
