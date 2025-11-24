@@ -1,5 +1,6 @@
 module Rune.AST.ParserHelper
   ( failParse,
+    withContext,
     getParserState,
     peek,
     advance,
@@ -21,6 +22,7 @@ where
 
 import Control.Applicative (Alternative (..))
 import Control.Monad (when)
+import Data.Bifunctor (Bifunctor (first))
 import Rune.AST.ParserTypes (Parser (..), ParserState (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -32,27 +34,48 @@ import qualified Rune.Lexer.Tokens as T
 -- error handling
 --
 
+-- | add descriptive context to parser errors
+-- wraps a parser and adds a breadcrumb trail when it fails
+withContext :: String -> Parser a -> Parser a
+withContext ctx (Parser p) =
+  Parser $ \s ->
+    first (\err -> ctx <> ":\n" <> indent err) (p s)
+  where
+    indent = unlines . map ("  " ++) . lines
+
 -- | fail the parser with an error message well formatted with:
 -- path: line:column: msg
 -- got: actual_token
 failParse :: String -> Parser a
 failParse msg = Parser $ \s ->
   let tok = currentToken s
-   in Left $
-        psFilePath s
-          ++ ":"
-          ++ show (T.tokenLine tok)
-          ++ ":"
-          ++ show (T.tokenColumn tok)
-          ++ ": "
-          ++ msg
-          ++ "\n  Got: "
-          ++ show (T.tokenKind tok)
+      path = psFilePath s
+      line = T.tokenLine tok
+      col = T.tokenColumn tok
+      actual = case T.tokenKind tok of
+        T.EOF -> "end of file"
+        other -> show other
+      err =
+        mconcat
+          [ path,
+            ":",
+            show line,
+            ":",
+            show col,
+            ":\n",
+            "  ",
+            msg,
+            "\n",
+            "  Got: ",
+            actual
+          ]
+   in Left err
 
--- | try a parser if fails backtrack to original state
+-- | try a parser; if it fails, backtrack to original state
+-- used for optional alternatives in choice | <?> operators
 try :: Parser a -> Parser a
 try (Parser p) = Parser $ \s -> case p s of
-  Left _ -> Left "Backtracked"
+  Left _ -> Left ""
   Right success -> Right success
 
 getParserState :: Parser ParserState
@@ -80,6 +103,7 @@ expect kind = do
   advance
   pure t
 
+-- | expect current token to be identifier with given name
 expectIdent :: String -> Parser ()
 expectIdent name = do
   t <- peek
