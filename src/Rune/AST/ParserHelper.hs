@@ -1,14 +1,24 @@
 module Rune.AST.ParserHelper
-  ( makeError,
+  ( failParse,
+    getParserState,
+    peek,
     advance,
     expect,
-    getCurrentToken,
     check,
     match,
+    try,
+    choice,
+    between,
+    sepBy,
+    sepBy1,
+    chainl1,
+    chainUnary,
+    chainPostfix,
   )
 where
 
-import Control.Monad (when)
+import Control.Applicative (Alternative (..))
+import Control.Monad (guard, when)
 import Rune.AST.ParserTypes (Parser (..), ParserState (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -16,50 +26,121 @@ import qualified Rune.Lexer.Tokens as T
 -- public
 --
 
-makeError :: String -> Parser a
-makeError msg = Parser $ \s ->
-  let tok = currentToken s
-   in Left $ makeErrorMsg (psFilePath s) tok msg
+--
+-- error handling
+--
 
+-- | fail the parser with an error message well formatted with:
+-- path: line:column: msg
+-- got: actual_token
+failParse :: String -> Parser a
+failParse msg = Parser $ \s ->
+  let tok = currentToken s
+   in Left $
+        psFilePath s
+          ++ ":"
+          ++ show (T.tokenLine tok)
+          ++ ":"
+          ++ show (T.tokenColumn tok)
+          ++ ": "
+          ++ msg
+          ++ "\n  Got: "
+          ++ show (T.tokenKind tok)
+
+-- | try a parser if fails backtrack to original state
+try :: Parser a -> Parser a
+try (Parser p) = Parser $ \s -> case p s of
+  Left _ -> Left "Backtracked"
+  Right success -> Right success
+
+getParserState :: Parser ParserState
+getParserState = Parser $ \s -> Right (s, s)
+
+--
+-- tokens helpers
+--
+
+-- | get current token
+peek :: Parser T.Token
+peek = currentToken <$> getParserState
+
+-- | consume current token
 advance :: Parser ()
 advance = Parser $ \s -> Right ((), s {psPosition = psPosition s + 1})
 
+-- | expect current token to match kind, consume and return it else fail
 expect :: T.TokenKind -> Parser T.Token
 expect kind = do
-  tok <- getCurrentToken
-  if T.tokenKind tok == kind
-    then advance >> return tok
-    else makeError $ "Expected " ++ show kind
+  t <- peek
+  guard (T.tokenKind t == kind)
+  advance
+  pure t
 
-getCurrentToken :: Parser T.Token
-getCurrentToken = Parser $ \s -> Right (currentToken s, s)
+-- -}
 
+-- | check if current token matches kind
 check :: T.TokenKind -> Parser Bool
-check kind = do
-  tok <- getCurrentToken
-  return $ T.tokenKind tok == kind
+check kind = (== kind) . T.tokenKind <$> peek
 
+-- | check if current token matches kind + consume if true
 match :: T.TokenKind -> Parser Bool
 match kind = do
   isMatch <- check kind
   when isMatch advance
-  return isMatch
+  pure isMatch
+
+--
+-- combinators
+--
+
+-- | one or the other
+-- example: choice [parseString, parseInt, parseBool]
+choice :: [Parser a] -> Parser a
+choice = foldr (<|>) empty
+
+-- | parse `p` enclosed by `open` and `close`
+-- example: between (expect LParen) (expect RParen) parseExpression
+-- parses: ( expression )
+between :: Parser o -> Parser c -> Parser a -> Parser a
+between open close p = open *> p <* close
+
+-- | parse list of `p` separated by `sep`
+-- example: sepBy parseExpr (expect Comma)
+-- parses: expr1, expr2, expr3 OR <empty>
+sepBy :: Parser a -> Parser s -> Parser [a]
+sepBy p sep = sepBy1 p sep <|> pure []
+
+-- | same as sepBy but requires at least one element
+-- example: sepBy1 parseDigit (expect Comma)
+-- parses: 1, 2, 3 (but fails on empty)
+sepBy1 :: Parser a -> Parser s -> Parser [a]
+sepBy1 p sep = (:) <$> p <*> many (sep *> p)
+
+-- | parse left-associative binary operators
+-- used for arithmetic: 1 - 2 - 3 becomes ((1 - 2) - 3)
+-- example: chainl1 parseTerm (ExprBinary Add <$ expect OpPlus)
+chainl1 :: Parser a -> Parser (a -> a -> a) -> Parser a
+chainl1 p op = p >>= rest
+  where
+    rest x = (do f <- op; y <- p; rest (f x y)) <|> pure x
+
+-- | like chainl1 but allows unary operators before the term
+-- example: chainUnary (ExprUnary Negate <$ expect OpMinus) parseAtom
+-- parses: - - 5
+chainUnary :: Parser (a -> a) -> Parser a -> Parser a
+chainUnary op p = (op <*> chainUnary op p) <|> p
+
+-- | parse stacked left-associative postfix operators
+-- used for function calls or member access: a.b().c
+-- example: chainPostfix parseAtom (parseCall <|> parseFieldAccess)
+chainPostfix :: Parser a -> Parser (a -> a) -> Parser a
+chainPostfix p op = p >>= rest
+  where
+    rest x = (do f <- op; rest (f x)) <|> pure x
 
 --
 -- private
 --
-
-makeErrorMsg :: String -> T.Token -> String -> String
-makeErrorMsg fp tok msg =
-  fp
-    ++ ":"
-    ++ show (T.tokenLine tok)
-    ++ ":"
-    ++ show (T.tokenColumn tok)
-    ++ ": Parse error: "
-    ++ msg
-    ++ "\n  Got: "
-    ++ show (T.tokenKind tok)
 
 currentToken :: ParserState -> T.Token
 currentToken s
