@@ -130,14 +130,14 @@ evalASTWithEnv env (expr:exprs) =
                 Nothing -> Nothing
 
 evalAST :: Environment -> Ast -> Maybe Ast
-evalAST env (Define _ _) = Just (AstSymbol "")
+evalAST _ (Define _ _) = Just (AstSymbol "")
 evalAST env (Call func args) = handleCall env func args
 evalAST _ (AstInteger n) = Just (AstInteger n)
 evalAST env (AstSymbol s) = handleString env s
 evalAST _ (AstBoolean b) = Just (AstBoolean b)
 evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
 evalAST env (Lambda params body closureEnv) = Just (Lambda params body (if null closureEnv then env else closureEnv))
-evalAST env (AstList []) = Just (AstList [])
+evalAST _ (AstList []) = Just (AstList [])
 evalAST env (AstList [expr]) = evalAST env expr
 evalAST env (AstList (func:args)) = do
     evaluatedFunc <- evalAST env func
