@@ -35,39 +35,32 @@ import qualified Rune.Lexer.Tokens as T
 --
 
 -- | add descriptive context to parser errors
--- wraps a parser and adds a breadcrumb trail when it fails
+-- | wraps a parser and adds a breadcrumb trail when it fails
 withContext :: String -> Parser a -> Parser a
 withContext ctx (Parser p) =
   Parser $ \s ->
-    first (\err -> ctx <> ":\n" <> indent err) (p s)
-  where
-    indent = unlines . map ("  " ++) . lines
+    first (\err -> err <> "  ... in " <> ctx <> "\n") (p s)
 
 -- | fail the parser with an error message well formatted with:
 -- path: line:column: msg
 -- got: actual_token
+-- ... in <context>
 failParse :: String -> Parser a
 failParse msg = Parser $ \s ->
   let tok = currentToken s
       path = psFilePath s
-      line = T.tokenLine tok
-      col = T.tokenColumn tok
+      line = show $ T.tokenLine tok
+      col = show $ T.tokenColumn tok
+
       actual = case T.tokenKind tok of
-        T.EOF -> "end of file"
-        other -> show other
+        T.EOF -> "<EOF>"
+        k -> show k <> " " <> show (T.tokenValue tok)
+
       err =
-        mconcat
-          [ path,
-            ":",
-            show line,
-            ":",
-            show col,
-            ":\n",
-            "  ",
-            msg,
-            "\n",
-            "  Got: ",
-            actual
+        unlines
+          [ path <> ":" <> line <> ":" <> col <> ": error:",
+            "  " <> msg,
+            "  Got: " <> actual
           ]
    in Left err
 
