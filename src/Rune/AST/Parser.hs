@@ -33,17 +33,13 @@ parseProgram =
     <*> parseTopLevelDefs
     <* expect T.EOF
 
--- | recursively parses definitions until EOF is reached.
--- the error is propagated instead of the parser assuming the list ended.
 parseTopLevelDefs :: Parser [TopLevelDef]
-parseTopLevelDefs = do
-  isEnd <- check T.EOF
-  if isEnd
-    then pure []
-    else do
-      def <- parseTopLevelDef
-      defs <- parseTopLevelDefs
-      pure (def : defs)
+parseTopLevelDefs =
+  []
+    <$ expect T.EOF
+      <|> (:)
+    <$> parseTopLevelDef
+    <*> parseTopLevelDefs
 
 --
 -- Top Level
@@ -70,24 +66,24 @@ parseStruct :: Parser TopLevelDef
 parseStruct = do
   name <- expect T.KwStruct *> parseIdentifier
   _ <- expect T.LBrace
-  -- Parse body ONCE
   (fields, methods) <- parseStructBody
-  -- Note: parseStructBody handles the closing RBrace
   pure $ DefStruct name fields methods
 
 parseStructBody :: Parser ([Field], [TopLevelDef])
 parseStructBody = go [] []
   where
-    go fs ms =
-      choice
-        [ expect T.RBrace *> pure (reverse fs, reverse ms),
-          do
-            m <- parseFunction
-            go fs (m : ms),
-          do
-            f <- parseField <* expect T.Semicolon
-            go (f : fs) ms
-        ]
+    go fs ms = do
+      t <- peek
+      case T.tokenKind t of
+        T.RBrace -> advance >> pure (reverse fs, reverse ms)
+        T.KwDef -> do
+          m <- parseFunction
+          go fs (m : ms)
+        T.Identifier _ -> do
+          f <- parseField
+          _ <- expect T.Semicolon
+          go (f : fs) ms
+        _ -> failParse "Expected '}', 'def' (method), or Identifier (field)"
 
 parseOverride :: Parser TopLevelDef
 parseOverride =
@@ -101,7 +97,16 @@ parseParams :: Parser [Parameter]
 parseParams = between (expect T.LParen) (expect T.RParen) (sepBy parseParameter (expect T.Comma))
 
 parseParameter :: Parser Parameter
-parseParameter = Parameter <$> parseIdentifier <*> (expect T.Colon *> parseType)
+parseParameter = parseSelfParam <|> parseTypedParam
+
+parseSelfParam :: Parser Parameter
+parseSelfParam =
+  Parameter "self" TypeAny <$ expectIdent "self"
+
+parseTypedParam :: Parser Parameter
+parseTypedParam = do
+  name <- parseIdentifier
+  Parameter name <$> (expect T.Colon *> parseType)
 
 parseReturnType :: Parser Type
 parseReturnType =
@@ -195,21 +200,17 @@ parseExprStmt = do
 parseExpression :: Parser Expression
 parseExpression = parseLogicalOr
 
--- | |
 parseLogicalOr :: Parser Expression
 parseLogicalOr = chainl1 parseLogicalAnd (ExprBinary Or <$ expect T.OpOr)
 
--- &&
 parseLogicalAnd :: Parser Expression
 parseLogicalAnd = chainl1 parseEquality (ExprBinary And <$ expect T.OpAnd)
 
--- == !=
 parseEquality :: Parser Expression
 parseEquality = chainl1 parseComparison op
   where
     op = (ExprBinary Eq <$ expect T.OpEq) <|> (ExprBinary Neq <$ expect T.OpNeq)
 
--- < <= > >=
 parseComparison :: Parser Expression
 parseComparison = chainl1 parseTerm op
   where
@@ -221,13 +222,10 @@ parseComparison = chainl1 parseTerm op
           ExprBinary Gte <$ expect T.OpGte
         ]
 
--- + -
 parseTerm :: Parser Expression
 parseTerm = chainl1 parseFactor op
   where
     op = (ExprBinary Add <$ expect T.OpPlus) <|> (ExprBinary Sub <$ expect T.OpMinus)
-
--- * / %
 
 parseFactor :: Parser Expression
 parseFactor = chainl1 parseUnary op
@@ -239,13 +237,11 @@ parseFactor = chainl1 parseUnary op
           ExprBinary Mod <$ expect T.OpMod
         ]
 
--- -negate
 parseUnary :: Parser Expression
 parseUnary =
   (ExprUnary Negate <$ expect T.OpMinus <*> parseUnary)
     <|> parsePostfix
 
--- func(), struct.field, error?
 parsePostfix :: Parser Expression
 parsePostfix = chainPostfix parsePrimary op
   where
@@ -314,7 +310,19 @@ parseStructInit :: Parser Expression
 parseStructInit =
   ExprStructInit
     <$> parseIdentifier
-    <*> between (expect T.LBrace) (expect T.RBrace) (sepBy parseStructField (expect T.Comma))
+    <*> between (expect T.LBrace) (expect T.RBrace) parseStructFields
+
+parseStructFields :: Parser [(String, Expression)]
+parseStructFields = do
+  isEnd <- check T.RBrace
+  if isEnd
+    then pure []
+    else do
+      f <- parseStructField
+      isComma <- match T.Comma
+      if isComma
+        then (f :) <$> parseStructFields
+        else pure [f]
 
 parseStructField :: Parser (String, Expression)
 parseStructField = (,) <$> parseIdentifier <*> (expect T.Colon *> parseExpression)
