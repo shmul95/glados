@@ -44,7 +44,7 @@ parseLispNumber = try $ do
 
 parseLispString :: Parser SExpr
 parseLispString = do
-    first <- letterChar <|> oneOf "!?_-+*/=<>#"
+    first <- letterChar <|> oneOf "!?_+*/=<>#"
     rest <- many (alphaNumChar <|> oneOf "!?_-+*/=<>#")
     let word = first : rest
     return (Symbol word)
