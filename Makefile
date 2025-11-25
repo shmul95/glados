@@ -1,8 +1,8 @@
 LISP_DIRECTORY   := Lisp
 RUNE_DIRECTORY   := Rune
 
-LISP_BINARY_NAME := glados-exe
-RUNE_BINARY_NAME := rune-exe
+LISP_BINARY_NAME := glados
+RUNE_BINARY_NAME := rune
 
 
 all: lisp rune move_binaries
@@ -33,7 +33,17 @@ rune:
 	@$(MAKE) -C $(RUNE_DIRECTORY)
 
 move_binaries:
-	@mv $(LISP_DIRECTORY)/glados .
-	@mv $(RUNE_DIRECTORY)/rune .
+	@if [ -L $(LISP_DIRECTORY)/$(LISP_BINARY_NAME) ]; then \
+        mv $(LISP_DIRECTORY)/$(LISP_BINARY_NAME) .; \
+    else \
+        echo "Error: $(LISP_DIRECTORY)/$(LISP_BINARY_NAME) not found"; \
+        exit 1; \
+    fi
+	@if [ -L $(RUNE_DIRECTORY)/$(RUNE_BINARY_NAME) ]; then \
+		mv $(RUNE_DIRECTORY)/$(RUNE_BINARY_NAME) .; \
+	else \
+		echo "Error: $(RUNE_DIRECTORY)/$(RUNE_BINARY_NAME) not found"; \
+		exit 1; \
+	fi
 
 .PHONY: all clean fclean re tests coverage lisp rune move_binaries
