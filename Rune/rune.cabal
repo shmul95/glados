@@ -1,0 +1,93 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.38.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           rune
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/shmul95/glados#readme>
+homepage:       https://github.com/shmul95/glados#readme
+bug-reports:    https://github.com/shmul95/glados/issues
+author:         Samuel
+maintainer:     samuel.gross@epitech.eu
+copyright:      2025 Samuel
+license:        BSD-3-Clause
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/shmul95/glados
+
+library
+  exposed-modules:
+      CLI
+      Logger
+      Rune.AST.Nodes
+      Rune.AST.Parser
+      Rune.AST.ParserHelper
+      Rune.AST.ParserTypes
+      Rune.AST.Printer
+      Rune.AST.Visitor
+      Rune.Lexer.Lexer
+      Rune.Lexer.LexerDelimiters
+      Rune.Lexer.LexerIdentifiers
+      Rune.Lexer.LexerKeywords
+      Rune.Lexer.LexerLiterals
+      Rune.Lexer.LexerOperators
+      Rune.Lexer.LexerParser
+      Rune.Lexer.LexerPrimitives
+      Rune.Lexer.Tokens
+      Rune.Pipelines
+  other-modules:
+      Paths_rune
+  autogen-modules:
+      Paths_rune
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , megaparsec
+  default-language: Haskell2010
+
+executable rune-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_rune
+  autogen-modules:
+      Paths_rune
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , megaparsec
+    , rune
+  default-language: Haskell2010
+
+test-suite rune-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      ASTParserSpec
+      CLISpec
+      LexerSpec
+      PipelinesSpec
+      Paths_rune
+  autogen-modules:
+      Paths_rune
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , directory
+    , megaparsec
+    , rune
+    , tasty
+    , tasty-hunit
+  default-language: Haskell2010

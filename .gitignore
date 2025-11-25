@@ -24,3 +24,5 @@ cabal.project.local~
 glados
 .stack-root
 stack.yaml.lock
+rune
+*.out

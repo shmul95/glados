@@ -7,8 +7,6 @@
 
 module Main (main) where
 
--- import CLI (parseArgs, runCLI)
--- import Logger (logError)
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr)
 import Text.Megaparsec (parse, errorBundlePretty)
@@ -16,7 +14,6 @@ import Parser (parseLispDocument)
 import SExpr (printTree)
 
 main :: IO ()
--- main = getArgs >>= either logError runCLI . parseArgs
 main = do
     args <- getArgs
     case args of

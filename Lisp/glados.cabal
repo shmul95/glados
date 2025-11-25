@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.38.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -13,7 +13,6 @@ author:         Samuel
 maintainer:     samuel.gross@epitech.eu
 copyright:      2025 Samuel
 license:        BSD-3-Clause
-license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     README.md
@@ -26,26 +25,8 @@ source-repository head
 library
   exposed-modules:
       AST
-      CLI
       Executor
-      Logger
       Parser
-      Rune.AST.Nodes
-      Rune.AST.Parser
-      Rune.AST.ParserHelper
-      Rune.AST.ParserTypes
-      Rune.AST.Printer
-      Rune.AST.Visitor
-      Rune.Lexer.Lexer
-      Rune.Lexer.LexerDelimiters
-      Rune.Lexer.LexerIdentifiers
-      Rune.Lexer.LexerKeywords
-      Rune.Lexer.LexerLiterals
-      Rune.Lexer.LexerOperators
-      Rune.Lexer.LexerParser
-      Rune.Lexer.LexerPrimitives
-      Rune.Lexer.Tokens
-      Rune.Pipelines
       SExpr
   other-modules:
       Paths_glados
@@ -78,12 +59,8 @@ test-suite glados-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      ASTParserSpec
       ASTSpec
-      CLISpec
-      LexerSpec
       ParserSpec
-      PipelinesSpec
       SExprSpec
       Paths_glados
   autogen-modules:
