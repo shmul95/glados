@@ -1,0 +1,78 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.38.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           glados
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/arrty00m/glados#readme>
+homepage:       https://github.com/arrty00m/glados#readme
+bug-reports:    https://github.com/arrty00m/glados/issues
+author:         Samuel
+maintainer:     samuel.gross@epitech.eu
+copyright:      2025 Samuel
+license:        BSD-3-Clause
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/arrty00m/glados
+
+library
+  exposed-modules:
+      AST
+      Executor
+      Parser
+      SExpr
+  other-modules:
+      Paths_glados
+  autogen-modules:
+      Paths_glados
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , megaparsec
+  default-language: Haskell2010
+
+executable glados-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_glados
+  autogen-modules:
+      Paths_glados
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , glados
+    , megaparsec
+  default-language: Haskell2010
+
+test-suite glados-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      ASTSpec
+      ParserSpec
+      SExprSpec
+      Paths_glados
+  autogen-modules:
+      Paths_glados
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , directory
+    , glados
+    , megaparsec
+    , tasty
+    , tasty-hunit
+  default-language: Haskell2010

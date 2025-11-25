@@ -1,0 +1,6 @@
+*.hs linguist-language=haskell
+*.ru linguist-language=rune
+*.yml linguist-language=yaml
+*.md linguist-language=markdown
+Makefile linguist-language=makefile
+*.nix linguist-language=nix
