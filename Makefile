@@ -33,7 +33,7 @@ rune:
 	@$(MAKE) -C $(RUNE_DIRECTORY)
 
 move_binaries:
-	mv $(LISP_DIRECTORY)/glados .
-	mv $(RUNE_DIRECTORY)/rune .
+	@mv $(LISP_DIRECTORY)/glados .
+	@mv $(RUNE_DIRECTORY)/rune .
 
 .PHONY: all clean fclean re tests coverage lisp rune move_binaries

@@ -47,6 +47,6 @@ fclean:
 re: fclean all
 
 symlink:
-	@ln -sf "$$(find .stack-work -type f -name $(STACK_BINARY_NAME) | head -n 1)" rune
+	@ln -sf "$$(find $(shell pwd)/.stack-work -type f -name $(STACK_BINARY_NAME) | head -n 1)" $(NAME)
 
 .PHONY: all clean fclean re test coverage symlink
