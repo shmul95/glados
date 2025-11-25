@@ -13,6 +13,7 @@ all:
 	else \
 		$(STACK) build $(STACK_BUILD_FLAGS); \
 	fi
+	@$(MAKE) symlink
 
 tests:
 	@if grep -q 'ID=nixos' /etc/os-release; then \
@@ -45,4 +46,7 @@ fclean:
 
 re: fclean all
 
-.PHONY: all clean fclean re test coverage
+symlink:
+	@ln -sf "$$(find $(shell pwd)/.stack-work -type f -name $(STACK_BINARY_NAME) | head -n 1)" $(NAME)
+
+.PHONY: all clean fclean re test coverage symlink

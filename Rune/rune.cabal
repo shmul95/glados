@@ -73,9 +73,12 @@ test-suite rune-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      ASTParserSpec
+      AST.NodesSpec
+      AST.ParserSpec
       CLISpec
-      LexerSpec
+      Lexer.LexerSpec
+      Lexer.TokensSpec
+      LoggerSpec
       PipelinesSpec
       Paths_rune
   autogen-modules:
@@ -87,7 +90,10 @@ test-suite rune-test
       base >=4.7 && <5
     , directory
     , megaparsec
+    , process
     , rune
+    , silently
     , tasty
     , tasty-hunit
+    , temporary
   default-language: Haskell2010

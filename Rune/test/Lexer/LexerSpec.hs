@@ -1,4 +1,4 @@
-module LexerSpec (lexerTests) where
+module Lexer.LexerSpec (lexerTests) where
 
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens

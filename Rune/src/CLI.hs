@@ -5,7 +5,6 @@ module CLI
   )
 where
 
-import System.Exit (exitSuccess)
 import Data.Maybe (fromMaybe)
 import Rune.Pipelines (compilePipeline, interpretPipeline)
 
@@ -34,11 +33,11 @@ parseArgs [] = Left "No command provided. Use 'glados help'."
 parseArgs (cmd : rest) = parseCommand cmd rest
 
 runCLI :: Action -> IO ()
-runCLI ShowUsage = putStrLn usage >> exitSuccess
+runCLI ShowUsage = putStr usage
 runCLI (Interpret inFile) = interpretPipeline inFile
 runCLI (Compile inFile maybeOutFile) =
   let outFile = fromMaybe "out" maybeOutFile
-  in compilePipeline inFile outFile
+   in compilePipeline inFile outFile
 
 parseCommand :: String -> [String] -> Either String Action
 parseCommand "help" _ = pure ShowUsage
