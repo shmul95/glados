@@ -10,9 +10,7 @@ module Main (main) where
 
 import System.Environment (getArgs)
 import System.IO (hPutStrLn, stderr, hFlush, stdout, stdin, hIsTerminalDevice)
-import Executor (executeLisp, executeLispWithEnv, astToString)
-import System.Exit (exitWith, ExitCode(..))
-import Control.Exception (catch)
+import Executor (executeLispWithEnv, astToString)
 import AST (Environment)
 
 main :: IO ()
@@ -27,6 +25,7 @@ main = do
                     input <- getContents
                     processInput input
         [filename] -> readFile filename >>= processInput
+        _ -> hPutStrLn stderr "Usage: glados [script.lisp]"
 
 lispLoop :: Environment -> IO ()
 lispLoop env = do
@@ -59,7 +58,3 @@ unless False action = action
 trim :: String -> String
 trim = f . f
   where f = reverse . dropWhile (`elem` " \t\n\r")
-
-errorExit :: String -> IO a
-errorExit msg =
-  hPutStrLn stderr ("Error: " ++ msg) >> exitWith (ExitFailure 84)
