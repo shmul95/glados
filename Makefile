@@ -5,7 +5,7 @@ LISP_BINARY_NAME := glados-exe
 RUNE_BINARY_NAME := rune-exe
 
 
-all: lisp rune symlinks
+all: lisp rune move_binaries
 
 clean:
 	@$(MAKE) -C $(LISP_DIRECTORY) clean
@@ -32,8 +32,8 @@ lisp:
 rune:
 	@$(MAKE) -C $(RUNE_DIRECTORY)
 
-symlinks:
-	@ln -sf "$$(find $(LISP_DIRECTORY)/.stack-work -type f -name $(LISP_BINARY_NAME) | head -n 1)" glados
-	@ln -sf "$$(find $(RUNE_DIRECTORY)/.stack-work -type f -name $(RUNE_BINARY_NAME) | head -n 1)" rune
+move_binaries:
+	mv $(LISP_DIRECTORY)/glados .
+	mv $(RUNE_DIRECTORY)/rune .
 
-.PHONY: all clean fclean re tests coverage lisp rune
+.PHONY: all clean fclean re tests coverage lisp rune move_binaries
