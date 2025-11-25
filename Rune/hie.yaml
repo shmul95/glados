@@ -1,0 +1,10 @@
+cradle:
+  multi:
+    - path: "src"
+      config: { cradle: { stack: { component: "rune:lib" } } }
+    - path: "app"
+      config: { cradle: { stack: { component: "rune:exe:rune-exe" } } }
+    - path: "test"
+      config: { cradle: { stack: { component: "rune:test:rune-test" } } }
+    - path: "./"
+      config: { cradle: { stack: { component: "rune:lib" } } }

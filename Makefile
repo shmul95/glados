@@ -1,24 +1,39 @@
-STACK             := stack
-STACK_WORK_DIR    := .stack-work
-NPROCS			  := $$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
-STACK_BUILD_FLAGS := --jobs $(NPROCS)
+LISP_DIRECTORY   := Lisp
+RUNE_DIRECTORY   := Rune
 
-STACK_BINARY_NAME := glados-exe
-NAME 			  := glados
+LISP_BINARY_NAME := glados-exe
+RUNE_BINARY_NAME := rune-exe
 
-all:
-	$(STACK) build $(STACK_BUILD_FLAGS)
-	@find $(STACK_WORK_DIR)/install -type f -name $(STACK_BINARY_NAME) -exec cp {} ./${NAME} \;
 
-tests:
-	$(STACK) test $(STACK_BUILD_FLAGS)
+all: lisp rune symlinks
 
 clean:
-	$(STACK) clean
+	@$(MAKE) -C $(LISP_DIRECTORY) clean
+	@$(MAKE) -C $(RUNE_DIRECTORY) clean
 
-fclean: clean
-	rm -rf $(STACK_WORK_DIR) $(NAME)
+fclean:
+	@$(MAKE) -C $(LISP_DIRECTORY) fclean
+	@$(MAKE) -C $(RUNE_DIRECTORY) fclean
+	rm -f glados rune
 
 re: fclean all
 
-.PHONY: all clean fclean re tests
+tests:
+	@$(MAKE) -C $(LISP_DIRECTORY) tests
+	@$(MAKE) -C $(RUNE_DIRECTORY) tests
+
+coverage:
+	@$(MAKE) -C $(LISP_DIRECTORY) coverage
+	@$(MAKE) -C $(RUNE_DIRECTORY) coverage
+
+lisp:
+	@$(MAKE) -C $(LISP_DIRECTORY)
+
+rune:
+	@$(MAKE) -C $(RUNE_DIRECTORY)
+
+symlinks:
+	@ln -sf "$$(find $(LISP_DIRECTORY)/.stack-work -type f -name $(LISP_BINARY_NAME) | head -n 1)" glados
+	@ln -sf "$$(find $(RUNE_DIRECTORY)/.stack-work -type f -name $(RUNE_BINARY_NAME) | head -n 1)" rune
+
+.PHONY: all clean fclean re tests coverage lisp rune
