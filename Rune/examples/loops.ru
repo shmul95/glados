@@ -4,6 +4,9 @@ def main() -> null
     num: i32 = 1;
 
     for c in str {
+        if c == 'a' {
+            next;
+        }
         show(c);
     }
 
