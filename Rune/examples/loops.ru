@@ -26,5 +26,5 @@ def main() -> null
 
     show(i);
     show(j);
-    show(k);
+    show(num);
 }
