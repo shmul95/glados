@@ -1,4 +1,4 @@
-module ASTParserSpec (astParserTests) where
+module AST.ParserSpec (astParserTests) where
 
 import Data.Either (isRight)
 import Rune.AST.Nodes

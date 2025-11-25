@@ -1,13 +1,22 @@
+import AST.NodesSpec (astNodesTests)
+import AST.ParserSpec (astParserTests)
+import CLISpec (cliTests)
+import Lexer.LexerSpec (lexerTests)
+import Lexer.TokensSpec (tokensTests)
+import LoggerSpec (loggerTests)
+import PipelinesSpec (pipelinesTests)
 import Test.Tasty
 
-import CLISpec (cliTests)
-import LexerSpec (lexerTests)
-import PipelinesSpec (pipelinesTests)
-
 main :: IO ()
-main = defaultMain $ testGroup "All Tests"
-  [ 
-   cliTests
-  , lexerTests
-  , pipelinesTests
-  ]
+main =
+  defaultMain $
+    testGroup
+      "All Tests"
+      [ cliTests,
+        lexerTests,
+        pipelinesTests,
+        loggerTests,
+        astNodesTests,
+        astParserTests,
+        tokensTests
+      ]
