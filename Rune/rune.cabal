@@ -76,6 +76,7 @@ test-suite rune-test
       ASTParserSpec
       CLISpec
       LexerSpec
+      LoggerSpec
       PipelinesSpec
       Paths_rune
   autogen-modules:
@@ -87,7 +88,10 @@ test-suite rune-test
       base >=4.7 && <5
     , directory
     , megaparsec
+    , process
     , rune
+    , silently
     , tasty
     , tasty-hunit
+    , temporary
   default-language: Haskell2010
