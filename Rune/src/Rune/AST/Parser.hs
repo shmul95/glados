@@ -157,8 +157,16 @@ parseStatement = do
     T.KwLoop -> withContext "Loop statement" parseLoop
     T.KwStop -> withContext "Stop statement" parseStop
     T.KwNext -> withContext "Next statement" parseNext
-    T.Identifier _ -> parseVarDeclOrAssignOrExpr
-    _ -> withContext "Expression statement" parseExprStmt
+    _ -> do
+      isDecl <- lookAheadIsVarDecl
+      isAssignAttempt <- lookAheadAssignmentOp
+
+      if isDecl
+        then withContext "Variable declaration" parseVarDecl
+        else
+          if isAssignAttempt
+            then withContext "Assignment statement" parseAssignment
+            else withContext "Expression statement" parseExprStmt
 
 parseReturn :: Parser Statement
 parseReturn =
@@ -225,16 +233,17 @@ parseNext = do
   unless inLoop $ failParse "The 'next' statement can only be used inside a loop or for block"
   expect T.KwNext *> expect T.Semicolon *> pure StmtNext
 
-parseVarDeclOrAssignOrExpr :: Parser Statement
-parseVarDeclOrAssignOrExpr = do
-  isAssign <- lookAheadIsAssignment
-  isDecl <- lookAheadIsVarDecl
-  if isDecl
-    then withContext "Variable declaration" parseVarDecl
-    else
-      if isAssign
-        then withContext "Assignment statement" parseAssignment
-        else withContext "Expression statement" parseExprStmt
+lookAheadAssignmentOp :: Parser Bool
+lookAheadAssignmentOp = Parser $ \s ->
+  let p = do
+        _ <- parseExpression
+        t <- peek
+        pure $
+          T.tokenKind t
+            `elem` [T.OpAssign, T.OpAddAssign, T.OpSubAssign, T.OpMulAssign, T.OpDivAssign, T.OpModAssign]
+   in case runParser (try p) s of
+        Right (result, _) -> Right (result, s)
+        Left _ -> Right (False, s)
 
 lookAheadIsVarDecl :: Parser Bool
 lookAheadIsVarDecl = Parser $ \s ->
@@ -242,25 +251,7 @@ lookAheadIsVarDecl = Parser $ \s ->
         _ <- parseIdentifier
         t <- peek
         pure $ T.tokenKind t == T.Colon || T.tokenKind t == T.OpAssign || T.tokenKind t == T.Semicolon
-   in case runParser p s of
-        Right (result, _) -> Right (result, s)
-        Left _ -> Right (False, s)
-
-lookAheadIsAssignment :: Parser Bool
-lookAheadIsAssignment = Parser $ \s ->
-  let p = do
-        _ <- parseLValue
-        t <- peek
-        pure $
-          T.tokenKind t
-            `elem` [ T.OpAssign,
-                     T.OpAddAssign,
-                     T.OpSubAssign,
-                     T.OpMulAssign,
-                     T.OpDivAssign,
-                     T.OpModAssign
-                   ]
-   in case runParser p s of
+   in case runParser (try p) s of
         Right (result, _) -> Right (result, s)
         Left _ -> Right (False, s)
 
@@ -268,26 +259,21 @@ parseLValue :: Parser Expression
 parseLValue = parseAccessOrVar
 
 parseAccessOrVar :: Parser Expression
-parseAccessOrVar = chainPostfix (ExprVar <$> parseIdentifier) op
+parseAccessOrVar = chainPostfix parseBase op
   where
-    op =
-      choice
-        [ do
-            f <- expect T.Dot *> parseIdentifier
-            pure $ \e -> ExprAccess e f,
-          do
-            failParse "Expected L-Value (variable or field access)"
-        ]
+    parseBase =
+      (ExprVar <$> parseIdentifier)
+        <|> failParse "Expected L-Value (variable or field access)"
+    op = do
+      f <- expect T.Dot *> parseIdentifier
+      pure $ \e -> ExprAccess e f
 
 parseAssignment :: Parser Statement
 parseAssignment = do
-  lvalue <- withContext "LHS of assignment" parseLValue
-
+  lvalue <- parseLValue
   opTok <- choice (map expect [T.OpAssign, T.OpAddAssign, T.OpSubAssign, T.OpMulAssign, T.OpDivAssign, T.OpModAssign])
-
   val <- withContext "RHS of assignment" parseExpression
   _ <- expect T.Semicolon
-
   let finalExpr = case T.tokenKind opTok of
         T.OpAssign -> val
         T.OpAddAssign -> ExprBinary Add lvalue val
@@ -296,7 +282,6 @@ parseAssignment = do
         T.OpDivAssign -> ExprBinary Div lvalue val
         T.OpModAssign -> ExprBinary Mod lvalue val
         _ -> error "Impossible assignment operator"
-
   pure $ StmtAssignment lvalue finalExpr
 
 parseVarDecl :: Parser Statement
@@ -318,15 +303,14 @@ parseVarDecl = do
 parseExprStmt :: Parser Statement
 parseExprStmt = do
   expr <- parseExpression
-  choice
-    [ StmtExpr expr <$ expect T.Semicolon,
-      do
-        isEnd <- check T.RBrace
-        if isEnd
-          then pure (StmtReturn (Just expr))
-          else empty,
-      failParse "Expected ';' after expression"
-    ]
+  isSemicolon <- match T.Semicolon
+  if isSemicolon
+    then pure (StmtExpr expr)
+    else do
+      isEnd <- check T.RBrace
+      if isEnd
+        then pure (StmtReturn (Just expr))
+        else failParse "Expected ';' after expression or block-ending '}' for implicit return"
 
 --
 -- Expressions
