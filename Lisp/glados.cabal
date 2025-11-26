@@ -24,10 +24,11 @@ source-repository head
 
 library
   exposed-modules:
-      AST
+      Lisp.AST.AST
+      Lisp.AST.SExprToAST
+      Lisp.Parser.Parser
+      Lisp.SExpr.SExpr
       Executor
-      Parser
-      SExpr
   other-modules:
       Paths_glados
   autogen-modules:

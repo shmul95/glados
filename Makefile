@@ -14,7 +14,7 @@ clean:
 fclean:
 	@$(MAKE) -C $(LISP_DIRECTORY) fclean
 	@$(MAKE) -C $(RUNE_DIRECTORY) fclean
-	@find . -maxdepth 1 -type l \( -name glados -o -name rune \) -delete
+	@find . -maxdepth 1 -type l \( -name $(LISP_BINARY_NAME) -o -name $(RUNE_BINARY_NAME) \) -delete
 
 re: fclean all
 

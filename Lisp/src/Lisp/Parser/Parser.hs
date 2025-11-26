@@ -1,11 +1,4 @@
-{-
--- EPITECH PROJECT, 2025
--- Parser.hs
--- File description:
--- Parser.hs
--}
-
-module Parser (parseLispDocument,
+module Lisp.Parser.Parser (parseLispDocument,
                 parseLispArray,
                 parseLispNumber,
                 parseLispString,
@@ -14,7 +7,7 @@ module Parser (parseLispDocument,
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import Data.Void (Void)
-import SExpr (SExpr(..))
+import Lisp.SExpr.SExpr (SExpr(..))
 
 type Parser = Parsec Void String
 
@@ -44,7 +37,7 @@ parseLispNumber = try $ do
 
 parseLispString :: Parser SExpr
 parseLispString = do
-    first <- letterChar <|> oneOf "!?_+*/=<>#"
+    first <- letterChar <|> oneOf "!?_-+*/=<>#"
     rest <- many (alphaNumChar <|> oneOf "!?_-+*/=<>#")
     let word = first : rest
     return (Symbol word)

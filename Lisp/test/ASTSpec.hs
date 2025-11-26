@@ -4,7 +4,7 @@ module ASTSpec (astTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
-import AST
+import Lisp.AST.AST
 import SExpr
 
 astTests :: TestTree

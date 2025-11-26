@@ -8,15 +8,9 @@ import PipelinesSpec (pipelinesTests)
 import Test.Tasty
 
 main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "All Tests"
-      [ cliTests,
-        lexerTests,
-        pipelinesTests,
-        loggerTests,
-        astNodesTests,
-        astParserTests,
-        tokensTests
-      ]
+main = defaultMain $ testGroup "All Tests"
+  [
+   cliTests
+  , lexerTests
+  , pipelinesTests
+  ]

@@ -133,9 +133,4 @@ errorCaseTests = testGroup "error cases"
       case parseTest "(+ 1 2))" of
         Left _ -> return ()  -- Should fail
         Right _ -> assertBool "Should have failed on extra closing parentheses" False
-
-  , testCase "fails on standalone minus sign" $ do
-      case parseTest "-" of
-        Left _ -> return ()  -- Should fail
-        Right _ -> assertBool "Should have failed on standalone minus" False
   ]
