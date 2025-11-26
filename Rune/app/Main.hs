@@ -1,10 +1,3 @@
-{-
--- EPITECH PROJECT, 2025
--- Main.hs
--- File description:
--- Main.hs
--}
-
 module Main (main) where
 
 import CLI (parseArgs, runCLI)

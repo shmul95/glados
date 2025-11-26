@@ -1,14 +1,3 @@
-{-
--- EPITECH PROJECT, 2025
--- SExpr.hs
--- File description:
--- SExpr.hs
-
-
- Defines the SExpr type for representing S-expressions, along with
- helper functions for working with SExpr values.
--}
-
 module SExpr (
     SExpr(..),
     getSymbol,
@@ -58,4 +47,3 @@ describeListRest (x:xs) = do
     x' <- printTree x
     xs' <- describeListRest xs
     return $ x' ++ ", " ++ xs'
-

@@ -1,10 +1,3 @@
-{-
--- EPITECH PROJECT, 2025
--- AST.hs
--- File description:
--- AST.hs
--}
-
 module AST (
     Ast(..),
     sexprToAST,
@@ -13,7 +6,8 @@ module AST (
     evalAST,
     evalASTWithEnv,
     extractInteger,
-    compEnv
+    compEnv,
+    Environment
 ) where
 
 import SExpr (SExpr(..))
@@ -72,92 +66,91 @@ sexprToAST (List exprs) = do
 -----------------------------------------------------------------------------------------------
 -- Evaluation of AST
 -----------------------------------------------------------------------------------------------
+
 compEnv :: Environment -> String -> Maybe Ast
 compEnv [] _ = Nothing
-compEnv ((name, value):xs) str = if name == str then Just value else compEnv xs str
+compEnv ((name, value):xs) str
+    | name == str = Just value
+    | otherwise = compEnv xs str
+
 
 extractInteger :: Environment -> Ast -> Maybe Int
-extractInteger env ast = case evalAST env ast of
-    Just (AstInteger val) -> Just val
-    _                     -> Nothing
+extractInteger  env ast = case evalAST env ast of
+    (_, Just (AstInteger n)) -> Just n
+    _ -> Nothing
 
-handleString :: Environment -> String -> Maybe Ast
-handleString _ "#t" = Just (AstBoolean True)
-handleString _ "#f" = Just (AstBoolean False)
+
+handleString :: Environment -> String -> (Environment, Maybe Ast)
+handleString env "#t" = (env, Just (AstBoolean True))
+handleString env "#f" = (env, Just (AstBoolean False))
 handleString env s = case compEnv env s of
     Just value -> evalAST env value
-    _          -> Just (AstSymbol s)
+    _          -> (env, Nothing)
 
-handleCall :: Environment -> String -> [Ast] -> Maybe Ast
-handleCall env op [x, y] | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] = do
-    a <- extractInteger env x
-    b <- extractInteger env y
-    case op of
-        "+" -> Just (AstInteger (a + b))
-        "-" -> Just (AstInteger (a - b))
-        "*" -> Just (AstInteger (a * b))
-        "div" -> if b /= 0 then Just (AstInteger (a `div` b)) else Nothing
-        "mod" -> if b /= 0 then Just (AstInteger (a `mod` b)) else Nothing
-        "eq?" -> Just (AstBoolean (a == b))
-        "<" -> Just (AstBoolean (a < b))
+
+handleOpt :: Environment -> String -> [Ast] -> Maybe Ast
+handleOpt env op [x, y] =
+    case (extractInteger env x, extractInteger env y) of
+        (Just a, Just b) -> case op of
+            "+" -> Just (AstInteger (a + b))
+            "-" -> Just (AstInteger (a - b))
+            "*" -> Just (AstInteger (a * b))
+            "div" -> if b /= 0 then Just (AstInteger (a `div` b)) else Nothing
+            "mod" -> if b /= 0 then Just (AstInteger (a `mod` b)) else Nothing
+            "eq?" -> Just (AstBoolean (a == b))
+            "<" -> Just (AstBoolean (a < b))
+            _ -> Nothing
         _ -> Nothing
-handleCall _ _ _ = Nothing
+handleOpt _ _ _ = Nothing
 
-handleCondition :: Environment -> Ast -> Ast -> Ast -> Maybe Ast
-handleCondition env c t e = do
-        evaluatedCond <- evalAST env c
-        case evaluatedCond of
-            AstBoolean True  -> evalAST env t
-            AstBoolean False -> evalAST env e
-            _                -> Nothing
 
-evalASTWithEnv :: Environment -> [Ast] -> Maybe Ast
-evalASTWithEnv _ [] = Nothing
+handleCondition :: Environment -> Ast -> Ast -> Ast -> (Environment, Maybe Ast)
+handleCondition env c t e =
+        let (_, evaluatedCond) = evalAST env c
+        in case evaluatedCond of
+            Just (AstBoolean True)  -> evalAST env t
+            Just (AstBoolean False) -> evalAST env e
+            _                -> (env, Nothing)
+
+
+handleDefine :: Environment -> String -> Ast -> (Environment, Maybe Ast)
+handleDefine env name value =
+    let (_, evaluatedValue) = evalAST env value
+    in case evaluatedValue of
+        Just val -> ((name, val) : env, Just (AstSymbol ""))
+        Nothing  -> (env, Nothing)
+
+
+handleCall :: Environment -> String -> [String] -> Ast -> Environment -> [Ast] -> (Environment, Maybe Ast)
+handleCall env funcName params body closureEnv args
+    | length params /= length args = (env, Nothing)
+    | otherwise =
+        let argVals = [case evalAST env arg of (_, Just val) -> val; _ -> AstInteger 0 | arg <- args]
+            bindings = zip params argVals
+            funcBinding = (funcName, Lambda params body closureEnv)
+            newEnv = funcBinding : bindings ++ closureEnv
+        in evalAST newEnv body
+
+evalASTWithEnv :: Environment -> [Ast] -> (Environment, Maybe Ast)
+evalASTWithEnv env [] = (env, Nothing)
 evalASTWithEnv env [expr] = evalAST env expr
-evalASTWithEnv env (Define varName value : exprs) = do
-    evaluatedValue <- evalAST env value
-    let newEnv = (varName, evaluatedValue) : env
-    evalASTWithEnv newEnv exprs
+evalASTWithEnv env (expr:exprs) =
+    let (newEnv, _) = evalAST env expr
+    in evalASTWithEnv newEnv exprs
 
-evalASTWithEnv env (expr : exprs) = do
-    _ <- evalAST env expr
-    evalASTWithEnv env exprs
 
-evalAST :: Environment -> Ast -> Maybe Ast
-evalAST _ (Define _ _) = Just (AstSymbol "")
-evalAST env (Call func args) = handleCall env func args
-evalAST _ (AstInteger n) = Just (AstInteger n)
+evalAST :: Environment -> Ast -> (Environment, Maybe Ast)
+evalAST env (AstInteger n) = (env, Just (AstInteger n))
+evalAST env (AstBoolean b) = (env, Just (AstBoolean b))
 evalAST env (AstSymbol s) = handleString env s
-evalAST _ (AstBoolean b) = Just (AstBoolean b)
+evalAST env (Call op args) = (env, handleOpt env op args)
 evalAST env (If cond thenExpr elseExpr) = handleCondition env cond thenExpr elseExpr
-evalAST env (Lambda params body closureEnv) =
-    Just (Lambda params body (if null closureEnv then env else closureEnv))
-evalAST _ (AstList []) = Just (AstList [])
-evalAST env (AstList [expr]) = evalAST env expr
+evalAST env (Lambda params body _) = (env, Just (Lambda params body env))
+evalAST env (Define name value) = handleDefine env name value
 evalAST env (AstList (AstSymbol funcName : args)) =
     case compEnv env funcName of
-        Just (Lambda params body closureEnv) -> do
-            evaluatedArgs <- mapM (evalAST env) args
-            if length params /= length evaluatedArgs
-                then Nothing
-                else do
-                    let bindings = zip params evaluatedArgs
-                    let recursiveEnv = (funcName, Lambda params body closureEnv) : bindings ++ closureEnv ++ env
-                    evalAST recursiveEnv body
-        _ -> case funcName of
-            op | op `elem` ["+", "-", "*", "div", "mod", "eq?", "<"] ->
-                handleCall env op args
-            _ -> Nothing
-
-evalAST env (AstList (func : args)) = do
-    evaluatedFunc <- evalAST env func
-    case evaluatedFunc of
-        Lambda params body closureEnv -> do
-            evaluatedArgs <- mapM (evalAST env) args
-            if length params /= length evaluatedArgs
-                then Nothing
-                else do
-                    let bindings = zip params evaluatedArgs
-                    let newEnv = bindings ++ closureEnv
-                    evalAST newEnv body
-        _ -> evalASTWithEnv env (func : args)
+        Just (Lambda params body closureEnv) -> handleCall env funcName params body closureEnv args
+        _ -> (env, handleOpt env funcName args)
+evalAST env (AstList [expr]) = evalAST env expr
+evalAST env (AstList []) = (env, Just (AstList []))
+evalAST env (AstList _) = (env, Nothing)

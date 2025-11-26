@@ -1,10 +1,3 @@
-{-
--- EPITECH PROJECT, 2025
--- Parser.hs
--- File description:
--- Parser.hs
--}
-
 module Parser (parseLispDocument,
                 parseLispArray,
                 parseLispNumber,
