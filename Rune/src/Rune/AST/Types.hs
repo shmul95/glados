@@ -1,4 +1,4 @@
-module Rune.AST.ParserTypes
+module Rune.AST.Types
   ( ParserState (..),
     Parser (..),
   )

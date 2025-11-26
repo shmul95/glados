@@ -2,6 +2,7 @@ module Rune.AST.ParserHelper
   ( failParse,
     withContext,
     getParserState,
+    tokenMap,
     peek,
     advance,
     expect,
@@ -25,7 +26,7 @@ where
 import Control.Applicative (Alternative (..))
 import Control.Monad (when)
 import Data.Bifunctor (Bifunctor (first))
-import Rune.AST.ParserTypes (Parser (..), ParserState (..))
+import Rune.AST.Types (Parser (..), ParserState (..))
 import qualified Rune.Lexer.Tokens as T
 
 --
@@ -94,6 +95,13 @@ checkLoopDepth = (> 0) . psLoopDepth <$> getParserState
 --
 -- tokens helpers
 --
+
+tokenMap :: (T.TokenKind -> Maybe a) -> Parser a
+tokenMap f = do
+  t <- peek
+  case f (T.tokenKind t) of
+    Just val -> advance >> pure val
+    Nothing -> empty
 
 -- | get current token
 peek :: Parser T.Token

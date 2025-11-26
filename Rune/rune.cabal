@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.38.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -28,9 +28,14 @@ library
       Logger
       Rune.AST.Nodes
       Rune.AST.Parser
+      Rune.AST.Parser.ParseBlock
+      Rune.AST.Parser.ParseExpression
+      Rune.AST.Parser.ParseTopLevel
+      Rune.AST.Parser.ParseTypes
+      Rune.AST.Parser.ParseVariable
       Rune.AST.ParserHelper
-      Rune.AST.ParserTypes
       Rune.AST.Printer
+      Rune.AST.Types
       Rune.AST.Visitor
       Rune.Lexer.Lexer
       Rune.Lexer.LexerDelimiters
