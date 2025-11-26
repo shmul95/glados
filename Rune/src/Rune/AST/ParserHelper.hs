@@ -17,6 +17,8 @@ module Rune.AST.ParserHelper
     chainl1,
     chainUnary,
     chainPostfix,
+    incLoopDepth,
+    checkLoopDepth,
   )
 where
 
@@ -73,6 +75,21 @@ try (Parser p) = Parser $ \s -> case p s of
 
 getParserState :: Parser ParserState
 getParserState = Parser $ \s -> Right (s, s)
+
+--
+-- context helpers
+--
+
+incLoopDepth :: Parser a -> Parser a
+incLoopDepth (Parser p) = Parser $ \s ->
+  let s' = s {psLoopDepth = psLoopDepth s + 1}
+   in case p s' of
+        Left err -> Left err
+        Right (x, s'') -> Right (x, s'' {psLoopDepth = psLoopDepth s'' - 1})
+
+-- | check if the current loop depth is greater than zero
+checkLoopDepth :: Parser Bool
+checkLoopDepth = (> 0) . psLoopDepth <$> getParserState
 
 --
 -- tokens helpers

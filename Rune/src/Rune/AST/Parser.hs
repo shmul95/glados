@@ -3,6 +3,7 @@
 module Rune.AST.Parser (parseRune) where
 
 import Control.Applicative (Alternative (..), optional)
+import Control.Monad (unless)
 import Data.Either (partitionEithers)
 import Rune.AST.Nodes
 import Rune.AST.ParserHelper
@@ -15,7 +16,7 @@ import qualified Rune.Lexer.Tokens as T
 
 parseRune :: FilePath -> [T.Token] -> Either String Program
 parseRune filepath tokens =
-  case runParser parseProgram (ParserState tokens 0 filepath) of
+  case runParser parseProgram (ParserState tokens 0 filepath 0) of
     Left err -> Left err
     Right (prog, _) -> Right prog
 
@@ -191,33 +192,37 @@ parseForRangeRest var typeAnnot = do
   start <- withContext "start index" parseExpression
   _ <- expect T.KwTo
   end <- withContext "end index" parseExpression
-  body <- withContext "for block" parseBlock
+  body <- incLoopDepth (withContext "for block" parseBlock)
   pure $ StmtFor var typeAnnot (Just start) end body
 
 parseForRangeRestNoInit :: String -> Maybe Type -> Parser Statement
 parseForRangeRestNoInit var typeAnnot = do
   _ <- expect T.KwTo
   end <- withContext "end index" parseExpression
-  body <- withContext "for block" parseBlock
+  body <- incLoopDepth (withContext "for block" parseBlock)
   pure $ StmtFor var typeAnnot Nothing end body
 
 parseForEachRest :: String -> Maybe Type -> Parser Statement
 parseForEachRest var typeAnnot = do
   _ <- expect T.KwIn
   iterable <- withContext "iterable expression" parseExpression
-  body <- withContext "for-each block" parseBlock
+  body <- incLoopDepth (withContext "for-each block" parseBlock)
   pure $ StmtForEach var typeAnnot iterable body
 
 parseLoop :: Parser Statement
 parseLoop =
-  StmtLoop <$> (expect T.KwLoop *> withContext "loop block" parseBlock)
+  StmtLoop <$> (expect T.KwLoop *> incLoopDepth (withContext "loop block" parseBlock))
 
 parseStop :: Parser Statement
-parseStop =
+parseStop = do
+  inLoop <- checkLoopDepth
+  unless inLoop $ failParse "The 'stop' statement can only be used inside a loop or for block"
   expect T.KwStop *> expect T.Semicolon *> pure StmtStop
 
 parseNext :: Parser Statement
-parseNext =
+parseNext = do
+  inLoop <- checkLoopDepth
+  unless inLoop $ failParse "The 'next' statement can only be used inside a loop or for block"
   expect T.KwNext *> expect T.Semicolon *> pure StmtNext
 
 parseVarDeclOrAssignOrExpr :: Parser Statement

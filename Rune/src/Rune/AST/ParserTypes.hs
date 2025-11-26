@@ -14,7 +14,8 @@ import qualified Rune.Lexer.Tokens as T
 data ParserState = ParserState
   { psTokens :: [T.Token],
     psPosition :: Int,
-    psFilePath :: String
+    psFilePath :: String,
+    psLoopDepth :: Int
   }
   deriving (Show)
 
