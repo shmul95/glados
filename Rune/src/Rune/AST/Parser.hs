@@ -236,7 +236,7 @@ lookAheadIsVarDecl = Parser $ \s ->
   let p = do
         _ <- parseIdentifier
         t <- peek
-        pure $ T.tokenKind t == T.Colon || T.tokenKind t == T.OpAssign
+        pure $ T.tokenKind t == T.Colon || T.tokenKind t == T.OpAssign || T.tokenKind t == T.Semicolon
    in case runParser p s of
         Right (result, _) -> Right (result, s)
         Left _ -> Right (False, s)
@@ -298,8 +298,15 @@ parseVarDecl :: Parser Statement
 parseVarDecl = do
   name <- parseIdentifier
   typeAnnot <- optional (expect T.Colon *> parseType)
-  _ <- expect T.OpAssign
-  val <- withContext "assigned value" parseExpression
+  isAssign <- match T.OpAssign
+
+  val <-
+    if isAssign
+      then withContext "assigned value" parseExpression
+      else case typeAnnot of
+        Just _ -> pure ExprLitNull
+        Nothing -> failParse "Expected type annotation or initial value for variable declaration"
+
   _ <- expect T.Semicolon
   pure $ StmtVarDecl name typeAnnot val
 

@@ -2,6 +2,7 @@ def main() -> null
 {
     str: string = "Warszawa";
     num: i32 = 1;
+    k: i32;
 
     for c in str {
         if c == 'a' {
@@ -17,10 +18,11 @@ def main() -> null
     for j: i32 = 0 to 25 {
         j *= 2;
     }
+    k = j;
 
     loop 
     {
-        if num > j {
+        if num > k {
             stop; 
         }
 
