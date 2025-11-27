@@ -37,14 +37,19 @@ verifScope s ((StmtIf cond thenA elseB):stmts)
     <>  verifScope s thenA
     <>  maybe Nothing (verifScope s) elseB
     <>  verifScope s stmts
-verifScope (fs, vs) ((StmtFor var start end body):stmts)
-    = let vs' = HM.insert var (typeOfExpr (fs, vs) start) vs
+verifScope (fs, vs) ((StmtFor var t (Just start) end body):stmts)
+    = let vs' = HM.insert var (fromMaybe (typeOfExpr (fs, vs) start) t) vs
     in  verifExpr (fs, vs') start
     <>  verifExpr (fs, vs') end
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
-verifScope (fs, vs) ((StmtForEach var iterable body):stmts)
-    = let vs' = HM.insert var (typeOfExpr (fs, vs) iterable) vs
+verifScope (fs, vs) ((StmtFor var t Nothing end body):stmts)
+    = let vs' = HM.insert var (fromMaybe TypeAny t) vs
+    in  verifExpr (fs, vs') end
+    <>  verifScope (fs, vs') body
+    <>  verifScope (fs, vs) stmts
+verifScope (fs, vs) ((StmtForEach var t iterable body):stmts)
+    = let vs' = HM.insert var (fromMaybe (typeOfExpr (fs, vs) iterable) t) vs
     in  verifExpr (fs, vs') iterable
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
@@ -52,6 +57,7 @@ verifScope s ((StmtExpr e):stmts)
     =   verifExpr s e
     <>  verifScope s stmts
 verifScope _ [] = Nothing
+verifScope _ _ = Nothing -- TODO not managed pattern for now 
 
 
 verifExpr :: Stack -> Expression -> Maybe String
@@ -72,6 +78,7 @@ typeOfExpr :: Stack -> Expression -> Type
 typeOfExpr _ (ExprLitInt _) = TypeI32
 typeOfExpr _ (ExprLitFloat  _) = TypeF32
 typeOfExpr _ (ExprLitString  _) = TypeString
+typeOfExpr _ (ExprLitChar _ ) = TypeU8
 typeOfExpr _ (ExprLitBool  _) = TypeBool
 typeOfExpr _ (ExprStructInit st _) = TypeCustom st
 typeOfExpr _ ExprLitNull = TypeNull

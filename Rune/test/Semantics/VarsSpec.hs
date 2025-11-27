@@ -49,8 +49,8 @@ validProgram =
         TypeI32
         [ StmtVarDecl "local" (Just TypeI32) (ExprVar "arg"),
           StmtExpr (ExprCall "bar" [ExprVar "local"]),
-          StmtFor "i" (ExprLitInt 0) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
-          StmtForEach "item" (ExprVar "local") [StmtExpr (ExprVar "item")],
+          StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
+          StmtForEach "item" Nothing (ExprVar "local") [StmtExpr (ExprVar "item")],
           StmtReturn Nothing
         ]
     ]
@@ -142,7 +142,7 @@ forLeakProgram =
         "loop"
         []
         TypeNull
-        [ StmtFor "i" (ExprLitInt 0) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
+        [ StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
           StmtExpr (ExprVar "i")
         ]
     ]
@@ -156,7 +156,7 @@ forEachLeakProgram =
         []
         TypeNull
         [ StmtVarDecl "source" Nothing (ExprLitInt 0),
-          StmtForEach "item" (ExprVar "source") [StmtExpr (ExprVar "item")],
+          StmtForEach "item" Nothing (ExprVar "source") [StmtExpr (ExprVar "item")],
           StmtExpr (ExprVar "item")
         ]
     ]
