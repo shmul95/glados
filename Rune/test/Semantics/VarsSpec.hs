@@ -97,20 +97,20 @@ structProgram =
         ]
     ]
 
-structMethodErrorProgram :: Program
-structMethodErrorProgram =
-  Program
-    "struct-error"
-    [ DefStruct
-        "Vec"
-        []
-        [ DefFunction
-            "len"
-            []
-            TypeI32
-            [StmtExpr (ExprVar "ghost")]
-        ]
-    ]
+-- structMethodErrorProgram :: Program
+-- structMethodErrorProgram =
+--   Program
+--     "struct-error"
+--     [ DefStruct
+--         "Vec"
+--         []
+--         [ DefFunction
+--             "len"
+--             []
+--             TypeI32
+--             [StmtExpr (ExprVar "ghost")]
+--         ]
+--     ]
 
 overrideLeakProgram :: Program
 overrideLeakProgram =
