@@ -52,7 +52,8 @@ programSyntaxTests =
 
 validSyntaxExamples :: [String]
 validSyntaxExamples =
-  [ "def main() -> null { str: string = \"Warszawa\"; num: i32 = 1; k: i32; for c in str { if c == 'a' { next; } show(c); } for i = 0 to 10 { ++i; } for j: i32 = 0 to 25 { j *= 2; } k = j; loop { if num > k { stop; } num += 3; } show(i); show(j); show(num); }",
+  [ 
+    "def main() -> null { str: string = \"Warszawa\"; num: i32 = 1; k: i32; for c in str { if c == 'a' { next; } show(c); } for i = 0 to 10 { ++i; } k = i; show(k); for j: i32 = 0 to 25 { j *= 2; } k = j; show(k); loop { if num > k { stop; } num += 3; } show(j); show(num); }",
     "def f(n: i32)->i32 { if n <= 1 { n } else { f(n - 1) + f(n - 2) } } struct Person { name: string; age: i32; def greet(self)->null{show(\"hello \");show(self.name);show(\"\n\");} } def main()->null { p = Person { name: \"Alice\", age: 30 }; p.greet(); show(\"Fibonacci(10) = \"); show(f(10)); show(\"\n\"); }",
     "def main() -> null { x = 10; }",
     "def main() -> null { y: f64; }",
