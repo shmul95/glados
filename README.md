@@ -25,6 +25,7 @@
 ## Description
 
 **GLaDOS** is an interpreter and a compiler developed entirely in **Haskell**.
+This project features a [**Lisp**](./Lisp) interpreter and a [**Rune language**](./Rune) interpreter and compilator.
 
 > TODO: add language description
 
@@ -47,19 +48,13 @@ git clone https://github.com/shmul95/glados
 cd glados
 ```
 
-Compile the project using `make`
+Compile both projects using `make`
 
 > [!NOTE]
 > stack will automatically install the correct version of GHC
 
 ```bash
-make -j
-```
-
-## Use the compiler
-
-```bash
-./glados < file.scm
+make
 ```
 
 ## License
