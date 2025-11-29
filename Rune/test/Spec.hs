@@ -9,6 +9,8 @@ import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
 import LoggerSpec (loggerTests)
 import PipelinesSpec (pipelinesTests)
+import Semantics.FuncSpec (funcSemanticsTests)
+import Semantics.VarsSpec (varsSemanticsTests)
 import Test.Tasty
 
 --
@@ -22,7 +24,16 @@ main =
       "All Tests"
       [ coreSpecs,
         lexerSpecs,
-        astSpecs
+        astSpecs,
+        semanticsSpecs,
+
+        cliTests,
+        lexerTests,
+        pipelinesTests,
+        loggerTests,
+        astNodesTests,
+        astParserTests,
+        tokensTests
       ]
 
 --
@@ -54,4 +65,12 @@ astSpecs =
       astParserTests,
       programSyntaxTests,
       astPrinterTests
+    ]
+
+semanticsSpecs :: TestTree
+semanticsSpecs =
+  testGroup
+    "Semantics Tests"
+    [ funcSemanticsTests,
+      varsSemanticsTests
     ]

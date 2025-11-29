@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -47,6 +47,8 @@ library
       Rune.Lexer.LexerPrimitives
       Rune.Lexer.Tokens
       Rune.Pipelines
+      Rune.Semantics.Func
+      Rune.Semantics.Vars
   other-modules:
       Paths_rune
   autogen-modules:
@@ -56,7 +58,9 @@ library
   ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
+    , containers
     , megaparsec
+    , unordered-containers
   default-language: Haskell2010
 
 executable rune-exe
@@ -70,8 +74,10 @@ executable rune-exe
   ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
     , megaparsec
     , rune
+    , unordered-containers
   default-language: Haskell2010
 
 test-suite rune-test
@@ -87,6 +93,8 @@ test-suite rune-test
       Lexer.TokensSpec
       LoggerSpec
       PipelinesSpec
+      Semantics.FuncSpec
+      Semantics.VarsSpec
       Paths_rune
   autogen-modules:
       Paths_rune
@@ -95,6 +103,7 @@ test-suite rune-test
   ghc-options: -Wall -Wextra -Werror -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , containers
     , directory
     , megaparsec
     , process
@@ -103,4 +112,5 @@ test-suite rune-test
     , tasty
     , tasty-hunit
     , temporary
+    , unordered-containers
   default-language: Haskell2010
