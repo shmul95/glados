@@ -122,7 +122,7 @@ irTestLoopControl = do
         unlines
           [ "def main() -> null",
             "{",
-            "    k: i32 = 0;",
+            "    k: f32 = 0.0;",
             "",
             "    loop {",
             "        k += 2;",
@@ -139,15 +139,15 @@ irTestLoopControl = do
   let expected =
         unlines
           [ "DEF main():",
-            "    k: i32 = 0",
+            "    k: f32 = 0.0",
             ".L.loop_header0:",
-            "    t0: i32 = ADD k, 2",
-            "    k: i32 = t0",
+            "    t0: f32 = ADD k, 2",
+            "    k: f32 = t0",
             "    t1 = CMP_GT k, 10",
             "    JUMP_FALSE t1, .L.end1",
             "    JUMP .L.loop_end",
             ".L.end1:",
-            "    t2: i32 = MOD k, 4",
+            "    t2: f32 = MOD k, 4",
             "    t3 = CMP_EQ t2, 0",
             "    JUMP_FALSE t3, .L.end2",
             "    JUMP .L.loop_header",
@@ -163,33 +163,35 @@ irTestConditional :: IO ()
 irTestConditional = do
   let program =
         unlines
-          [ "def main() -> i32",
+          [ "def main() -> null",
             "{",
-            "    a: i32 = 5;",
+            "    a: bool = true;",
+            "    b: bool = false;",
             "",
-            "    if a < 10 {",
-            "        show(\"a is less than 10\");",
-            "    } else {",
-            "        show(\"a is 10 or greater\");",
+            "    if a {",
+            "        show(\"a is true\");",
             "    }",
-            "    return a;",
+            "    if b == false {",
+            "        show(\"b is false\");",
+            "    }",
             "}"
           ]
   let expected =
         unlines
-          [ "GLOBAL str_main0: string = \"a is less than 10\\0\"",
-            "GLOBAL str_main1: string = \"a is 10 or greater\\0\"",
+          [ "GLOBAL str_main0: string = \"a is true\\0\"",
+            "GLOBAL str_main1: string = \"b is false\\0\"",
             "DEF main():",
-            "    a: i32 = 5",
-            "    t0 = CMP_LT a, 10",
-            "    JUMP_FALSE t0, .L.else0",
-            "    p_ptr1: *u8 = ADDR str_main0",
-            "    CALL puts(p_ptr1)",
-            "    JUMP .L.end0",
-            ".L.else0:",
+            "    a: i32 = 1",
+            "    b: i32 = 0",
+            "    JUMP_FALSE a, .L.end0",
+            "    p_ptr0: *u8 = ADDR str_main0",
+            "    CALL puts(p_ptr0)",
+            ".L.end0:",
+            "    t1 = CMP_EQ b, 0",
+            "    JUMP_FALSE t1, .L.end1",
             "    p_ptr2: *u8 = ADDR str_main1",
             "    CALL puts(p_ptr2)",
-            ".L.end0:",
-            "    RET a"
+            ".L.end1:",
+            "    RET"
           ]
   runIR program @?= expected
