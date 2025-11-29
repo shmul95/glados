@@ -34,15 +34,6 @@ pipeline =
     >=> parseAST
     >=> analyseSemantics
 
---
--- <and in the private wrapper>
---
-
-analyseSemantics :: Program -> Either String Program
-analyseSemantics p = case verifVars p of
-  Just err -> Left err
-  Nothing -> Right p
-
 runPipeline :: FilePath -> IO (Either String Program)
 runPipeline fp = do
   readContent <- safeRead fp
@@ -76,3 +67,9 @@ parseAST (fp, tokens) =
   case parseRune fp tokens of
     Left err -> Left err
     Right ast -> Right ast
+
+analyseSemantics :: Program -> Either String Program
+analyseSemantics p = case verifVars p of
+  Just err -> Left err
+  Nothing -> Right p
+
