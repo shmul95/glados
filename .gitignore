@@ -26,3 +26,5 @@ glados
 stack.yaml.lock
 rune
 *.out
+*.ir
+*.tix
