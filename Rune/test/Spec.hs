@@ -72,5 +72,5 @@ semanticsSpecs =
   testGroup
     "Semantics Tests"
     [ funcSemanticsTests,
-      varsSemanticsTests,
+      varsSemanticsTests
     ]
