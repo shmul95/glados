@@ -36,7 +36,6 @@ library
       Rune.AST.ParserHelper
       Rune.AST.Printer
       Rune.AST.Types
-      Rune.AST.Visitor
       Rune.IR.Generator
       Rune.IR.Generator.GenExpression
       Rune.IR.Generator.GenStatement
