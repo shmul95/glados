@@ -13,9 +13,6 @@ import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Text.Megaparsec (errorBundlePretty)
 
-import Rune.Semantics.Vars (verifVars)  -- for testing purposes
--- import Rune.Semantics.Func (findFunc)   -- for testing purposes
-
 --
 -- public
 --
