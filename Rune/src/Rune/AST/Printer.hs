@@ -1,5 +1,4 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TupleSections #-}
 
 module Rune.AST.Printer (prettyPrint) where
 
@@ -8,7 +7,7 @@ import Control.Monad.State.Strict (State, execState, get, modify)
 import Rune.AST.Nodes
 
 --
--- state Monad for pretty-printing using ShowS (Efficient string building)
+-- state Monad for pretty-printing using ShowS
 --
 
 data PrinterState = PrinterState
@@ -29,7 +28,7 @@ prettyPrint prog =
    in psOutput finalState ""
 
 --
--- AST visitor functions (now integrated with the Printer State Monad)
+-- AST visitor functions
 --
 
 visitProgram :: Program -> Printer ()
