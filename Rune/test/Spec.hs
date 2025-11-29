@@ -5,13 +5,14 @@ import AST.ParserSpec (astParserTests)
 import AST.PrinterSpec (astPrinterTests)
 import AST.ProgramSyntaxSpec (programSyntaxTests)
 import CLISpec (cliTests)
+import IR.IRSpec (irTests)
 import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
 import LoggerSpec (loggerTests)
 import PipelinesSpec (pipelinesTests)
 import Semantics.FuncSpec (funcSemanticsTests)
 import Semantics.VarsSpec (varsSemanticsTests)
-import Test.Tasty
+import Test.Tasty (TestTree, defaultMain, testGroup)
 
 --
 -- public
@@ -25,7 +26,8 @@ main =
       [ coreSpecs,
         lexerSpecs,
         astSpecs,
-        semanticsSpecs
+        semanticsSpecs,
+        irSpecs
       ]
 
 --
@@ -65,4 +67,11 @@ semanticsSpecs =
     "Semantics Tests"
     [ funcSemanticsTests,
       varsSemanticsTests
+    ]
+
+irSpecs :: TestTree
+irSpecs =
+  testGroup
+    "IR Tests"
+    [ irTests
     ]
