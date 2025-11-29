@@ -33,4 +33,4 @@ jobs:
 
       - name: Run tests
         run: |
-          make tests
+          make coverage -j | ./scripts/check_coverage.sh
