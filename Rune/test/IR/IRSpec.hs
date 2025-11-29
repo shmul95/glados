@@ -18,7 +18,8 @@ irTests =
     "IR.IRSpec"
     [ testCase "IR Test Programs" irTestShowString,
       testCase "IR For To Loop" irTestForTo,
-      testCase "IR Loop Control Statements" irTestLoopControl
+      testCase "IR Loop Control Statements" irTestLoopControl,
+      testCase "IR Conditional Statements" irTestConditional
     ]
 
 --
@@ -148,5 +149,40 @@ irTestLoopControl = do
             "    JUMP .L.loop_header0",
             ".L.loop_end0:",
             "    RET"
+          ]
+  runIR program @?= expected
+
+irTestConditional :: IO ()
+irTestConditional = do
+  let program =
+        unlines
+          [ "def main() -> i32",
+            "{",
+            "    a: i32 = 5;",
+            "",
+            "    if a < 10 {",
+            "        show(\"a is less than 10\");",
+            "    } else {",
+            "        show(\"a is 10 or greater\");",
+            "    }",
+            "    return a;",
+            "}"
+          ]
+  let expected =
+        unlines
+          [ "GLOBAL str_main0: string = \"a is less than 10\\0\"",
+            "GLOBAL str_main1: string = \"a is 10 or greater\\0\"",
+            "DEF main():",
+            "    a: i32 = 5",
+            "    t0 = CMP_LT a, 10",
+            "    JUMP_FALSE t0, .L.else0",
+            "    p_ptr1: *u8 = ADDR str_main0",
+            "    CALL puts(p_ptr1)",
+            "    JUMP .L.end0",
+            ".L.else0:",
+            "    p_ptr2: *u8 = ADDR str_main1",
+            "    CALL puts(p_ptr2)",
+            ".L.end0:",
+            "    RET a"
           ]
   runIR program @?= expected
