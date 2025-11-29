@@ -68,7 +68,7 @@ newStringGlobal value = do
 -- | checks if a list of IR instructions ends with a return or jump instruction
 endsWithRet :: [IRInstruction] -> Bool
 endsWithRet [] = False
-endsWithRet xs = case last xs of
-  IRRET _ -> True
-  IRJUMP _ -> True
+endsWithRet xs = case reverse xs of
+  (IRRET _ : _) -> True
+  (IRJUMP _ : _) -> True
   _ -> False
