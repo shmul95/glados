@@ -65,7 +65,8 @@ resetFunctionState name =
     s
       { gsCurrentFunc = Just name,
         gsSymTable = empty,
-        gsTempCounter = 0
+        gsTempCounter = 0,
+        gsLabelCounter = 0
       }
 
 clearFunctionState :: IRGen ()
