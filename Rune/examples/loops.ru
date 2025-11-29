@@ -12,4 +12,5 @@ def main() -> null
             stop;
         }
     }
+    show(k);
 }
