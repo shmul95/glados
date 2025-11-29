@@ -66,7 +66,7 @@ function check_coverage()
 
     if [[ -z "$coverage_value" ]]; then
         _error "$project_name" "Failed to retrieve coverage. (Check log structure or script AWK pattern)"
-    elif (( coverage_value > MINIMUM_COVERAGE )); then
+    elif (( coverage_value >= MINIMUM_COVERAGE )); then
         _success "$project_name: $coverage_value% is greater than $MINIMUM_COVERAGE% (PASS)"
     else
         _error "$project_name: $coverage_value% is less than $MINIMUM_COVERAGE% (FAIL)" "Coverage below acceptable threshold."
