@@ -153,7 +153,7 @@ irTestLoopControl = do
             "    t2: f32 = MOD k, 4",
             "    t3 = CMP_EQ t2, 0",
             "    JUMP_FALSE t3, .L.end2",
-            "    JUMP .L.loop_header",
+            "    JUMP .L.loop_header0",
             ".L.end2:",
             "    CALL printf(k)",
             "    JUMP .L.loop_header0",
