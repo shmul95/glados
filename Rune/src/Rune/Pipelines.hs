@@ -8,57 +8,53 @@ import Control.Monad ((>=>))
 import Logger (logError)
 import Rune.AST.Nodes (Program)
 import Rune.AST.Parser (parseRune)
-import Rune.AST.Printer (prettyPrint)
+import Rune.IR.Generator (generateIR)
+import Rune.IR.Nodes (IRProgram)
+import Rune.IR.Printer (prettyPrintIR)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
+import Rune.Semantics.Vars (verifVars)
 import Text.Megaparsec (errorBundlePretty)
-
-import Rune.Semantics.Vars (verifVars)  -- for testing purposes
--- import Rune.Semantics.Func (findFunc)   -- for testing purposes
 
 --
 -- public
 --
 
 compilePipeline :: FilePath -> FilePath -> IO ()
-compilePipeline inFile outFile = runPipelineAction inFile (writeFile outFile . prettyPrint)
+compilePipeline inFile outFile = runPipelineAction inFile (writeFile outFile . prettyPrintIR)
 
 interpretPipeline :: FilePath -> IO ()
-interpretPipeline inFile = runPipelineAction inFile (putStrLn . prettyPrint)
+interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
 
 --
 -- private pipelines
 --
 
-pipeline :: (FilePath, String) -> Either String Program
-pipeline = parseLexer >=> parseAST
-    >=> testVerifVars -- for testing purposes
-    >=> testFindFunc
+pipeline :: (FilePath, String) -> Either String IRProgram
+pipeline =
+  parseLexer
+    >=> parseAST
+    >=> checkSemantics
+    >=> generateIRWrapper
 
--- for testing purposes
-testVerifVars :: Program -> Either String Program
-testVerifVars p = case verifVars p of
-    Nothing -> Right p
-    Just err -> Left err
+checkSemantics :: Program -> Either String Program
+checkSemantics p = case verifVars p of
+  Just err -> Left err
+  Nothing -> Right p
 
-testFindFunc :: Program -> Either String Program
-testFindFunc p = Right p
+generateIRWrapper :: Program -> Either String IRProgram
+generateIRWrapper p = Right (generateIR p)
 
--- >=> analyzeSemantics
--- >=> createIR
--- >=> optimizeIR
--- >=> generateCode
-
-runPipeline :: FilePath -> IO (Either String Program)
+runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
   readContent <- safeRead fp
   pure $ readContent >>= (pipeline . (fp,))
 
-runPipelineAction :: FilePath -> (Program -> IO ()) -> IO ()
+runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
 runPipelineAction inFile onSuccess =
   runPipeline inFile >>= \case
     Left err -> logError err
-    Right ast -> onSuccess ast
+    Right ir -> onSuccess ir
 
 --
 -- private encapsulations for error handling

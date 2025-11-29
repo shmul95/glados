@@ -1,6 +1,6 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -37,6 +37,13 @@ library
       Rune.AST.Printer
       Rune.AST.Types
       Rune.AST.Visitor
+      Rune.IR.Generator
+      Rune.IR.Generator.GenExpression
+      Rune.IR.Generator.GenStatement
+      Rune.IR.Generator.GenTopLevel
+      Rune.IR.IRHelpers
+      Rune.IR.Nodes
+      Rune.IR.Printer
       Rune.Lexer.Lexer
       Rune.Lexer.LexerDelimiters
       Rune.Lexer.LexerIdentifiers
@@ -60,6 +67,7 @@ library
       base >=4.7 && <5
     , containers
     , megaparsec
+    , mtl
     , unordered-containers
   default-language: Haskell2010
 
@@ -76,6 +84,7 @@ executable rune-exe
       base >=4.7 && <5
     , containers
     , megaparsec
+    , mtl
     , rune
     , unordered-containers
   default-language: Haskell2010
@@ -106,6 +115,7 @@ test-suite rune-test
     , containers
     , directory
     , megaparsec
+    , mtl
     , process
     , rune
     , silently
