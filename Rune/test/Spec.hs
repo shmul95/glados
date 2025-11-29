@@ -5,6 +5,7 @@ import AST.ParserSpec (astParserTests)
 import AST.PrinterSpec (astPrinterTests)
 import AST.ProgramSyntaxSpec (programSyntaxTests)
 import CLISpec (cliTests)
+import IR.IRNodesSpecs (irNodesTests)
 import IR.IRSpec (irTests)
 import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
@@ -73,5 +74,6 @@ irSpecs :: TestTree
 irSpecs =
   testGroup
     "IR Tests"
-    [ irTests
+    [ irTests,
+      irNodesTests
     ]

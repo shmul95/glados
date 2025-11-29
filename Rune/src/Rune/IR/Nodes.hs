@@ -28,6 +28,7 @@ data GenState = GenState
     gsCurrentFunc :: Maybe String,
     gsSymTable :: Map String (IROperand, IRType)
   }
+  deriving (Show, Eq)
 
 type IRGen = State GenState
 

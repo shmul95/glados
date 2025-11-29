@@ -97,6 +97,7 @@ test-suite rune-test
       AST.PrinterSpec
       AST.ProgramSyntaxSpec
       CLISpec
+      IR.IRNodesSpecs
       IR.IRSpec
       Lexer.LexerSpec
       Lexer.TokensSpec
