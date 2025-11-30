@@ -15,6 +15,7 @@ where
 
 import Control.Monad.State (gets, modify)
 import Data.Map.Strict (insert)
+import Data.Maybe (fromMaybe)
 import Rune.AST.Nodes (Type (..))
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..))
 
@@ -64,7 +65,7 @@ newStringGlobal :: String -> IRGen String
 newStringGlobal value = do
   counter <- gets gsStringCounter
   maybeFuncName <- gets gsCurrentFunc
-  let baseName = maybe "global" id maybeFuncName
+  let baseName = fromMaybe "global" maybeFuncName
       name = "str_" ++ baseName ++ show counter
   modify $ \s ->
     s
