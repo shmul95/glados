@@ -22,7 +22,12 @@ genCall genExpr funcName args = do
       (instrs, ops) = unzip $ map prepareArg argsData
       allInstrs = concat instrs
 
-      -- TODO: fix the return type detection... idk
+      -- TODO: improve return type inference:
+      --  currently only handles struct and pointer-to-struct arguments
+      --  otherwise defaults to IRI32
+      --
+      --  i will implement robust detection for all function signatures later
+      --  when the semantic analysis is more complete
       retType = case argsData of
         ((_, _, IRStruct s) : _) -> IRStruct s
         ((_, _, IRPtr (IRStruct s)) : _) -> IRStruct s
