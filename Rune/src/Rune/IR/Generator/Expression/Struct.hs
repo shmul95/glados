@@ -55,10 +55,12 @@ resolveStructPtr _ tType = error $ "Access on non-struct type: " ++ show tType
 lookupFieldType :: String -> String -> IRGen IRType
 lookupFieldType sName fName = do
   structs <- gets gsStructs
-  let def = IRI32
   case Map.lookup sName structs of
-    Just fields -> return $ maybe def id (lookup fName fields)
-    Nothing -> return def
+    Just fields ->
+      case lookup fName fields of
+        Just typ -> return typ
+        Nothing -> error $ "Struct '" ++ sName ++ "' has no field named '" ++ fName ++ "'"
+    Nothing -> error $ "Struct '" ++ sName ++ "' is not defined"
 
 genInitField :: GenExprCallback -> String -> String -> IRType -> (String, Expression) -> IRGen [IRInstruction]
 genInitField genExpr sName resName sType (fName, fExpr) = do
