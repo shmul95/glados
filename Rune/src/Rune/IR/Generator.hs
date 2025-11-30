@@ -14,8 +14,23 @@ import Rune.IR.Nodes (GenState (..), IRProgram (..))
 
 generateIR :: Program -> IRProgram
 generateIR (Program name defs) =
-  let (irDefs, finalState) = runState (mapM genTopLevel defs) initialState
+  let (irDefs, finalState) = runState (mapM genTopLevel defs) genStateDefault
       allDefs = reverse (gsGlobals finalState) ++ concat irDefs
    in IRProgram name allDefs
-  where
-    initialState = GenState 0 0 0 [] Nothing empty
+
+--
+-- private
+--
+
+genStateDefault :: GenState
+genStateDefault =
+  GenState
+    { gsTempCounter = 0,
+      gsLabelCounter = 0,
+      gsStringCounter = 0,
+      gsGlobals = [],
+      gsCurrentFunc = Nothing,
+      gsSymTable = empty,
+      gsStructs = empty,
+      gsLoopStack = []
+    }
