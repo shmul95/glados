@@ -263,14 +263,14 @@ genStop = do
   ctx <- getCurrentLoop
   case ctx of
     Just (_, end) -> pure [IRJUMP end]
-    Nothing -> pure [] -- Should be handled by semantics check
+    Nothing -> pure []
 
 genNext :: IRGen [IRInstruction]
 genNext = do
   ctx <- getCurrentLoop
   case ctx of
     Just (header, _) -> pure [IRJUMP header]
-    Nothing -> pure [] -- Should be handled by semantics check
+    Nothing -> pure []
 
 --
 -- expression statement

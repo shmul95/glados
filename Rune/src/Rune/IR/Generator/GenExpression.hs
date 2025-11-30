@@ -4,7 +4,13 @@ import Control.Monad.State (gets)
 import qualified Data.Map.Strict as Map
 import Rune.AST.Nodes (BinaryOp (..), Expression (..), UnaryOp (..))
 import Rune.IR.IRHelpers (newStringGlobal, newTemp)
-import Rune.IR.Nodes (GenState (gsSymTable), IRGen, IRInstruction (..), IROperand (..), IRType (..))
+import Rune.IR.Nodes
+  ( GenState (..),
+    IRGen,
+    IRInstruction (..),
+    IROperand (..),
+    IRType (..),
+  )
 
 --
 -- public
@@ -25,7 +31,7 @@ genExpression expr = case expr of
   ExprCall "show" [a] -> genShowCall a
   ExprCall name args -> genCall name args
   ExprAccess t f -> genAccess t f
-  ExprStructInit {} -> return ([], IRConstInt 0, IRVoid)
+  ExprStructInit name fields -> genStructInit name fields
 
 --
 -- private helpers
@@ -111,23 +117,95 @@ genUnary op expr = do
 genShowCall :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall arg = do
   (argInstrs, argOp, argType) <- genExpression arg
+
   let functionName = case argType of
+        IRStruct s -> "show_" ++ s
+        IRPtr (IRStruct s) -> "show_" ++ s
         IRPtr IRU8 -> "puts"
         IRU8 -> "putchar"
         _ -> "printf"
-      callInstr = IRCALL "" functionName [argOp] Nothing
-  return (argInstrs ++ [callInstr], IRTemp "t_void" IRVoid, IRVoid)
+
+  let (prepInstrs, finalOp) = case argType of
+        IRStruct _ -> case argOp of
+          IRTemp name t -> ([IRADDR ("addr_" ++ name) name (IRPtr t)], IRTemp ("addr_" ++ name) (IRPtr t))
+          _ -> ([], argOp)
+        _ -> ([], argOp)
+
+  let callInstr = IRCALL "" functionName [finalOp] Nothing
+  return (argInstrs ++ prepInstrs ++ [callInstr], IRTemp "t_void" IRVoid, IRVoid)
 
 genCall :: String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
-genCall funcName' args = do
+genCall funcName args = do
   argsData <- mapM genExpression args
-  let argInstrs = concatMap (\(i, _, _) -> i) argsData
-      argOps = map (\(_, o, _) -> o) argsData
-  retTemp <- newTemp "t" IRI32
-  let callInstr = IRCALL retTemp funcName' argOps (Just IRI32)
-  return (argInstrs ++ [callInstr], IRTemp retTemp IRI32, IRI32)
+
+  let mangledName = case argsData of
+        ((_, _, IRStruct s) : _) -> s ++ "_" ++ funcName
+        ((_, _, IRPtr (IRStruct s)) : _) -> s ++ "_" ++ funcName
+        _ -> funcName
+
+  let (argInstrs, argOps) =
+        unzip $
+          map
+            ( \(i, o, t) ->
+                case t of
+                  IRStruct _ -> case o of
+                    IRTemp n _ -> (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
+                    _ -> (i, o)
+                  _ -> (i, o)
+            )
+            argsData
+
+  let allInstrs = concat argInstrs
+  let retType =
+        case argsData of
+          ((_, _, IRStruct s) : _) -> IRStruct s
+          ((_, _, IRPtr (IRStruct s)) : _) -> IRStruct s
+          _ -> IRI32
+
+  retTemp <- newTemp "t" retType
+  let callInstr = IRCALL retTemp mangledName argOps (Just retType)
+
+  return (allInstrs ++ [callInstr], IRTemp retTemp retType, retType)
 
 genAccess :: Expression -> String -> IRGen ([IRInstruction], IROperand, IRType)
 genAccess target field = do
-  (instrs, _, _) <- genExpression target
-  return (instrs, IRTemp field IRI32, IRI32)
+  (tInstrs, tOp, tType) <- genExpression target
+
+  let (structName, ptrOp, setupInstrs) = case tType of
+        IRStruct s -> case tOp of
+          IRTemp n _ -> (s, IRTemp ("p_" ++ n) (IRPtr tType), [IRADDR ("p_" ++ n) n (IRPtr tType)])
+          _ -> (s, tOp, [])
+        IRPtr (IRStruct s) -> (s, tOp, [])
+        _ -> error $ "Cannot access field '" ++ field ++ "' of non-struct type"
+
+  structs <- gets gsStructs
+  let fieldType = case Map.lookup structName structs of
+        Just fields -> case lookup field fields of
+          Just t -> t
+          Nothing -> IRI32
+        Nothing -> IRI32
+  resTemp <- newTemp ("f_" ++ field) fieldType
+  let getInstr = IRGET_FIELD resTemp ptrOp structName field fieldType
+
+  return (tInstrs ++ setupInstrs ++ [getInstr], IRTemp resTemp fieldType, fieldType)
+
+genStructInit :: String -> [(String, Expression)] -> IRGen ([IRInstruction], IROperand, IRType)
+genStructInit name fields = do
+  let structType = IRStruct name
+
+  resName <- newTemp "struct" structType
+  let allocInstr = IRALLOC resName structType
+      resOp = IRTemp resName structType
+
+  fieldInstrs <-
+    mapM
+      ( \(fName, fExpr) -> do
+          (valInstrs, valOp, _) <- genExpression fExpr
+          ptrName <- newTemp "p_init" (IRPtr structType)
+          let addrInstr = IRADDR ptrName resName (IRPtr structType)
+              setInstr = IRSET_FIELD (IRTemp ptrName (IRPtr structType)) name fName valOp
+          return (valInstrs ++ [addrInstr, setInstr])
+      )
+      fields
+
+  return ([allocInstr] ++ concat fieldInstrs, resOp, structType)
