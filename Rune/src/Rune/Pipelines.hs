@@ -35,15 +35,7 @@ pipeline =
   parseLexer
     >=> parseAST
     >=> checkSemantics
-    >=> generateIRWrapper
-
-checkSemantics :: Program -> Either String Program
-checkSemantics p = case verifVars p of
-  Just err -> Left err
-  Nothing -> Right p
-
-generateIRWrapper :: Program -> Either String IRProgram
-generateIRWrapper p = Right (generateIR p)
+    >=> genIR
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
@@ -59,6 +51,14 @@ runPipelineAction inFile onSuccess =
 --
 -- private encapsulations for error handling
 --
+
+genIR :: Program -> Either String IRProgram
+genIR p = Right $ generateIR p
+
+checkSemantics :: Program -> Either String Program
+checkSemantics p = case verifVars p of
+  Just err -> Left err
+  Nothing -> Right p
 
 safeRead :: FilePath -> IO (Either String String)
 safeRead fp = do
