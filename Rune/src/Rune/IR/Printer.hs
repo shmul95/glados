@@ -25,6 +25,8 @@ printTopLevel (IRGlobalString name value) =
   "GLOBAL " ++ name ++ ": string = \"" ++ escapeString value ++ "\\0\""
 printTopLevel (IRFunctionDef func) =
   printFunction func
+printTopLevel (IRStructDef name fields) =
+  "STRUCT " ++ name ++ " { " ++ intercalate ", " (map (\(n, t) -> n ++ ": " ++ printType t) fields) ++ " }"
 
 printFunction :: IRFunction -> String
 printFunction (IRFunction name params _ body) =
@@ -85,7 +87,7 @@ printInstruction (IRCALL dest funcName args mbType) =
         else
           let typeStr = case mbType of
                 Just t -> ": " ++ printType t
-                Nothing -> ": i32" -- INFO: will be removed in the future
+                Nothing -> ": i32"
            in dest ++ typeStr ++ " = " ++ callStr
 printInstruction (IRRET Nothing) =
   "RET"
@@ -105,6 +107,10 @@ printInstruction (IRLOAD dest src typ) =
   dest ++ ": " ++ printType typ ++ " = LOAD " ++ printOperand src
 printInstruction (IRALLOC name typ) =
   "ALLOC " ++ name ++ ": " ++ printType typ
+printInstruction (IRGET_FIELD dest base structName field typ) =
+  dest ++ ": " ++ printType typ ++ " = GET_FIELD " ++ printOperand base ++ ", \"" ++ structName ++ "\", \"" ++ field ++ "\""
+printInstruction (IRSET_FIELD base structName field val) =
+  "SET_FIELD " ++ printOperand base ++ ", \"" ++ structName ++ "\", \"" ++ field ++ "\", " ++ printOperand val
 
 printOperand :: IROperand -> String
 printOperand (IRConstInt n) = show n
@@ -121,6 +127,7 @@ printType IRF32 = "f32"
 printType IRF64 = "f64"
 printType IRU8 = "u8"
 printType (IRPtr t) = "*" ++ printType t
+printType (IRStruct s) = s
 printType IRVoid = "void"
 
 escapeString :: String -> String
