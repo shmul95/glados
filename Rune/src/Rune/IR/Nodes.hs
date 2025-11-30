@@ -26,7 +26,8 @@ data GenState = GenState
     gsStringCounter :: Int,
     gsGlobals :: [IRTopLevel],
     gsCurrentFunc :: Maybe String,
-    gsSymTable :: Map String (IROperand, IRType)
+    gsSymTable :: Map String (IROperand, IRType),
+    gsStructs :: Map String [(String, IRType)]
   }
   deriving (Show, Eq)
 
@@ -43,6 +44,7 @@ data IRType
   | IRF64
   | IRU8
   | IRPtr IRType
+  | IRStruct String
   | IRVoid
   deriving (Show, Eq)
 
@@ -81,6 +83,9 @@ data IRInstruction
   | IRSTORE IROperand IROperand -- store value to address
   | IRLOAD String IROperand IRType -- load from address to temp
   | IRDEREF String IROperand IRType -- dereference pointer
+  | -- struct operations
+    IRGET_FIELD String IROperand String String IRType -- res = ptr->struct.field
+  | IRSET_FIELD IROperand String String IROperand -- ptr->struct.field = val
   | -- arithmetic operations
     IRADD_OP String IROperand IROperand IRType -- t = a + b
   | IRSUB_OP String IROperand IROperand IRType -- t = a - b
@@ -124,6 +129,7 @@ data IRFunction = IRFunction
 data IRTopLevel
   = IRGlobalString String String
   | IRFunctionDef IRFunction
+  | IRStructDef String [(String, IRType)]
   deriving (Show, Eq)
 
 data IRProgram = IRProgram
