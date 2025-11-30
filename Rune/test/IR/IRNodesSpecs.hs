@@ -54,8 +54,8 @@ testIRTypes =
   testGroup
     "IRType"
     [ testCase "All IRType constructors" $
-        let types = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRVoid]
-            expected = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRVoid]
+        let types = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRVoid]
+            expected = [IRI32, IRI64, IRF32, IRF64, IRU8, IRPtr IRI32, IRStruct "Vec2f", IRVoid]
          in types @?= expected,
       testCase "Deriving Show/Eq" $ show IRI32 @?= "IRI32"
     ]
@@ -106,6 +106,7 @@ testGenState =
     "GenState and IRGen (Record Accessors)"
     [ testCase "Accessors" $
         let symTable = insert "x" (IRConstInt 5, IRI32) empty
+            structTable = empty
             initialState =
               GenState
                 { gsTempCounter = 5,
@@ -113,7 +114,8 @@ testGenState =
                   gsStringCounter = 1,
                   gsGlobals = [IRGlobalString "s0" "str"],
                   gsCurrentFunc = Just "main",
-                  gsSymTable = symTable
+                  gsSymTable = symTable,
+                  gsStructs = structTable
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -124,10 +126,11 @@ testGenState =
               gsGlobals initialState @?= [IRGlobalString "s0" "str"]
               gsCurrentFunc initialState @?= Just "main"
               gsSymTable initialState @?= symTable
+              gsStructs initialState @?= structTable
               evalState dummyOp initialState @?= 10,
       testCase "Deriving Show/Eq" $
-        let state1 = GenState 0 0 0 [] Nothing empty
-            state2 = GenState 0 0 0 [] Nothing empty
+        let state1 = GenState 0 0 0 [] Nothing empty empty
+            state2 = GenState 0 0 0 [] Nothing empty empty
          in state1 @?= state2
     ]
 
@@ -140,6 +143,9 @@ testIRInstruction =
       testCase "IRSTORE" $ IRSTORE op_const_int op_temp @?= IRSTORE op_const_int op_temp,
       testCase "IRLOAD" $ IRLOAD "t2" op_param IRI32 @?= IRLOAD "t2" op_param IRI32,
       testCase "IRDEREF" $ IRDEREF "t3" op_global (IRPtr IRI32) @?= IRDEREF "t3" op_global (IRPtr IRI32),
+      -- struct operations
+      testCase "IRGET_FIELD" $ IRGET_FIELD "t1" op_temp "S" "f" IRI32 @?= IRGET_FIELD "t1" op_temp "S" "f" IRI32,
+      testCase "IRSET_FIELD" $ IRSET_FIELD op_temp "S" "f" op_const_int @?= IRSET_FIELD op_temp "S" "f" op_const_int,
       -- arithmetic operations
       testCase "IRADD_OP" $ IRADD_OP "t4" op_temp op_const_int IRI32 @?= IRADD_OP "t4" op_temp op_const_int IRI32,
       testCase "IRSUB_OP" $ IRSUB_OP "t5" op_temp op_const_int IRI32 @?= IRSUB_OP "t5" op_temp op_const_int IRI32,
@@ -213,6 +219,7 @@ testIRTopLevel =
                   irFuncBody = [IRRET (Just op_const_int)]
                 }
          in IRFunctionDef func @?= IRFunctionDef func,
+      testCase "IRStructDef" $ IRStructDef "Vec2" [("x", IRF32)] @?= IRStructDef "Vec2" [("x", IRF32)],
       testCase "Deriving Show/Eq" $ show (IRGlobalString "s1" "") @?= "IRGlobalString \"s1\" \"\""
     ]
 
