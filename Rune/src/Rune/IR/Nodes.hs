@@ -27,7 +27,8 @@ data GenState = GenState
     gsGlobals :: [IRTopLevel],
     gsCurrentFunc :: Maybe String,
     gsSymTable :: Map String (IROperand, IRType),
-    gsStructs :: Map String [(String, IRType)]
+    gsStructs :: Map String [(String, IRType)],
+    gsLoopStack :: [(IRLabel, IRLabel)]
   }
   deriving (Show, Eq)
 
