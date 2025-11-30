@@ -26,6 +26,7 @@ astTypeToIRType TypeF64 = IRF64
 astTypeToIRType TypeU8 = IRU8
 astTypeToIRType TypeString = IRPtr IRU8
 astTypeToIRType TypeNull = IRVoid
+astTypeToIRType (TypeCustom s) = IRStruct s
 astTypeToIRType _ = IRI32
 
 -- | registers a variable in the symtable
