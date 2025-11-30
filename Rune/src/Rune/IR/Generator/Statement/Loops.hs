@@ -43,7 +43,7 @@ type GenBlockCallback = [Statement] -> IRGen [IRInstruction]
 --     JUMP_FALSE cmp<n>, .L.loop_end<n>
 -- .L.body<n>:
 --     INC i
---     JUMP.L.loop_header<n>
+--     JUMP .L.loop_header<n>
 -- .L.loop_end<n>:
 --
 genForTo :: GenExprCallback -> GenBlockCallback -> String -> Maybe Expression -> Expression -> [Statement] -> IRGen [IRInstruction]
