@@ -167,37 +167,36 @@ irTestConditional :: IO ()
 irTestConditional = do
   let program =
         unlines
-          [ "def main() -> null",
+          [ "def main() -> i32",
             "{",
-            "    a: bool = true;",
-            "    b: bool = false;",
+            "    a: i32 = 5;",
             "",
-            "    if a {",
-            "        show(\"a is true\");",
+            "    if a < 10 {",
+            "        show(\"a is less than 10\");",
+            "    } else {",
+            "        show(\"a is 10 or greater\");",
             "    }",
-            "    if b == false {",
-            "        show(\"b is false\");",
-            "    }",
+            "    return a;",
             "}"
           ]
+
   let expected =
         unlines
           [ "PROGRAM test:",
-            "GLOBAL str_main0: string = \"a is true\\0\"",
-            "GLOBAL str_main1: string = \"b is false\\0\"",
+            "GLOBAL str_main0: string = \"a is less than 10\\0\"",
+            "GLOBAL str_main1: string = \"a is 10 or greater\\0\"",
             "DEF main():",
-            "    a: i32 = 1",
-            "    b: i32 = 0",
-            "    JUMP_FALSE a, .L.end0",
-            "    p_ptr0: *u8 = ADDR str_main0",
-            "    CALL puts(p_ptr0)",
-            ".L.end0:",
-            "    t1 = CMP_EQ b, 0",
-            "    JUMP_FALSE t1, .L.end1",
+            "    a: i32 = 5",
+            "    t0 = CMP_LT a, 10",
+            "    JUMP_FALSE t0, .L.else0",
+            "    p_ptr1: *u8 = ADDR str_main0",
+            "    CALL puts(p_ptr1)",
+            "    JUMP .L.end0",
+            ".L.else0:",
             "    p_ptr2: *u8 = ADDR str_main1",
             "    CALL puts(p_ptr2)",
-            ".L.end1:",
-            "    RET"
+            ".L.end0:",
+            "    RET a"
           ]
   runIR program @?= expected
 
