@@ -6,6 +6,9 @@ module Rune.IR.IRHelpers
     makeLabel,
     newStringGlobal,
     endsWithRet,
+    pushLoopContext,
+    popLoopContext,
+    getCurrentLoop,
   )
 where
 
@@ -73,3 +76,18 @@ endsWithRet xs = case reverse xs of
   (IRRET _ : _) -> True
   (IRJUMP _ : _) -> True
   _ -> False
+
+pushLoopContext :: IRLabel -> IRLabel -> IRGen ()
+pushLoopContext header end =
+  modify $ \s -> s {gsLoopStack = (header, end) : gsLoopStack s}
+
+popLoopContext :: IRGen ()
+popLoopContext =
+  modify $ \s -> s {gsLoopStack = drop 1 (gsLoopStack s)}
+
+getCurrentLoop :: IRGen (Maybe (IRLabel, IRLabel))
+getCurrentLoop = do
+  stack <- gets gsLoopStack
+  case stack of
+    (current : _) -> return (Just current)
+    [] -> return Nothing
