@@ -1,6 +1,7 @@
 module Rune.IR.Printer (prettyPrintIR) where
 
 import Data.List (intercalate)
+import Lib (escapeString)
 import Rune.IR.Nodes
 
 --
@@ -131,14 +132,3 @@ printType IRU8 = "u8"
 printType (IRPtr t) = "*" ++ printType t
 printType (IRStruct s) = s
 printType IRVoid = "void"
-
-escapeString :: String -> String
-escapeString = concatMap escapeChar
-  where
-    escapeChar '\0' = "\\0"
-    escapeChar '\n' = "\\n"
-    escapeChar '\t' = "\\t"
-    escapeChar '\r' = "\\r"
-    escapeChar '\\' = "\\\\"
-    escapeChar '"' = "\\\""
-    escapeChar c = [c]
