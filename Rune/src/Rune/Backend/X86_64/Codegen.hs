@@ -77,7 +77,7 @@ emitFunction fn@(IRFunction name params _ body) =
   let (stackMap, frameSize) = calculateStackMap fn
       endLabel = ".L.function_end_" ++ name
       prologue = emitFunctionPrologue fn frameSize
-      paramSetup = emitParamSetup params stackMap
+      paramSetup = emitParameters params stackMap
       bodyInstrs = concatMap (emitInstruction stackMap endLabel) body
       epilogue = emitFunctionEpilogue endLabel
    in prologue ++ paramSetup ++ bodyInstrs ++ epilogue
@@ -99,3 +99,18 @@ emitFunctionEpilogue endLabel =
     emit 1 "ret",
     ""
   ]
+
+-- | emit function parameters (for now, only handles max 6 parameters)
+-- mov qword [rbp <+-> offset], <x86_64ArgsRegisters>
+emitParameters :: [(String, IRType)] -> Map String Int -> [String]
+emitParameters params stackMap =
+  let argRegs = x86_64ArgsRegisters
+      indexedParams = zip [0 ..] params
+   in mapMaybe (emitParam stackMap argRegs) indexedParams
+
+emitParam :: Map String Int -> [String] -> (Int, (String, IRType)) -> Maybe String
+emitParam sm regs (idx, (irName, _))
+  | idx < length regs = do
+      offset <- Map.lookup irName sm
+      Just $ emit 1 $ "mov qword [rbp" ++ show offset ++ "], " ++ regs !! idx
+  | otherwise = Nothing
