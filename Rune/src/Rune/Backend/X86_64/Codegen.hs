@@ -114,3 +114,158 @@ emitParam sm regs (idx, (irName, _))
       offset <- Map.lookup irName sm
       Just $ emit 1 $ "mov qword [rbp" ++ show offset ++ "], " ++ regs !! idx
   | otherwise = Nothing
+
+--
+-- instruction emission
+--
+
+-- | get the nasm representation of an IR variable on the stack
+-- [rbp-offset]
+stackAddr :: Map String Int -> String -> String
+stackAddr sm name = case Map.lookup name sm of
+  Just offset -> "[rbp" ++ show offset ++ "]"
+  Nothing -> error $ "Variable not found in stack map: " ++ name
+
+-- | get the nasm representation of an operand (const | stack address)
+emitOperand :: Map String Int -> IROperand -> String
+emitOperand sm op = case op of
+  IRConstInt n -> show n
+  IRConstChar c -> show (fromEnum c)
+  IRTemp name _ -> stackAddr sm name
+  IRParam name _ -> stackAddr sm name
+  IRGlobal name _ -> error "Global operand should be loaded via ADDR/LOAD: " ++ name
+  _ -> error $ "Unsupported IROperand for direct emission: " ++ show op
+
+-- | emit a single IR instruction to nasm
+emitInstruction :: Map String Int -> String -> IRInstruction -> [String]
+emitInstruction sm _ (IRASSIGN dest op _) = emitAssign sm dest op
+emitInstruction _ _ (IRLABEL (IRLabel lbl)) = [lbl ++ ":"]
+emitInstruction _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " ++ lbl]
+emitInstruction sm _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitJumpEQ0 sm op lbl
+emitInstruction sm _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
+emitInstruction _ endLbl (IRRET Nothing) = [emit 1 $ "jmp " ++ endLbl]
+emitInstruction sm endLbl (IRRET (Just op)) = emitRet sm endLbl op
+emitInstruction sm _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
+emitInstruction sm _ (IRINC op) = emitIncDec sm op "add"
+emitInstruction sm _ (IRDEC op) = emitIncDec sm op "sub"
+emitInstruction sm _ (IRADDR dest source typ) = emitAddr sm dest source typ
+emitInstruction _ _ instr = [emit 1 $ "; TODO: " ++ show instr]
+
+-- | emit dest = op
+emitAssign :: Map String Int -> String -> IROperand -> [String]
+emitAssign sm dest (IRConstInt n) = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ show n]
+emitAssign sm dest (IRConstChar c) = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
+emitAssign sm dest (IRTemp src _) =
+  [ emit 1 $ "mov rax, qword " ++ stackAddr sm src,
+    emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"
+  ]
+emitAssign sm dest (IRParam src _) =
+  [ emit 1 $ "mov rax, qword " ++ stackAddr sm src,
+    emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"
+  ]
+emitAssign sm dest op =
+  [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show op,
+    emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", 0"
+  ]
+
+-- | emit call dest
+-- CALL <name>(args...) -> call <name>
+emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
+emitCall sm dest funcName args _ =
+  let argRegs = x86_64ArgsRegisters
+
+      -- 1. Setup arguments in registers (only first 6)
+      argSetup =
+        zipWith
+          ( \reg op ->
+              case op of
+                IRConstInt n -> emit 1 $ "mov " ++ reg ++ ", " ++ show n
+                IRConstChar c -> emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)
+                -- Assume all other operands are on stack and need to be loaded
+                _ ->
+                  let srcAddr = emitOperand sm op
+                   in emit 1 $ "mov " ++ reg ++ ", qword " ++ srcAddr
+          )
+          argRegs
+          args
+
+      -- 2. Call instruction (no need to align stack for now, assume all calls are C ABI safe)
+      callInstr = [emit 1 $ "call " ++ funcName]
+
+      -- 3. Save return value (if 'dest' is not empty)
+      retSave =
+        if not (null dest)
+          then [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"]
+          else []
+   in argSetup ++ callInstr ++ retSave
+
+-- | Emit: RET op
+emitRet :: Map String Int -> String -> IROperand -> [String]
+emitRet sm endLbl op =
+  let -- Load return value into RAX/"rax"
+      loadRet = case op of
+        IRConstInt n -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show n]
+        IRConstChar c -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show (fromEnum c)]
+        -- Assume all other operands are on stack and need to be loaded
+        _ ->
+          let srcAddr = emitOperand sm op
+           in [emit 1 $ "mov " ++ "rax" ++ ", qword " ++ srcAddr]
+   in loadRet ++ [emit 1 $ "jmp " ++ endLbl]
+
+-- | Emit: dest = DEREF ptr
+emitDeref :: Map String Int -> String -> IROperand -> IRType -> [String]
+emitDeref sm dest ptr typ =
+  let ptrAddr = emitOperand sm ptr -- [rbp-offset_ptr]
+      size = sizeOfIRType typ
+
+      -- Load type determines how the dereferenced value is read
+      movType = case size of
+        1 -> "movzx " ++ "rax" ++ ", byte" -- for IRU8 (char)
+        4 -> "mov " ++ "rax" ++ ", dword"
+        8 -> "mov " ++ "rax" ++ ", qword"
+        _ -> error $ "Unsupported size for DEREF: " ++ show size
+   in [ emit 1 $ "mov " ++ "rax" ++ ", qword " ++ ptrAddr, -- RAX = pointer value (address)
+        emit 1 $ movType ++ " [" ++ "rax" ++ "]", -- RAX = *RAX
+        emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax" -- Store the 8-byte result
+      ]
+
+-- | Emit: INC/DEC op (only handles pointer arithmetic/deref value for now)
+emitIncDec :: Map String Int -> IROperand -> String -> [String]
+emitIncDec sm op asmOp = case op of
+  IRTemp name (IRPtr _) ->
+    -- Increment the address value itself (pointer arithmetic)
+    [ emit 1 $ asmOp ++ " qword " ++ stackAddr sm name ++ ", 1"
+    ]
+  _ -> [emit 1 $ "; TODO: " ++ show op ++ " on non-pointer"]
+
+-- | Emit: dest = ADDR source
+emitAddr :: Map String Int -> String -> String -> IRType -> [String]
+emitAddr sm dest source _ =
+  case source of
+    -- IRGlobalString: ADDR p_ptr0: *u8 = ADDR str_get_string0
+    _
+      | take 4 source == "str_" ->
+          [ emit 1 $ "mov qword " ++ "rax" ++ ", " ++ source, -- RAX = address of global string label
+            emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
+          ]
+    -- IRTemp/IRParam: ADDR p_addr: *i32 = ADDR var_name (get address of stack slot)
+    _ ->
+      [ emit 1 $ "lea " ++ "rax" ++ ", qword " ++ stackAddr sm source, -- LEA RAX, [rbp-offset_source] (RAX = address)
+        emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
+      ]
+
+-- | Emit: JUMP_EQ0 op, label
+emitJumpEQ0 :: Map String Int -> IROperand -> String -> [String]
+emitJumpEQ0 sm op lbl =
+  let -- 1. Load operand into a register (e.g., RAX)
+      loadOp = case op of
+        IRConstInt n -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show n]
+        IRConstChar c -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show (fromEnum c)]
+        _ -> [emit 1 $ "mov " ++ "rax" ++ ", qword " ++ emitOperand sm op]
+
+      -- 2. Test/Compare with zero
+      testInstr = [emit 1 $ "test " ++ "rax" ++ ", " ++ "rax"]
+
+      -- 3. Conditional jump
+      jumpInstr = [emit 1 $ "je " ++ lbl]
+   in loadOp ++ testInstr ++ jumpInstr
