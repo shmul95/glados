@@ -172,100 +172,100 @@ emitAssign sm dest op =
 -- CALL <name>(args...) -> call <name>
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCall sm dest funcName args _ =
-  let argRegs = x86_64ArgsRegisters
-
-      -- 1. Setup arguments in registers (only first 6)
-      argSetup =
-        zipWith
-          ( \reg op ->
-              case op of
-                IRConstInt n -> emit 1 $ "mov " ++ reg ++ ", " ++ show n
-                IRConstChar c -> emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)
-                -- Assume all other operands are on stack and need to be loaded
-                _ ->
-                  let srcAddr = emitOperand sm op
-                   in emit 1 $ "mov " ++ reg ++ ", qword " ++ srcAddr
-          )
-          argRegs
-          args
-
-      -- 2. Call instruction (no need to align stack for now, assume all calls are C ABI safe)
-      callInstr = [emit 1 $ "call " ++ funcName]
-
-      -- 3. Save return value (if 'dest' is not empty)
-      retSave =
-        if not (null dest)
-          then [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"]
-          else []
+  let argSetup = emitCallArgs sm args
+      callInstr = emitCallInstr funcName
+      retSave = emitCallRet sm dest
    in argSetup ++ callInstr ++ retSave
 
--- | Emit: RET op
-emitRet :: Map String Int -> String -> IROperand -> [String]
-emitRet sm endLbl op =
-  let -- Load return value into RAX/"rax"
-      loadRet = case op of
-        IRConstInt n -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show n]
-        IRConstChar c -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show (fromEnum c)]
-        -- Assume all other operands are on stack and need to be loaded
-        _ ->
-          let srcAddr = emitOperand sm op
-           in [emit 1 $ "mov " ++ "rax" ++ ", qword " ++ srcAddr]
-   in loadRet ++ [emit 1 $ "jmp " ++ endLbl]
+-- | emit the first 6 arguments in registers
+-- mov rdi, qword [rbp-offset]
+emitArg :: Map String Int -> String -> IROperand -> String
+emitArg sm reg op = emit 1 $ "mov " ++ reg ++ ", " ++ operandValue sm op
 
--- | Emit: dest = DEREF ptr
+operandValue :: Map String Int -> IROperand -> String
+operandValue _ (IRConstInt n) = show n
+operandValue _ (IRConstChar c) = show (fromEnum c)
+operandValue sm other = "qword " ++ emitOperand sm other
+
+emitCallArgs :: Map String Int -> [IROperand] -> [String]
+emitCallArgs sm args =
+  let regs = x86_64ArgsRegisters
+   in zipWith (emitArg sm) regs args
+
+emitCallInstr :: String -> [String]
+emitCallInstr name = [emit 1 $ "call " ++ name]
+
+--
+-- emit return
+--
+
+emitCallRet :: Map String Int -> String -> [String]
+emitCallRet _ "" = []
+emitCallRet sm dest = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
+
+emitLoadRax :: Map String Int -> IROperand -> [String]
+emitLoadRax sm op =
+  let val = case op of
+        IRConstInt n -> show n
+        IRConstChar c -> show (fromEnum c)
+        _ -> "qword " ++ emitOperand sm op
+   in [emit 1 $ "mov rax, " ++ val]
+
+emitRet :: Map String Int -> String -> IROperand -> [String]
+emitRet sm endLbl op = emitLoadRax sm op ++ [emit 1 $ "jmp " ++ endLbl]
+
+-- | emit deref ptr
+-- cases:
+--  1- RAX = &value
+--  2- RAX = *RAX
+--  3- dest = RAX
 emitDeref :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitDeref sm dest ptr typ =
-  let ptrAddr = emitOperand sm ptr -- [rbp-offset_ptr]
+  let ptrAddr = emitOperand sm ptr
       size = sizeOfIRType typ
 
-      -- Load type determines how the dereferenced value is read
       movType = case size of
-        1 -> "movzx " ++ "rax" ++ ", byte" -- for IRU8 (char)
+        1 -> "movzx " ++ "rax" ++ ", byte"
         4 -> "mov " ++ "rax" ++ ", dword"
         8 -> "mov " ++ "rax" ++ ", qword"
         _ -> error $ "Unsupported size for DEREF: " ++ show size
-   in [ emit 1 $ "mov " ++ "rax" ++ ", qword " ++ ptrAddr, -- RAX = pointer value (address)
-        emit 1 $ movType ++ " [" ++ "rax" ++ "]", -- RAX = *RAX
-        emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax" -- Store the 8-byte result
+   in [ emit 1 $ "mov " ++ "rax" ++ ", qword " ++ ptrAddr,
+        emit 1 $ movType ++ " [" ++ "rax" ++ "]",
+        emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
       ]
 
--- | Emit: INC/DEC op (only handles pointer arithmetic/deref value for now)
+-- | emit INC/DEC on pointer operand
 emitIncDec :: Map String Int -> IROperand -> String -> [String]
 emitIncDec sm op asmOp = case op of
   IRTemp name (IRPtr _) ->
-    -- Increment the address value itself (pointer arithmetic)
     [ emit 1 $ asmOp ++ " qword " ++ stackAddr sm name ++ ", 1"
     ]
   _ -> [emit 1 $ "; TODO: " ++ show op ++ " on non-pointer"]
 
--- | Emit: dest = ADDR source
+-- | emit ADDR dest, source
+--  cases:
+--  1- source is a global string: mov rax, str_x; mov [dest], rax
+--  2- source is a local variable: lea rax, [rbp-offset]; mov [dest], rax
 emitAddr :: Map String Int -> String -> String -> IRType -> [String]
 emitAddr sm dest source _ =
   case source of
-    -- IRGlobalString: ADDR p_ptr0: *u8 = ADDR str_get_string0
     _
       | take 4 source == "str_" ->
-          [ emit 1 $ "mov qword " ++ "rax" ++ ", " ++ source, -- RAX = address of global string label
+          [ emit 1 $ "mov qword " ++ "rax" ++ ", " ++ source,
             emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
           ]
-    -- IRTemp/IRParam: ADDR p_addr: *i32 = ADDR var_name (get address of stack slot)
     _ ->
-      [ emit 1 $ "lea " ++ "rax" ++ ", qword " ++ stackAddr sm source, -- LEA RAX, [rbp-offset_source] (RAX = address)
+      [ emit 1 $ "lea " ++ "rax" ++ ", qword " ++ stackAddr sm source,
         emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
       ]
 
--- | Emit: JUMP_EQ0 op, label
+-- | emit jump if equal to zero
 emitJumpEQ0 :: Map String Int -> IROperand -> String -> [String]
 emitJumpEQ0 sm op lbl =
-  let -- 1. Load operand into a register (e.g., RAX)
-      loadOp = case op of
+  let loadOp = case op of
         IRConstInt n -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show n]
         IRConstChar c -> [emit 1 $ "mov " ++ "rax" ++ ", " ++ show (fromEnum c)]
         _ -> [emit 1 $ "mov " ++ "rax" ++ ", qword " ++ emitOperand sm op]
-
-      -- 2. Test/Compare with zero
       testInstr = [emit 1 $ "test " ++ "rax" ++ ", " ++ "rax"]
-
-      -- 3. Conditional jump
       jumpInstr = [emit 1 $ "je " ++ lbl]
    in loadOp ++ testInstr ++ jumpInstr
