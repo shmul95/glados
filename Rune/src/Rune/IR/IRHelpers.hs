@@ -1,5 +1,6 @@
 module Rune.IR.IRHelpers
   ( astTypeToIRType,
+    sizeOfIRType,
     registerVar,
     registerCall,
     newTemp,
@@ -26,6 +27,7 @@ import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IR
 -- type conversion
 --
 
+-- TODO: handle more types
 astTypeToIRType :: Type -> IRType
 astTypeToIRType TypeI32 = IRI32
 astTypeToIRType TypeI64 = IRI64
@@ -36,6 +38,18 @@ astTypeToIRType TypeString = IRPtr IRU8
 astTypeToIRType TypeNull = IRVoid
 astTypeToIRType (TypeCustom s) = IRStruct s
 astTypeToIRType _ = IRI32
+
+-- TODO: treat struct properly
+-- currently they are treated as 8 byte references/pointers
+sizeOfIRType :: IRType -> Int
+sizeOfIRType IRI32 = 4
+sizeOfIRType IRI64 = 8
+sizeOfIRType IRF32 = 4
+sizeOfIRType IRF64 = 8
+sizeOfIRType IRU8 = 1
+sizeOfIRType (IRPtr _) = 8
+sizeOfIRType (IRStruct _) = 8
+sizeOfIRType IRVoid = 0
 
 --
 -- symbol table
