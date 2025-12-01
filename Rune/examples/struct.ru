@@ -19,6 +19,7 @@ override def show(v: Vec2f) -> null
     show(v.x);
     show(", y: ");
     show(v.y);
+    show(")\n");
 }
 
 def main() -> null
