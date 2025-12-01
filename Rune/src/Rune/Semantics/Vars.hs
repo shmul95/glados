@@ -6,6 +6,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import Rune.Semantics.Func (findFunc, FuncStack)
 
+import Debug.Trace (trace)
+
 type VarStack = HashMap String Type
 type Stack = (FuncStack, VarStack)
 
@@ -23,51 +25,75 @@ verifDefs _ _ = Nothing
 
 verifScope :: Stack -> Block -> Maybe String
 -- name n, type t, expr e
-verifScope (fs, vs) ((StmtVarDecl n t e):stmts)
-    = let vs' = (HM.insert n (fromMaybe (typeOfExpr (fs, vs) e) t) vs)
-    in  verifExpr (fs, vs) e
+verifScope (fs, vs) (StmtVarDecl var t e:stmts) =
+    let expr_type   = typeOfExpr (fs, vs) e
+        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        multipleType= checkMultipleType var t expr_type
+    in  err <> multipleType 
+    <>  verifExpr (fs, vs) e
     <>  verifScope (fs, vs') stmts
-verifScope s ((StmtReturn e):stmts)
-    =   maybe Nothing (verifExpr s) e
+verifScope s (StmtReturn e:stmts) =
+    (verifExpr s =<< e)
     <>  verifScope s stmts
-verifScope s ((StmtIf cond thenA elseB):stmts)
-    =   verifExpr s cond
+verifScope s (StmtIf cond thenA elseB:stmts) =
+    verifExpr s cond
     <>  verifScope s thenA
-    <>  maybe Nothing (verifScope s) elseB
+    <>  (verifScope s =<< elseB)
     <>  verifScope s stmts
-verifScope (fs, vs) ((StmtFor var t (Just start) end body):stmts)
-    = let vs' = HM.insert var (fromMaybe (typeOfExpr (fs, vs) start) t) vs
-    in  verifExpr (fs, vs') start
+verifScope (fs, vs) (StmtFor var t (Just start) end body:stmts) =
+    let expr_type   = typeOfExpr (fs, vs) start
+        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        multipleType= checkMultipleType var t expr_type
+    in  err <> multipleType 
+    <>  verifExpr (fs, vs') start
     <>  verifExpr (fs, vs') end
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
-verifScope (fs, vs) ((StmtFor var t Nothing end body):stmts)
-    = let vs' = HM.insert var (fromMaybe TypeAny t) vs
-    in  verifExpr (fs, vs') end
+verifScope (fs, vs) (StmtFor var t Nothing end body:stmts) =
+    let expr_type   = fromMaybe TypeAny t
+        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        multipleType= checkMultipleType var t expr_type
+    in  err <> multipleType 
+    <>  verifExpr (fs, vs') end
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
-verifScope (fs, vs) ((StmtForEach var t iterable body):stmts)
-    = let vs' = HM.insert var (fromMaybe (typeOfExpr (fs, vs) iterable) t) vs
-    in  verifExpr (fs, vs') iterable
+verifScope (fs, vs) (StmtForEach var t iterable body:stmts) =
+    let expr_type   = typeOfExpr (fs, vs) iterable
+        (vs', err)  = assignVarType vs var $ fromMaybe expr_type t 
+        multipleType= checkMultipleType var t expr_type
+    in  err <> multipleType 
+    <>  verifExpr (fs, vs') iterable
     <>  verifScope (fs, vs') body
     <>  verifScope (fs, vs) stmts
-verifScope s ((StmtExpr e):stmts) 
-    =   verifExpr s e
+verifScope s (StmtExpr e:stmts) =
+    verifExpr s e
     <>  verifScope s stmts
+verifScope s (StmtLoop block:stmts)
+    =   verifScope s block
+    <>  verifScope s stmts
+-- bit weird i don't know if it work like this
+verifScope (fs, vs) (StmtAssignment (ExprVar lv) rv:stmts)
+    = trace (show "in assignment") (let (vs', err) = assignVarType vs lv $ typeOfExpr (fs, vs) rv
+    in  err
+    <>  verifExpr (fs, vs) rv
+    <>  verifScope (fs, vs') stmts)
+verifScope s (StmtAssignment _ _:stmts) = verifScope s stmts
+verifScope s (StmtStop:stmts) = verifScope s stmts
+verifScope s (StmtNext:stmts) = verifScope s stmts
 verifScope _ [] = Nothing
-verifScope _ _ = Nothing -- TODO not managed pattern for now 
-
 
 verifExpr :: Stack -> Expression -> Maybe String
-verifExpr s (ExprBinary _ l r) = (verifExpr s l) <> (verifExpr s r)
+verifExpr s (ExprBinary _ l r) = verifExpr s l <> verifExpr s r
 verifExpr s (ExprCall _ args) = foldMap (verifExpr s) args
 verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
 verifExpr s (ExprVar var) =
-    case HM.member var (snd s) of
-        True -> Nothing
-        False -> Just $ "\n\t" ++ var ++ " : var doesn't exist in the scope"
+    let msg = "\n\tUndefinedVar: " ++ var
+          ++ " doesn't exist in the scope"
+    in case HM.member var (snd s) of
+        True  -> Nothing
+        False -> Just msg
 verifExpr _ _ = Nothing
 
 
@@ -87,7 +113,28 @@ typeOfExpr (fs, _) (ExprCall fn _) =
         Just (t, _) -> t
         Nothing -> TypeAny
 typeOfExpr (_, vs) (ExprVar name) =
-    case HM.lookup name vs of
-        Just t -> t
-        Nothing -> TypeAny
+    fromMaybe TypeAny (HM.lookup name vs)
 
+assignVarType :: VarStack -> String -> Type -> (VarStack, Maybe String)
+assignVarType s v t =
+    -- trace (
+    -- "in assignVarType v: " ++ v ++ ", type: " ++ show t ++ ", when actual type is: " ++ show (HM.lookup v s)
+    -- ) (
+    let msg = "\n\tTypeOverwrite: " ++ v
+          ++ " has alerady type " ++ show t
+    in case HM.lookup v s of
+    Nothing       -> (HM.insert v t s, Nothing)
+    Just TypeAny  -> (HM.insert v t s, Nothing)
+    Just t' | t == t'   -> (HM.insert v t s, Nothing)
+            | otherwise -> (s, Just msg)
+    -- )
+
+checkMultipleType :: String -> Maybe Type -> Type -> Maybe String
+checkMultipleType v t e_t = 
+    let msg = "\n\tMultipleType: " ++ v
+          ++ " is " ++ show t ++ " and "
+          ++ show e_t
+    in case t of
+        Nothing -> Nothing
+        Just t' |  t' == e_t -> Nothing
+                |  otherwise -> Just msg
