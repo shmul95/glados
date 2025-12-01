@@ -99,6 +99,14 @@ instance RuneVisitor Printer where
       Nothing -> return ()
     emitBlock "Value:" (newLine >> visitExpression expr)
 
+  visitAssignment :: Expression -> Expression -> Printer ()
+  visitAssignment l r = do
+    emit "StmtAssignment"
+    indent
+    emitBlock "LValue:" (newLine >> visitExpression l)
+    emitBlock "RValue:" (newLine >> visitExpression r)
+    dedent
+
   visitReturn :: Maybe Expression -> Printer ()
   visitReturn maybeExpr = do
     emit "StmtReturn"
@@ -121,29 +129,54 @@ instance RuneVisitor Printer where
       Nothing -> return ()
     dedent
 
-  visitFor :: String -> Expression -> Expression -> Block -> Printer ()
-  visitFor name start end body = do
+  visitFor :: String -> Maybe Type -> Maybe Expression -> Expression -> Block -> Printer ()
+  visitFor name maybeType mStart end body = do
     emit $ "StmtFor " ++ name
+    case maybeType of
+      Just t -> emit $ " : " ++ showType t
+      Nothing -> return ()
     indent
-    emitBlock "Start:" (newLine >> visitExpression start)
+    case mStart of
+      Just start -> emitBlock "Start:" (newLine >> visitExpression start)
+      Nothing -> newLine >> emit "Start: <Implicit>"
     emitBlock "End:" (newLine >> visitExpression end)
     emitBlock "Body:" (visitBody body)
     dedent
 
-  visitForEach :: String -> Expression -> Block -> Printer ()
-  visitForEach name iterable body = do
+  visitForEach :: String -> Maybe Type -> Expression -> Block -> Printer ()
+  visitForEach name maybeType iterable body = do
     emit $ "StmtForEach " ++ name
+    case maybeType of
+      Just t -> emit $ " : " ++ showType t
+      Nothing -> return ()
     indent
     emitBlock "Iterable:" (newLine >> visitExpression iterable)
     emitBlock "Body:" (visitBody body)
     dedent
 
+  visitLoop :: Block -> Printer ()
+  visitLoop body = do
+    emit "StmtLoop"
+    indent
+    emitBlock "Body:" (visitBody body)
+    dedent
+
+  visitStop :: Printer ()
+  visitStop = emit "StmtStop"
+
+  visitNext :: Printer ()
+  visitNext = emit "StmtNext"
+
   visitStatement :: Statement -> Printer ()
   visitStatement (StmtVarDecl name typeDecl expr) = visitVarDecl name typeDecl expr
+  visitStatement (StmtAssignment l r) = visitAssignment l r
   visitStatement (StmtReturn expr) = visitReturn expr
   visitStatement (StmtIf cond thenB elseB) = visitIf cond thenB elseB
-  visitStatement (StmtFor var start end body) = visitFor var start end body
-  visitStatement (StmtForEach var iterable body) = visitForEach var iterable body
+  visitStatement (StmtFor var t mStart end body) = visitFor var t mStart end body
+  visitStatement (StmtForEach var t iterable body) = visitForEach var t iterable body
+  visitStatement (StmtLoop body) = visitLoop body
+  visitStatement StmtStop = visitStop
+  visitStatement StmtNext = visitNext
   visitStatement (StmtExpr expr) = do
     emit "StmtExpr"
     indent
@@ -186,6 +219,7 @@ instance RuneVisitor Printer where
   visitExpression (ExprLitInt i) = emit $ "ExprLitInt " ++ show i
   visitExpression (ExprLitFloat f) = emit $ "ExprLitFloat " ++ show f
   visitExpression (ExprLitString s) = emit $ "ExprLitString " ++ show s
+  visitExpression (ExprLitChar c) = emit $ "ExprLitChar " ++ show c
   visitExpression (ExprLitBool b) = emit $ "ExprLitBool " ++ show b
   visitExpression ExprLitNull = emit "ExprLitNull"
   visitExpression (ExprVar v) = emit $ "ExprVar " ++ v
@@ -257,3 +291,7 @@ showBinaryOp Or = "||"
 showUnaryOp :: UnaryOp -> String
 showUnaryOp Negate = "-"
 showUnaryOp PropagateError = "?"
+showUnaryOp PrefixInc = "++(prefix)"
+showUnaryOp PrefixDec = "--(prefix)"
+showUnaryOp PostfixInc = "(postfix)++"
+showUnaryOp PostfixDec = "(postfix)--"

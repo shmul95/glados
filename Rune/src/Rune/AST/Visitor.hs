@@ -31,19 +31,28 @@ class (Monad m) => RuneVisitor m where
   -- | dispatcher for statements
   visitStatement :: Statement -> m ()
   visitStatement (StmtVarDecl name typeDecl expr) = visitVarDecl name typeDecl expr
+  visitStatement (StmtAssignment l r) = visitAssignment l r
   visitStatement (StmtReturn expr) = visitReturn expr
   visitStatement (StmtIf cond thenB elseB) = visitIf cond thenB elseB
-  visitStatement (StmtFor var start end body) = visitFor var start end body
-  visitStatement (StmtForEach var iterable body) = visitForEach var iterable body
+  visitStatement (StmtFor var t mStart end body) = visitFor var t mStart end body
+  visitStatement (StmtForEach var t iterable body) = visitForEach var t iterable body
+  visitStatement (StmtLoop body) = visitLoop body
+  visitStatement StmtStop = visitStop
+  visitStatement StmtNext = visitNext
   visitStatement (StmtExpr expr) = void $ visitExpression expr
 
   -- | virtual methods for statements
   visitVarDecl :: String -> Maybe Type -> Expression -> m ()
 
+  visitAssignment :: Expression -> Expression -> m ()
+
   visitReturn :: Maybe Expression -> m ()
   visitIf :: Expression -> Block -> Maybe Block -> m ()
-  visitFor :: String -> Expression -> Expression -> Block -> m ()
-  visitForEach :: String -> Expression -> Block -> m ()
+  visitFor :: String -> Maybe Type -> Maybe Expression -> Expression -> Block -> m ()
+  visitForEach :: String -> Maybe Type -> Expression -> Block -> m ()
+  visitLoop :: Block -> m ()
+  visitStop :: m ()
+  visitNext :: m ()
 
   -- | expressions
   visitExpression :: Expression -> m ()

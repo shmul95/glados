@@ -1,4 +1,4 @@
-module Rune.AST.ParserTypes
+module Rune.AST.Types
   ( ParserState (..),
     Parser (..),
   )
@@ -14,7 +14,8 @@ import qualified Rune.Lexer.Tokens as T
 data ParserState = ParserState
   { psTokens :: [T.Token],
     psPosition :: Int,
-    psFilePath :: String
+    psFilePath :: String,
+    psLoopDepth :: Int
   }
   deriving (Show)
 
@@ -43,7 +44,7 @@ instance Monad Parser where
     Right (x, s') -> runParser (f x) s'
 
 instance Alternative Parser where
-  empty = Parser $ \_ -> Left "Parser empty"
+  empty = Parser $ \_ -> Left "Parser empty\n"
   (Parser p1) <|> (Parser p2) = Parser $ \s ->
     case p1 s of
       Right res -> Right res

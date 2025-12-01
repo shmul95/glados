@@ -2,6 +2,7 @@ module Rune.AST.ParserHelper
   ( failParse,
     withContext,
     getParserState,
+    tokenMap,
     peek,
     advance,
     expect,
@@ -17,13 +18,15 @@ module Rune.AST.ParserHelper
     chainl1,
     chainUnary,
     chainPostfix,
+    incLoopDepth,
+    checkLoopDepth,
   )
 where
 
 import Control.Applicative (Alternative (..))
 import Control.Monad (when)
 import Data.Bifunctor (Bifunctor (first))
-import Rune.AST.ParserTypes (Parser (..), ParserState (..))
+import Rune.AST.Types (Parser (..), ParserState (..))
 import qualified Rune.Lexer.Tokens as T
 
 --
@@ -75,8 +78,30 @@ getParserState :: Parser ParserState
 getParserState = Parser $ \s -> Right (s, s)
 
 --
+-- context helpers
+--
+
+incLoopDepth :: Parser a -> Parser a
+incLoopDepth (Parser p) = Parser $ \s ->
+  let s' = s {psLoopDepth = psLoopDepth s + 1}
+   in case p s' of
+        Left err -> Left err
+        Right (x, s'') -> Right (x, s'' {psLoopDepth = psLoopDepth s})
+
+-- | check if the current loop depth is greater than zero
+checkLoopDepth :: Parser Bool
+checkLoopDepth = (> 0) . psLoopDepth <$> getParserState
+
+--
 -- tokens helpers
 --
+
+tokenMap :: (T.TokenKind -> Maybe a) -> Parser a
+tokenMap f = do
+  t <- peek
+  case f (T.tokenKind t) of
+    Just val -> advance >> pure val
+    Nothing -> empty
 
 -- | get current token
 peek :: Parser T.Token

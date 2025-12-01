@@ -12,6 +12,7 @@ import Rune.AST.Printer (prettyPrint)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Text.Megaparsec (errorBundlePretty)
+import Rune.Semantics.Vars (verifVars)
 
 --
 -- public
@@ -28,12 +29,10 @@ interpretPipeline inFile = runPipelineAction inFile (putStrLn . prettyPrint)
 --
 
 pipeline :: (FilePath, String) -> Either String Program
-pipeline = parseLexer >=> parseAST
-
--- >=> analyzeSemantics
--- >=> createIR
--- >=> optimizeIR
--- >=> generateCode
+pipeline =
+  parseLexer
+    >=> parseAST
+    >=> analyseSemantics
 
 runPipeline :: FilePath -> IO (Either String Program)
 runPipeline fp = do
@@ -68,3 +67,9 @@ parseAST (fp, tokens) =
   case parseRune fp tokens of
     Left err -> Left err
     Right ast -> Right ast
+
+analyseSemantics :: Program -> Either String Program
+analyseSemantics p = case verifVars p of
+  Just err -> Left err
+  Nothing -> Right p
+

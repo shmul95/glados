@@ -13,12 +13,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Haskell Stack
-        uses: haskell/actions/setup@v2
+      - name: Install system GHC
+        uses: haskell-actions/setup@v2
         with:
-          toolchain-cache: true
+          enable-stack: true
+          system-ghc: true
+          stack-version: latest
+          ghc-version: latest
 
-      - name: Cache build artifacts
+      - name: Cache Stack
         uses: actions/cache@v4
         with:
           path: |
@@ -28,5 +31,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-stack-
 
-      - name: Run Tests
-        run: make tests
+      - name: Run tests
+        run: |
+          make tests

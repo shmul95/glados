@@ -80,12 +80,30 @@ stringLitParser = do
 
   return $ mkLiteralConstructor (LitString str) val
 
+charLitParser :: Parser (Int -> Int -> Token)
+charLitParser = try $ do
+  void $ char '\''
+  c <- charChar
+  void $ char '\''
+
+  let val = "'" ++ [c] ++ "'"
+
+  return $ mkLiteralConstructor (LitChar c) val
+
+charChar :: Parser Char
+charChar =
+  choice
+    [ char '\\' >> escapeChar,
+      noneOf ['\'', '\\', '\n', '\r', '\t']
+    ]
+
 literalParsers :: [Parser (Int -> Int -> Token)]
 literalParsers =
   [ floatLitParser,
     intLitParser,
     boolLitParser,
-    stringLitParser
+    stringLitParser,
+    charLitParser
   ]
 
 stringChar :: Parser Char
@@ -102,5 +120,6 @@ escapeChar =
       char 't' >> return '\t',
       char 'r' >> return '\r',
       char '\\' >> return '\\',
-      char '"' >> return '"'
+      char '"' >> return '"',
+      char '\'' >> return '\''
     ]

@@ -49,8 +49,12 @@ data BinaryOp
   deriving (Show, Eq)
 
 data UnaryOp
-  = Negate
-  | PropagateError
+  = Negate         -- -x
+  | PropagateError -- x?
+  | PrefixInc      -- ++x
+  | PrefixDec      -- --x
+  | PostfixInc     -- x++
+  | PostfixDec     -- x--
   deriving (Show, Eq)
 
 data Program = Program 
@@ -132,6 +136,13 @@ data Statement
         varType :: Maybe Type, -- << optional type annotation, may infer from value
         varValue :: Expression
       }
+    -- | variable assignment (including compound assignments like +=)
+    -- x = 10;
+    -- y += 5;
+    | StmtAssignment
+      { assignLValue :: Expression, -- << LValue (variable, field access, etc.)
+        assignRValue :: Expression  -- << RValue (result of operation, e.g., x + 5 for x += 5)
+      }
     -- | return statement
     -- {
     --     return expression;
@@ -162,9 +173,16 @@ data Statement
     --         ...
     --     }
     -- }
+    -- or
+    -- {
+    --     for i to 10 { // start implicite
+    --         ...
+    --     }
+    -- }
     | StmtFor
       { forVar :: String,
-        forStart :: Expression,
+        forVarType :: Maybe Type,
+        forStart :: Maybe Expression, -- << optional start expression
         forEnd :: Expression,
         forBody :: Block
       }
@@ -176,9 +194,17 @@ data Statement
     -- }
     | StmtForEach
       { forEachVar :: String,
+        forEachVarType :: Maybe Type,
         forEachIterable :: Expression,
         forEachBody :: Block
       }
+    -- | infinite loop
+    -- loop {
+    --    ...
+    -- }
+    | StmtLoop Block
+    | StmtStop
+    | StmtNext
     -- | expression statement
     -- {
     --    expression;
@@ -222,6 +248,8 @@ data Expression
     | ExprLitFloat Double
     -- "hello"
     | ExprLitString String
+    -- 'c'
+    | ExprLitChar Char
     -- true | false
     | ExprLitBool Bool
     -- null

@@ -59,7 +59,13 @@ unaryOpTests =
   testGroup
     "UnaryOp"
     [ testCase "Negate" $ Negate @?= Negate,
-      testCase "PropagateError" $ PropagateError @?= PropagateError
+      testCase "PropagateError" $ PropagateError @?= PropagateError,
+      testCase "PrefixInc/Dec" $ do
+        PrefixInc @?= PrefixInc
+        PrefixDec @?= PrefixDec,
+      testCase "PostfixInc/Dec" $ do
+        PostfixInc @?= PostfixInc
+        PostfixDec @?= PostfixDec
     ]
 
 programTests :: TestTree
@@ -120,23 +126,37 @@ statementTests =
         varName s @?= "x"
         varType s @?= Just TypeI32
         varValue s @?= ExprLitInt 42,
+      testCase "StmtAssignment (Simple)" $ do
+        let l = ExprVar "x"
+        let r = ExprLitInt 10
+        let s = StmtAssignment l r
+        assignLValue s @?= l
+        assignRValue s @?= r,
       testCase "StmtReturn" $ StmtReturn (Just (ExprLitBool True)) @?= StmtReturn (Just (ExprLitBool True)),
       testCase "StmtIf" $ do
         let s = StmtIf (ExprLitBool True) [StmtExpr (ExprLitInt 1)] (Just [StmtExpr (ExprLitInt 0)])
         ifCond s @?= ExprLitBool True
         ifThen s @?= [StmtExpr (ExprLitInt 1)]
         ifElse s @?= Just [StmtExpr (ExprLitInt 0)],
-      testCase "StmtFor" $ do
-        let s = StmtFor "i" (ExprLitInt 0) (ExprLitInt 10) []
+      testCase "StmtFor (Full)" $ do
+        let s = StmtFor "i" (Just TypeI32) (Just (ExprLitInt 0)) (ExprLitInt 10) []
         forVar s @?= "i"
-        forStart s @?= ExprLitInt 0
+        forVarType s @?= Just TypeI32
+        forStart s @?= Just (ExprLitInt 0)
         forEnd s @?= ExprLitInt 10
         forBody s @?= [],
+      testCase "StmtFor (Implicit Start)" $ do
+        let s = StmtFor "i" Nothing Nothing (ExprLitInt 10) []
+        forStart s @?= Nothing,
       testCase "StmtForEach" $ do
-        let s = StmtForEach "item" (ExprVar "list") []
+        let s = StmtForEach "item" Nothing (ExprVar "list") []
         forEachVar s @?= "item"
+        forEachVarType s @?= Nothing
         forEachIterable s @?= ExprVar "list"
         forEachBody s @?= [],
+      testCase "StmtLoop" $ StmtLoop [StmtStop] @?= StmtLoop [StmtStop],
+      testCase "StmtStop" $ StmtStop @?= StmtStop,
+      testCase "StmtNext" $ StmtNext @?= StmtNext,
       testCase "StmtExpr" $ StmtExpr (ExprLitInt 123) @?= StmtExpr (ExprLitInt 123)
     ]
 
@@ -162,6 +182,7 @@ expressionTests =
         evaluate (ExprLitInt 42) >>= (@?= ExprLitInt 42)
         evaluate (ExprLitFloat 3.14) >>= (@?= ExprLitFloat 3.14)
         evaluate (ExprLitString "hi") >>= (@?= ExprLitString "hi")
+        evaluate (ExprLitChar 'c') >>= (@?= ExprLitChar 'c')
         evaluate (ExprLitBool True) >>= (@?= ExprLitBool True)
         evaluate ExprLitNull >>= (@?= ExprLitNull)
         evaluate (ExprVar "x") >>= (@?= ExprVar "x")

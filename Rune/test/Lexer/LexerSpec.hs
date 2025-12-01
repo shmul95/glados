@@ -168,7 +168,32 @@ exampleTests =
       testCase "with spaces and comments" $
         checkLexer
           "def main /* block comment */ () -> i32 // line comment\n{ 1 + 2 }"
-          [KwDef, Identifier "main", LParen, RParen, OpArrow, TypeI32, LBrace, LitInt 1, OpPlus, LitInt 2, RBrace, EOF]
+          [KwDef, Identifier "main", LParen, RParen, OpArrow, TypeI32, LBrace, LitInt 1, OpPlus, LitInt 2, RBrace, EOF],
+      testCase "strings and chars" $
+        checkLexer
+          "def main() -> null { str: string = \"Hello, \\nRune!\"; ch: u8 = '\\t'; }"
+          [ KwDef,
+            Identifier "main",
+            LParen,
+            RParen,
+            OpArrow,
+            TypeNull,
+            LBrace,
+            Identifier "str",
+            Colon,
+            TypeString,
+            OpAssign,
+            LitString "Hello, \nRune!",
+            Semicolon,
+            Identifier "ch",
+            Colon,
+            TypeU8,
+            OpAssign,
+            LitChar '\t',
+            Semicolon,
+            RBrace,
+            EOF
+          ]
     ]
 
 unitTests :: TestTree
@@ -179,7 +204,10 @@ unitTests =
         "Keywords"
         [ testCase "kw def" $ checkLexer "def" [KwDef, EOF],
           testCase "kw if followed by id" $ checkLexer "iface" [Identifier "iface", EOF],
-          testCase "kw struct followed by _" $ checkLexer "struct_foo" [Identifier "struct_foo", EOF]
+          testCase "kw struct followed by _" $ checkLexer "struct_foo" [Identifier "struct_foo", EOF],
+          testCase "kw loop" $ checkLexer "loop" [KwLoop, EOF],
+          testCase "kw stop" $ checkLexer "stop" [KwStop, EOF],
+          testCase "kw next" $ checkLexer "next" [KwNext, EOF]
         ],
       testGroup
         "Primitives"
@@ -195,7 +223,11 @@ unitTests =
           testCase "OpArrow vs OpMinus" $ checkLexer "a - > b" [Identifier "a", OpMinus, OpGt, Identifier "b", EOF],
           testCase "OpArrow" $ checkLexer "a->b" [Identifier "a", OpArrow, Identifier "b", EOF],
           testCase "OpEq vs OpAssign" $ checkLexer "a == b" [Identifier "a", OpEq, Identifier "b", EOF],
-          testCase "OpAssign" $ checkLexer "a = b" [Identifier "a", OpAssign, Identifier "b", EOF]
+          testCase "OpAssign" $ checkLexer "a = b" [Identifier "a", OpAssign, Identifier "b", EOF],
+          testCase "OpInc" $ checkLexer "a++" [Identifier "a", OpInc, EOF],
+          testCase "OpDec" $ checkLexer "--b" [OpDec, Identifier "b", EOF],
+          testCase "OpAddAssign" $ checkLexer "a += 5" [Identifier "a", OpAddAssign, LitInt 5, EOF],
+          testCase "OpMulAssign" $ checkLexer "b *= 2" [Identifier "b", OpMulAssign, LitInt 2, EOF]
         ],
       testGroup
         "Delimiters"
@@ -213,7 +245,9 @@ unitTests =
           testCase "bool true" $ checkLexer "true" [LitBool True, EOF],
           testCase "bool false" $ checkLexer "false" [LitBool False, EOF],
           testCase "string simple" $ checkLexer "\"hello\"" [LitString "hello", EOF],
-          testCase "string with escapes" $ checkLexer "\"\\n\\t\\r\\\\\\\"\"" [LitString "\n\t\r\\\"", EOF]
+          testCase "string with escapes" $ checkLexer "\"\\n\\t\\r\\\\\\\"\"" [LitString "\n\t\r\\\"", EOF],
+          testCase "char simple" $ checkLexer "'a'" [LitChar 'a', EOF],
+          testCase "char escaped" $ checkLexer "'\\n'" [LitChar '\n', EOF]
         ],
       testGroup
         "Identifiers"
