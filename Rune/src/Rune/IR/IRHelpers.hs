@@ -1,6 +1,7 @@
 module Rune.IR.IRHelpers
   ( astTypeToIRType,
     registerVar,
+    registerCall,
     newTemp,
     nextLabelIndex,
     makeLabel,
@@ -16,6 +17,7 @@ where
 import Control.Monad.State (gets, modify)
 import Data.Map.Strict (insert)
 import Data.Maybe (fromMaybe)
+import qualified Data.Set as Set
 import Rune.AST.Nodes (Type (..))
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..))
 
@@ -41,6 +43,10 @@ astTypeToIRType _ = IRI32
 registerVar :: String -> IROperand -> IRType -> IRGen ()
 registerVar name op typ = do
   modify $ \s -> s {gsSymTable = insert name (op, typ) (gsSymTable s)}
+
+registerCall :: String -> IRGen ()
+registerCall funcName = do
+  modify $ \s -> s {gsCalledFuncs = Set.insert funcName (gsCalledFuncs s)}
 
 --
 -- naming & globals

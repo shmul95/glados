@@ -21,6 +21,8 @@ printProgram (IRProgram name defs) =
    in unlines (header : defStrs)
 
 printTopLevel :: IRTopLevel -> String
+printTopLevel (IRExtern name) =
+  "EXTERN " ++ name
 printTopLevel (IRGlobalString name value) =
   "GLOBAL " ++ name ++ ": string = \"" ++ escapeString value ++ "\\0\""
 printTopLevel (IRFunctionDef func) =

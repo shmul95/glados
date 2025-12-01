@@ -15,6 +15,7 @@ where
 
 import Control.Monad.State (State)
 import Data.Map (Map)
+import Data.Set (Set)
 
 --
 -- state
@@ -28,7 +29,8 @@ data GenState = GenState
     gsCurrentFunc :: Maybe String,
     gsSymTable :: Map String (IROperand, IRType),
     gsStructs :: Map String [(String, IRType)],
-    gsLoopStack :: [(IRLabel, IRLabel)] -- (header, end)
+    gsLoopStack :: [(IRLabel, IRLabel)],
+    gsCalledFuncs :: Set String
   }
   deriving (Show, Eq)
 
@@ -131,6 +133,7 @@ data IRTopLevel
   = IRGlobalString String String
   | IRFunctionDef IRFunction
   | IRStructDef String [(String, IRType)]
+  | IRExtern String
   deriving (Show, Eq)
 
 data IRProgram = IRProgram

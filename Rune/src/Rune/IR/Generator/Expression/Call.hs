@@ -1,7 +1,7 @@
 module Rune.IR.Generator.Expression.Call (genCall, genShowCall) where
 
 import Rune.AST.Nodes (Expression)
-import Rune.IR.IRHelpers (newTemp)
+import Rune.IR.IRHelpers (newTemp, registerCall)
 import Rune.IR.Nodes (IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -33,6 +33,7 @@ genCall genExpr funcName args = do
         ((_, _, IRPtr (IRStruct s)) : _) -> IRStruct s
         _ -> IRI32
 
+  registerCall mangled
   retTemp <- newTemp "t" retType
   let callInstr = IRCALL retTemp mangled ops (Just retType)
 
@@ -43,6 +44,8 @@ genShowCall genExpr arg = do
   (instrs, op, typ) <- genExpr arg
   let funcName = getShowFunc typ
       (prep, finalOp) = prepareAddr op typ
+
+  registerCall funcName
 
   let callInstr = IRCALL "" funcName [finalOp] Nothing
   return (instrs ++ prep ++ [callInstr], IRTemp "t_void" IRVoid, IRVoid)
@@ -66,7 +69,6 @@ prepareArg (i, op, _) = (i, op)
 getShowFunc :: IRType -> String
 getShowFunc (IRStruct s) = "show_" ++ s
 getShowFunc (IRPtr (IRStruct s)) = "show_" ++ s
-getShowFunc (IRPtr IRU8) = "puts"
 getShowFunc IRU8 = "putchar"
 getShowFunc _ = "printf"
 
