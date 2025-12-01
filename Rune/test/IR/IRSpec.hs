@@ -67,6 +67,7 @@ irTestShowString = do
   let expected =
         unlines
           [ "PROGRAM test:",
+            "EXTERN putchar",
             "GLOBAL str_main0: string = \"Hello, Rune!\\n\\0\"",
             "DEF show_string(p_str: *u8):",
             "    p_ptr0: *u8 = p_str",
@@ -142,6 +143,8 @@ irTestLoopControl = do
   let expected =
         unlines
           [ "PROGRAM test:",
+            "EXTERN printf",
+            "GLOBAL str_main0: string = \"%f\\0\"",
             "DEF main():",
             "    k: f32 = 0.0",
             ".L.loop_header0:",
@@ -156,7 +159,8 @@ irTestLoopControl = do
             "    JUMP_FALSE t3, .L.end2",
             "    JUMP .L.loop_header0",
             ".L.end2:",
-            "    CALL printf(k)",
+            "    p_fmt4: *u8 = ADDR str_main0",
+            "    CALL printf(p_fmt4, k)",
             "    JUMP .L.loop_header0",
             ".L.loop_end0:",
             "    RET"
@@ -183,6 +187,7 @@ irTestConditional = do
   let expected =
         unlines
           [ "PROGRAM test:",
+            "EXTERN printf",
             "GLOBAL str_main0: string = \"a is less than 10\\0\"",
             "GLOBAL str_main1: string = \"a is 10 or greater\\0\"",
             "DEF main():",
@@ -240,8 +245,11 @@ irTestStruct = do
   let expected =
         unlines
           [ "PROGRAM test:",
+            "EXTERN printf",
             "GLOBAL str_show_Vec2f0: string = \"Vec2f(x: \\0\"",
-            "GLOBAL str_show_Vec2f1: string = \", y: \\0\"",
+            "GLOBAL str_show_Vec2f1: string = \"%f\\0\"",
+            "GLOBAL str_show_Vec2f2: string = \", y: \\0\"",
+            "GLOBAL str_show_Vec2f3: string = \"%f\\0\"",
             "STRUCT Vec2f { x: f32, y: f32 }",
             "DEF Vec2f_add(p_self: *Vec2f, p_other: *Vec2f):",
             "    ALLOC struct0: Vec2f",
@@ -260,11 +268,13 @@ irTestStruct = do
             "    p_ptr0: *u8 = ADDR str_show_Vec2f0",
             "    CALL printf(p_ptr0)",
             "    f_x1: f32 = GET_FIELD p_v, \"Vec2f\", \"x\"",
-            "    CALL printf(f_x1)",
-            "    p_ptr2: *u8 = ADDR str_show_Vec2f1",
-            "    CALL printf(p_ptr2)",
-            "    f_y3: f32 = GET_FIELD p_v, \"Vec2f\", \"y\"",
-            "    CALL printf(f_y3)",
+            "    p_fmt2: *u8 = ADDR str_show_Vec2f1",
+            "    CALL printf(p_fmt2, f_x1)",
+            "    p_ptr3: *u8 = ADDR str_show_Vec2f2",
+            "    CALL printf(p_ptr3)",
+            "    f_y4: f32 = GET_FIELD p_v, \"Vec2f\", \"y\"",
+            "    p_fmt5: *u8 = ADDR str_show_Vec2f3",
+            "    CALL printf(p_fmt5, f_y4)",
             "    RET",
             "DEF main():",
             "    ALLOC struct0: Vec2f",

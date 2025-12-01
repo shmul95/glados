@@ -13,6 +13,7 @@ import LoggerSpec (loggerTests)
 import PipelinesSpec (pipelinesTests)
 import Semantics.FuncSpec (funcSemanticsTests)
 import Semantics.VarsSpec (varsSemanticsTests)
+import Backend.X86_64Spec (x86_64Tests)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 
 --
@@ -28,7 +29,8 @@ main =
         lexerSpecs,
         astSpecs,
         semanticsSpecs,
-        irSpecs
+        irSpecs,
+        backendSpecs
       ]
 
 --
@@ -76,4 +78,12 @@ irSpecs =
     "IR Tests"
     [ irTests,
       irNodesTests
+    ]
+
+backendSpecs :: TestTree
+backendSpecs =
+  testGroup
+    "Backend Tests"
+    [
+      x86_64Tests
     ]

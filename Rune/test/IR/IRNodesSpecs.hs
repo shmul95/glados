@@ -2,6 +2,7 @@ module IR.IRNodesSpecs (irNodesTests) where
 
 import Control.Monad.State (evalState)
 import Data.Map (empty, insert)
+import qualified Data.Set as Set
 import Rune.IR.Nodes
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
@@ -117,7 +118,8 @@ testGenState =
                   gsCurrentFunc = Just "main",
                   gsSymTable = symTable,
                   gsStructs = structTable,
-                  gsLoopStack = loopStack
+                  gsLoopStack = loopStack,
+                  gsCalledFuncs = Set.empty
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -132,8 +134,8 @@ testGenState =
               gsLoopStack initialState @?= loopStack
               evalState dummyOp initialState @?= 10,
       testCase "Deriving Show/Eq" $
-        let state1 = GenState 0 0 0 [] Nothing empty empty []
-            state2 = GenState 0 0 0 [] Nothing empty empty []
+        let state1 = GenState 0 0 0 [] Nothing empty empty [] Set.empty
+            state2 = GenState 0 0 0 [] Nothing empty empty [] Set.empty
          in state1 @?= state2
     ]
 
