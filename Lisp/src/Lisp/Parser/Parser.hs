@@ -1,8 +1,10 @@
-module Lisp.Parser.Parser (parseLispDocument,
-                parseLispArray,
-                parseLispNumber,
-                parseLispString,
-                parseLispValue) where
+module Lisp.Parser.Parser (
+    parseLispDocument,
+    parseLispArray,
+    parseLispNumber,
+    parseLispString,
+    parseLispValue
+) where
 
 import Text.Megaparsec
 import Text.Megaparsec.Char
@@ -14,7 +16,7 @@ type Parser = Parsec Void String
 parseLispDocument :: Parser SExpr
 parseLispDocument = do
     space
-    exprs <- many parseLispValue
+    exprs <- some parseLispValue
     space
     eof
     return (List exprs)
