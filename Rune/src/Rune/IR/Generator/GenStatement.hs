@@ -12,6 +12,7 @@ import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
     IROperand (..),
+    IRType (IRNull),
   )
 
 --
@@ -66,8 +67,10 @@ genAssignment lvalue rvalue = do
 
 genReturnExpr :: Expression -> IRGen [IRInstruction]
 genReturnExpr expr = do
-  (instrs, op, _) <- genExpression expr
-  pure (instrs ++ [IRRET $ Just op])
+  (instrs, op, opType) <- genExpression expr
+  case opType of
+    IRNull -> pure (instrs ++ [IRRET Nothing])
+    _ -> pure (instrs ++ [IRRET $ Just op])
 
 genExprStmt :: Expression -> IRGen [IRInstruction]
 genExprStmt expr = do
