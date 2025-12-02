@@ -7,17 +7,12 @@ import qualified Data.HashMap.Strict as HM
 import Rune.Semantics.Func (findFunc, FuncStack)
 import Text.Printf (printf)
 
-import Debug.Trace (trace)
-
 type VarStack = HashMap String Type
 type Stack = (FuncStack, VarStack)
 
 -- if Nothing everything good else Error message
 verifVars :: Program -> Maybe String
-verifVars (Program n defs) =
-  trace (show $ findFunc $ Program n defs) (
-  foldMap (verifDefs (findFunc (Program n defs))) defs
-  )
+verifVars (Program n defs) = foldMap (verifDefs (findFunc (Program n defs))) defs
 
 verifDefs :: FuncStack -> TopLevelDef -> Maybe String
 verifDefs fs (DefFunction _ params _ body) = verifScope (fs, HM.fromList (map (\p -> (paramName p, paramType p)) params)) body
@@ -90,7 +85,6 @@ verifScope _ [] = Nothing
 verifExpr :: Stack -> Expression -> Maybe String
 verifExpr s (ExprBinary _ l r) = verifExpr s l <> verifExpr s r
 verifExpr s (ExprCall name args) = checkParamType s name args <> foldMap (verifExpr s) args
--- verifExpr s (ExprCall _ args) = foldMap (verifExpr s) args
 verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
@@ -106,22 +100,12 @@ verifExpr _ _ = Nothing
 -- helper
 --
 
--- checkFunction :: Stack -> String -> Maybe String
--- checkFunction (_, fs) name = trace (
---   "test: " ++ (show $ HM.lookup name fs) ++
---   "/" ++ (show $ fs)
---   ) (Nothing)
-
 checkParamType :: Stack -> String -> [Expression] -> Maybe String
 checkParamType (fs, vs) fname es =
   let unknown_func = "\n\tUnknownFunction: %s is not known"
   in case HM.lookup fname fs of
     Nothing      -> Just $ printf unknown_func fname
-    Just (_, at) -> trace
-      ("es (" ++ (show $ length es) ++ ") " ++ (show es) ++
-      " at (" ++ (show $ length at) ++ ") " ++ (show at)) (
-      checkEachParam (fs, vs) 0 es at
-      )
+    Just (_, at) -> checkEachParam (fs, vs) 0 es at
 
 checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
 checkEachParam s i (e:es) (t:at) =
