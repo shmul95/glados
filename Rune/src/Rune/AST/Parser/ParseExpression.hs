@@ -84,7 +84,9 @@ parsePostfix = chainPostfix parsePrimary op
 parseCallPostfix :: Parser (Expression -> Expression)
 parseCallPostfix = do
   args <- between (expect T.LParen) (expect T.RParen) (sepBy (withContext "argument" parseExpression) (expect T.Comma))
-  pure $ \e -> ExprCall (getExprName e) args
+  pure $ \e -> case e of
+    ExprAccess target field -> ExprCall field (target : args)
+    _ -> ExprCall (getExprName e) args
 
 parseFieldAccessPostfix :: Parser (Expression -> Expression)
 parseFieldAccessPostfix = do

@@ -8,46 +8,57 @@ import Control.Monad ((>=>))
 import Logger (logError)
 import Rune.AST.Nodes (Program)
 import Rune.AST.Parser (parseRune)
-import Rune.AST.Printer (prettyPrint)
+import Rune.IR.Generator (generateIR)
+import Rune.IR.Nodes (IRProgram)
+import Rune.IR.Printer (prettyPrintIR)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
-import Text.Megaparsec (errorBundlePretty)
 import Rune.Semantics.Vars (verifVars)
+import Text.Megaparsec (errorBundlePretty)
 
 --
 -- public
 --
 
 compilePipeline :: FilePath -> FilePath -> IO ()
-compilePipeline inFile outFile = runPipelineAction inFile (writeFile outFile . prettyPrint)
+compilePipeline inFile outFile = runPipelineAction inFile (writeFile outFile . prettyPrintIR)
 
 interpretPipeline :: FilePath -> IO ()
-interpretPipeline inFile = runPipelineAction inFile (putStrLn . prettyPrint)
+interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
 
 --
 -- private pipelines
 --
 
-pipeline :: (FilePath, String) -> Either String Program
+pipeline :: (FilePath, String) -> Either String IRProgram
 pipeline =
   parseLexer
     >=> parseAST
-    >=> analyseSemantics
+    >=> checkSemantics
+    >=> genIR
 
-runPipeline :: FilePath -> IO (Either String Program)
+runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
   readContent <- safeRead fp
   pure $ readContent >>= (pipeline . (fp,))
 
-runPipelineAction :: FilePath -> (Program -> IO ()) -> IO ()
+runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
 runPipelineAction inFile onSuccess =
   runPipeline inFile >>= \case
     Left err -> logError err
-    Right ast -> onSuccess ast
+    Right ir -> onSuccess ir
 
 --
 -- private encapsulations for error handling
 --
+
+genIR :: Program -> Either String IRProgram
+genIR p = Right $ generateIR p
+
+checkSemantics :: Program -> Either String Program
+checkSemantics p = case verifVars p of
+  Just err -> Left err
+  Nothing -> Right p
 
 safeRead :: FilePath -> IO (Either String String)
 safeRead fp = do
@@ -67,10 +78,3 @@ parseAST (fp, tokens) =
   case parseRune fp tokens of
     Left err -> Left err
     Right ast -> Right ast
-
-analyseSemantics :: Program -> Either String Program
-analyseSemantics p = 
-  case verifVars p of
-    Just err -> Left err
-    Nothing -> Right p
-

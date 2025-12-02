@@ -33,4 +33,5 @@ jobs:
 
       - name: Run tests
         run: |
-          make tests
+          set -o pipefail
+          make coverage -j | ./scripts/check_coverage.sh
