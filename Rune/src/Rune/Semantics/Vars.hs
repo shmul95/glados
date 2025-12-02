@@ -74,7 +74,9 @@ verifScope (fs, vs) (StmtAssignment (ExprVar lv) rv:stmts) =
     in  err
     <>  verifExpr (fs, vs) rv
     <>  verifScope (fs, vs') stmts
-verifScope s (StmtAssignment _ _:stmts) = verifScope s stmts
+verifScope s (StmtAssignment lhs rv:stmts) =
+    verifExpr s lhs <> verifExpr s rv <> verifScope s stmts
+
 verifScope s (StmtStop:stmts) = verifScope s stmts
 verifScope s (StmtNext:stmts) = verifScope s stmts
 verifScope _ [] = Nothing
