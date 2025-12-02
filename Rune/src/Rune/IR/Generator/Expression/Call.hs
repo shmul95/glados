@@ -39,65 +39,77 @@ genCall genExpr funcName args = do
 
   return (allInstrs ++ [callInstr], IRTemp retTemp retType, retType)
 
+--
+-- show calls
+--
+-- show is a built-in function that prints the value of its argument to stdout
+-- def show(value: any) -> null
+--
+
 genShowCall :: GenExprCallback -> Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall genExpr arg = do
   (instrs, op, typ) <- genExpr arg
-  let funcName = getShowFunc typ
+  let funcName = getShowFunc op typ
       (prep, finalOp) = prepareAddr op typ
 
   registerCall funcName
-  (fmtInstrs, callArgs) <- genShowFmtCall typ finalOp
+  (fmtInstrs, callArgs) <- genShowFmtCall op typ finalOp
 
   let callInstr = IRCALL "" funcName callArgs Nothing
   return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
-
--- | as show is a built-in "printf"-like function
--- def show(value: any) -> null
--- we need to format the arguments accordingly to the input
---
--- TODO: add mapping for other types
-genShowFmtCall :: IRType -> IROperand -> IRGen ([IRInstruction], [IROperand])
-genShowFmtCall IRF32 finalOp = do
-  (i, f) <- genFormatString "%f"
-  return (i, [f, finalOp])
-genShowFmtCall IRF64 finalOp = do
-  (i, f) <- genFormatString "%lf"
-  return (i, [f, finalOp])
-genShowFmtCall IRI32 finalOp = do
-  (i, f) <- genFormatString "%d"
-  return (i, [f, finalOp])
-genShowFmtCall IRI64 finalOp = do
-  (i, f) <- genFormatString "%ld"
-  return (i, [f, finalOp])
-genShowFmtCall (IRPtr IRU8) finalOp =
-  return ([], [finalOp])
-genShowFmtCall _ finalOp =
-  return ([], [finalOp])
 
 --
 -- private
 --
 
+-- | as show is a built-in "printf"-like function
+-- def show(value: any) -> null
+-- we need to format the arguments accordingly to the input
+genShowFmtCall :: IROperand -> IRType -> IROperand -> IRGen ([IRInstruction], [IROperand])
+genShowFmtCall originalOp typ finalOp = case getFormatSpecifier originalOp typ of
+  Just fmt -> do
+    (i, f) <- genFormatString fmt
+    return (i, [f, finalOp])
+  Nothing -> return ([], [finalOp])
+
+getShowFunc :: IROperand -> IRType -> String
+getShowFunc _ (IRStruct s) = "show_" ++ s
+getShowFunc _ (IRPtr (IRStruct s)) = "show_" ++ s
+getShowFunc _ IRU8 = "putchar"
+getShowFunc _ _ = "printf"
+
+getFormatSpecifier :: IROperand -> IRType -> Maybe String
+getFormatSpecifier _ IRI8 = Just "%hhd"
+getFormatSpecifier _ IRI16 = Just "%hd"
+getFormatSpecifier _ IRI32 = Just "%d"
+getFormatSpecifier _ IRI64 = Just "%ld"
+getFormatSpecifier _ IRU8 = Nothing
+getFormatSpecifier _ IRU16 = Just "%hu"
+getFormatSpecifier _ IRU32 = Just "%u"
+getFormatSpecifier _ IRU64 = Just "%lu"
+getFormatSpecifier _ IRF32 = Just "%f"
+getFormatSpecifier _ IRF64 = Just "%lf"
+getFormatSpecifier _ IRBool = Just "%d"
+getFormatSpecifier _ (IRPtr IRU8) = Nothing
+getFormatSpecifier _ _ = Nothing
+
 mangleName :: String -> [([IRInstruction], IROperand, IRType)] -> String
-mangleName base args = case args of
-  ((_, _, IRStruct s) : _) -> s ++ "_" ++ base
-  ((_, _, IRPtr (IRStruct s)) : _) -> s ++ "_" ++ base
-  _ -> base
+mangleName base ((_, _, IRStruct s) : _) = s ++ "_" ++ base
+mangleName base ((_, _, IRPtr (IRStruct s)) : _) = s ++ "_" ++ base
+mangleName base _ = base
 
 prepareArg :: ([IRInstruction], IROperand, IRType) -> ([IRInstruction], IROperand)
-prepareArg (i, op, IRStruct _) = case op of
-  IRTemp n t -> (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
-  _ -> (i, op)
+prepareArg (i, (IRTemp n t), IRStruct _) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
+prepareArg (i, (IRTemp n t), IRPtr (IRStruct _)) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
 prepareArg (i, op, _) = (i, op)
 
-getShowFunc :: IRType -> String
-getShowFunc (IRStruct s) = "show_" ++ s
-getShowFunc (IRPtr (IRStruct s)) = "show_" ++ s
-getShowFunc IRU8 = "putchar"
-getShowFunc _ = "printf"
-
 prepareAddr :: IROperand -> IRType -> ([IRInstruction], IROperand)
-prepareAddr op (IRStruct t) = case op of
-  IRTemp n _ -> ([IRADDR ("addr_" ++ n) n (IRPtr (IRStruct t))], IRTemp ("addr_" ++ n) (IRPtr (IRStruct t)))
-  _ -> ([], op)
+prepareAddr (IRTemp n _) (IRStruct t) =
+  ( [IRADDR ("addr_" ++ n) n (IRPtr (IRStruct t))],
+    IRTemp ("addr_" ++ n) (IRPtr (IRStruct t))
+  )
+prepareAddr (IRTemp n _) (IRPtr (IRStruct t)) =
+  ( [IRADDR ("addr_" ++ n) n (IRPtr (IRPtr (IRStruct t)))],
+    IRTemp ("addr_" ++ n) (IRPtr (IRPtr (IRStruct t)))
+  )
 prepareAddr op _ = ([], op)

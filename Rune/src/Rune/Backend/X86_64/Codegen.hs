@@ -154,17 +154,49 @@ emitInstruction sm _ (IRCMP_GTE dest l r) = emitCompareOp sm dest "setge" l r
 emitInstruction _ _ instr = [emit 1 $ "; TODO: " ++ show instr]
 
 -- | emit dest = op
+-- | emit dest = op
 emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
-emitAssign sm dest (IRConstInt n) t =
+emitAssign sm dest operand t = case operand of
+  IRConstInt n -> assignFromConstInt sm dest n t
+  IRConstChar c -> assignFromConstChar sm dest c
+  IRTemp name _ -> assignFromStackVar sm dest name t
+  IRParam name _ -> assignFromStackVar sm dest name t
+  _ -> assignUnsupportedOperand sm dest operand t
+
+-- assign a constant integer into a stack slot (handles large immediates)
+assignFromConstInt :: Map String Int -> String -> Int -> IRType -> [String]
+assignFromConstInt sm dest n t =
   let sizeSpec = getSizeSpecifier t
-   in [emit 1 $ "mov " ++ sizeSpec ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
-emitAssign sm dest (IRConstChar c) _ = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
-emitAssign sm dest (IRTemp srcName _) t = emitMoveStackToStackTyped sm dest srcName t
-emitAssign sm dest (IRParam srcName _) t = emitMoveStackToStackTyped sm dest srcName t
-emitAssign _ dest op t =
+      addr = stackAddr sm dest
+   in if requiresRegisterIntermediate n t
+        then
+          [ emit 1 $ "mov rax, " ++ show n,
+            emit 1 $ "mov " ++ sizeSpec ++ " " ++ addr ++ ", rax"
+          ]
+        else
+          [ emit 1 $ "mov " ++ sizeSpec ++ " " ++ addr ++ ", " ++ show n
+          ]
+
+-- assign a character constant into a byte stack slot
+assignFromConstChar :: Map String Int -> String -> Char -> [String]
+assignFromConstChar sm dest c =
+  [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
+
+-- move a value from another stack slot (temp or param) with the right typing
+assignFromStackVar :: Map String Int -> String -> String -> IRType -> [String]
+assignFromStackVar sm dest srcName t = emitMoveStackToStackTyped sm dest srcName t
+
+-- fallback for unsupported operands
+assignUnsupportedOperand :: Map String Int -> String -> IROperand -> IRType -> [String]
+assignUnsupportedOperand sm dest op t =
   [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show op,
-    emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ dest ++ ", 0"
+    emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"
   ]
+
+-- TODO: do we need to materialize the immediate into a 64-bit register first?
+requiresRegisterIntermediate :: Int -> IRType -> Bool
+requiresRegisterIntermediate n t =
+  t `elem` [IRI64, IRU64] && (n < -2147483648 || n > 2147483647)
 
 -- | emit call dest
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
@@ -184,10 +216,19 @@ emitArg sm reg op = emit 1 $ "mov " ++ reg ++ ", qword " ++ getVarStackAddr sm o
 
 emitLoadVarArg :: Map String Int -> String -> IROperand -> IRType -> String
 emitLoadVarArg sm reg op t =
-  let targetReg = getRegisterName reg t
-      sizeSpec = getSizeSpecifier t
-      addr = getVarStackAddr sm op
-   in emit 1 $ "mov " ++ targetReg ++ ", " ++ sizeSpec ++ " " ++ addr
+  let addr = getVarStackAddr sm op
+   in case t of
+        IRI8 -> emit 1 $ "movsx " ++ reg ++ ", byte " ++ addr
+        IRI16 -> emit 1 $ "movsx " ++ reg ++ ", word " ++ addr
+        IRI32 -> emit 1 $ "movsxd " ++ reg ++ ", dword " ++ addr
+        IRU8 -> emit 1 $ "movzx " ++ reg ++ ", byte " ++ addr
+        IRU16 -> emit 1 $ "movzx " ++ reg ++ ", word " ++ addr
+        IRU32 -> emit 1 $ "mov " ++ getRegisterName reg t ++ ", dword " ++ addr
+        IRBool -> emit 1 $ "movzx " ++ reg ++ ", byte " ++ addr
+        _ ->
+          let targetReg = getRegisterName reg t
+              sizeSpec = getSizeSpecifier t
+           in emit 1 $ "mov " ++ targetReg ++ ", " ++ sizeSpec ++ " " ++ addr
 
 emitCallArgs :: Map String Int -> [IROperand] -> [String]
 emitCallArgs sm args =

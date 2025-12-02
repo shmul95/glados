@@ -10,8 +10,8 @@ where
 import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, GlobalString)
-import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 import Rune.IR.IRHelpers (sizeOfIRType)
+import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 
 --
 -- public
