@@ -100,8 +100,7 @@ emitFunctionEpilogue endLabel =
     ""
   ]
 
--- | emit function parameters (for now, only handles max 6 parameters)
--- mov qword [rbp <+-> offset], <x86_64ArgsRegisters>
+-- | emit function parameters
 emitParameters :: [(String, IRType)] -> Map String Int -> [String]
 emitParameters params stackMap =
   let argRegs = x86_64ArgsRegisters
@@ -126,9 +125,9 @@ emitInstruction _ _ (IRLABEL (IRLabel lbl)) = [lbl ++ ":"]
 emitInstruction _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " ++ lbl]
 emitInstruction sm _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitJumpEQ0 sm op lbl
 emitInstruction sm _ (IRJUMP_FALSE op (IRLabel lbl)) = emitJumpFalse sm op lbl
+emitInstruction sm _ (IRJUMP_TRUE op (IRLabel lbl)) = emitJumpTrue sm op lbl
 emitInstruction sm _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
-emitInstruction _ endLbl (IRRET Nothing) = [emit 1 $ "jmp " ++ endLbl]
-emitInstruction sm endLbl (IRRET (Just op)) = emitRet sm endLbl op
+emitInstruction sm endLbl (IRRET mbOp) = emitRet sm endLbl mbOp
 emitInstruction sm _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
 emitInstruction sm _ (IRINC op) = emitIncDec sm op "add"
 emitInstruction sm _ (IRDEC op) = emitIncDec sm op "sub"
@@ -136,6 +135,8 @@ emitInstruction sm _ (IRADDR dest source typ) = emitAddr sm dest source typ
 emitInstruction sm _ (IRADD_OP dest l r _) = emitBinaryOp sm dest "add" l r
 emitInstruction sm _ (IRSUB_OP dest l r _) = emitBinaryOp sm dest "sub" l r
 emitInstruction sm _ (IRMUL_OP dest l r _) = emitBinaryOp sm dest "imul" l r
+emitInstruction sm _ (IRAND_OP dest l r _) = emitBinaryOp sm dest "and" l r
+emitInstruction sm _ (IROR_OP dest l r _) = emitBinaryOp sm dest "or" l r
 emitInstruction sm _ (IRCMP_EQ dest l r) = emitCompareOp sm dest "sete" l r
 emitInstruction sm _ (IRCMP_NEQ dest l r) = emitCompareOp sm dest "setne" l r
 emitInstruction sm _ (IRCMP_LT dest l r) = emitCompareOp sm dest "setl" l r
@@ -156,7 +157,6 @@ emitAssign _ dest op =
   ]
 
 -- | emit call dest
--- CALL <name>(args...) -> call <name>
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCall sm dest funcName args _ =
   let argSetup = emitCallArgs sm args
@@ -165,7 +165,6 @@ emitCall sm dest funcName args _ =
    in argSetup ++ callInstr ++ retSave
 
 -- | emit the first 6 arguments in registers
--- mov rdi, qword [rbp-offset]
 emitArg :: Map String Int -> String -> IROperand -> String
 emitArg sm reg op = emit 1 $ "mov " ++ reg ++ ", " ++ getOperandValueString sm op
 
@@ -185,19 +184,27 @@ emitCallRet :: Map String Int -> String -> [String]
 emitCallRet _ "" = []
 emitCallRet sm dest = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
 
-emitRet :: Map String Int -> String -> IROperand -> [String]
-emitRet sm endLbl op = emitLoadRax sm op ++ [emit 1 $ "jmp " ++ endLbl]
+-- | emit a return instruction
+--  cases:
+--  1- no return value: xor rax, rax to avoid returning garbage value
+--  2- return value: load into rax
+emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
+emitRet _ endLbl Nothing =
+  [ emit 1 "xor rax, rax",
+    emit 1 $ "jmp " ++ endLbl
+  ]
+emitRet sm endLbl (Just op) =
+  emitLoadRax sm op ++ [emit 1 $ "jmp " ++ endLbl]
 
 -- | emit deref ptr
--- cases:
---  1- RAX = &value
---  2- RAX = *RAX
---  3- dest = RAX
+--  cases:
+--  1- load pointer address into rax
+--  2- deref based on type size into rax
+--  3- store rax into dest stack location
 emitDeref :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitDeref sm dest ptr typ =
   let ptrAddr = getOperandConstOrStackAddr sm ptr
       size = sizeOfIRType typ
-
       movType = case size of
         1 -> "movzx " ++ "rax" ++ ", byte"
         4 -> "mov " ++ "rax" ++ ", dword"
@@ -210,13 +217,13 @@ emitDeref sm dest ptr typ =
 
 -- | emit INC/DEC on pointer operand
 emitIncDec :: Map String Int -> IROperand -> String -> [String]
-emitIncDec sm (IRTemp name (IRPtr _)) asmOp = [emit 1 $ asmOp ++ " qword " ++ stackAddr sm name ++ ", 1"]
+emitIncDec sm (IRTemp name _) asmOp = [emit 1 $ asmOp ++ " qword " ++ stackAddr sm name ++ ", 1"]
 emitIncDec _ op _ = [emit 1 $ "; TODO: " ++ show op ++ " on non-pointer"]
 
 -- | emit ADDR dest, source
 --  cases:
---  1- source is a global string: mov rax, str_x; mov [dest], rax
---  2- source is a local variable: lea rax, [rbp-offset]; mov [dest], rax
+--  1- source is a global string: load its address directly
+--  2- source is a local variable: lea its address
 emitAddr :: Map String Int -> String -> String -> IRType -> [String]
 emitAddr sm dest source _ =
   case source of
@@ -246,6 +253,14 @@ emitJumpFalse sm op lbl =
       jumpInstr = [emit 1 $ "je " ++ lbl]
    in loadOp ++ testInstr ++ jumpInstr
 
+-- | emit jump if true
+emitJumpTrue :: Map String Int -> IROperand -> String -> [String]
+emitJumpTrue sm op lbl =
+  let loadOp = emitLoadRax sm op
+      testInstr = [emit 1 $ "test " ++ "rax" ++ ", " ++ "rax"]
+      jumpInstr = [emit 1 $ "jne " ++ lbl]
+   in loadOp ++ testInstr ++ jumpInstr
+
 -- | emit dest = left <asmOp> right
 emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
 emitBinaryOp sm dest asmOp leftOp rightOp =
@@ -255,7 +270,7 @@ emitBinaryOp sm dest asmOp leftOp rightOp =
       saveResult = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
    in loadLeft ++ loadRight ++ opInstr ++ saveResult
 
--- | emit dest = left <asmOp> right
+-- | emit dest = left <asmOp> right (comparison)
 emitCompareOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
 emitCompareOp sm dest setOp leftOp rightOp =
   let loadLeft = emitLoadRax sm leftOp

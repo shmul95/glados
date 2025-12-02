@@ -10,7 +10,6 @@ where
 import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, GlobalString)
-import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 
 --
@@ -25,12 +24,12 @@ collectTopLevels tls =
   let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
    in (nub es, reverse gs, reverse fs)
 
+-- TODO: rewrite this helper to calculate offsets based on actual type sizes
 calculateStackMap :: Function -> (Map.Map String Int, Int)
 calculateStackMap func =
   let varsMap = collectIRVars func
       varNames = Map.keys varsMap
-      varTypes = map (\name -> (name, varsMap Map.! name)) varNames
-      (totalUsedSize, offsetsMap) = foldl' accumulateOffset (0, Map.empty) varTypes
+      (totalUsedSize, offsetsMap) = foldl' accumulateOffset (0, Map.empty) varNames
       totalSize = alignUp totalUsedSize 16
       rbpOffsetsMap = Map.map (\offset -> -(totalUsedSize - offset)) offsetsMap
    in (rbpOffsetsMap, totalSize)
@@ -71,17 +70,20 @@ collectVars acc (IRCMP_EQ n _ _) = Map.insert n IRI32 acc
 collectVars acc (IRCMP_NEQ n _ _) = Map.insert n IRI32 acc
 collectVars acc (IRCMP_LT n _ _) = Map.insert n IRI32 acc
 collectVars acc (IRCMP_LTE n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_GT n _ _) = Map.insert n IRI32 acc
+collectVars acc (IRCMP_GTE n _ _) = Map.insert n IRI32 acc
 collectVars acc (IRAND_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IROR_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRCALL n _ _ (Just t)) = Map.insert n t acc
 collectVars acc (IRADDR n _ t) = Map.insert n t acc
 collectVars acc _ = acc
 
-accumulateOffset :: (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
-accumulateOffset (currentOffset, accMap) (name, varType) =
-  let align = min 8 (sizeOfIRType varType)
+-- TODO: rewrite this helper to calculate offsets based on actual type sizes
+accumulateOffset :: (Int, Map.Map String Int) -> String -> (Int, Map.Map String Int)
+accumulateOffset (currentOffset, accMap) name =
+  let align = 8
       alignedOffset = alignUp currentOffset align
-      size = sizeOfIRType varType
+      size = 8
       newOffset = alignedOffset + size
    in (newOffset, Map.insert name alignedOffset accMap)
 
