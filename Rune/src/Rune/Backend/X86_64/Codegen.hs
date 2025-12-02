@@ -258,7 +258,7 @@ emitBinaryOp sm dest asmOp leftOp rightOp =
 -- | emit dest = left <asmOp> right
 emitCompareOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
 emitCompareOp sm dest setOp leftOp rightOp =
-  let loadLeft = emitLoadRax sm leftOp -- RAX = left
+  let loadLeft = emitLoadRax sm leftOp
       loadRight = [emit 1 $ "mov rbx, " ++ getOperandValueString sm rightOp]
       cmpInstr = [emit 1 $ "cmp rax, rbx"]
       setInstr = [emit 1 $ setOp ++ " al"]
