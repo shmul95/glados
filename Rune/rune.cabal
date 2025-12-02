@@ -114,7 +114,6 @@ test-suite rune-test
       IR.IRSpec
       Lexer.LexerSpec
       Lexer.TokensSpec
-      LoggerSpec
       PipelinesSpec
       Semantics.FuncSpec
       Semantics.VarsSpec
