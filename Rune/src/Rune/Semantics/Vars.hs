@@ -6,6 +6,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import Rune.Semantics.Func (findFunc, FuncStack)
 
+-- import Debug.Trace (trace)
+
 type VarStack = HashMap String Type
 type Stack = (FuncStack, VarStack)
 
@@ -117,11 +119,16 @@ assignVarType :: VarStack -> String -> Type -> (VarStack, Maybe String)
 assignVarType s v t =
     let msg = "\n\tTypeOverwrite: " ++ v
           ++ " has alerady type " ++ show t
+        updated = (HM.insert v t s, Nothing)
+        unchanged = (s, Nothing)
     in case HM.lookup v s of
-    Nothing       -> (HM.insert v t s, Nothing)
-    Just TypeAny  -> (HM.insert v t s, Nothing)
-    Just t' | t == t'   -> (HM.insert v t s, Nothing)
-            | otherwise -> (s, Just msg)
+      Nothing       -> updated
+      Just TypeAny  -> updated
+      Just t' | t' == t         -> updated
+              | t' == TypeAny   -> updated
+              | t' == TypeNull  -> updated
+              | t  == TypeAny   -> unchanged
+              | otherwise       -> (s, Just msg)
 
 checkMultipleType :: String -> Maybe Type -> Type -> Maybe String
 checkMultipleType v t e_t = 
@@ -130,5 +137,8 @@ checkMultipleType v t e_t =
           ++ show e_t
     in case t of
         Nothing -> Nothing
-        Just t' |  t' == e_t -> Nothing
-                |  otherwise -> Just msg
+        Just t' | t'  == e_t      -> Nothing
+                | t'  == TypeAny  -> Nothing
+                | e_t == TypeAny  -> Nothing
+                | e_t == TypeNull -> Nothing
+                | otherwise       -> Just msg
