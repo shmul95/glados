@@ -16,7 +16,8 @@ x86_64Tests :: TestTree
 x86_64Tests =
   testGroup
     "Rune.Backend.x86_64Spec"
-    [ testCase "x86_64 Test Programs" x86_64TestShowString
+    [ testCase "x86_64 Test Programs" x86_64TestShowString,
+      testCase "x86_64 If-Else Test" x86_64TestIfElse
     ]
 
 --
@@ -126,4 +127,63 @@ x86_64TestShowString = do
             ""
           ]
 
+  runX86_64 program @?= expected
+
+x86_64TestIfElse :: IO ()
+x86_64TestIfElse = do
+  let program =
+        unlines
+          [ "def main() -> i32 {",
+            "    a: i32 = 5;",
+            "",
+            "    if a < 10 {",
+            "        show(\"a is less than 10\\n\");",
+            "    } else {",
+            "        show(\"a is 10 or greater\\n\");",
+            "    }",
+            "    return a;",
+            "}"
+          ]
+
+      expected =
+        unlines
+          [ "extern printf",
+            "section .data",
+            "str_main1 db \"a is 10 or greater\",10, 0",
+            "str_main0 db \"a is less than 10\",10, 0",
+            "section .text",
+            "global main",
+            "main:",
+            "    push rbp",
+            "    mov rbp, rsp",
+            "    sub rsp, 32",
+            "    mov qword [rbp-28], 5",
+            "    mov rax, qword [rbp-28]",
+            "    mov rbx, 10",
+            "    cmp rax, rbx",
+            "    setl al",
+            "    movzx rax, al",
+            "    mov qword [rbp-4], rax",
+            "    mov rax, qword [rbp-4]",
+            "    test rax, rax",
+            "    je .L.else0",
+            "    mov qword rax, str_main0",
+            "    mov qword [rbp-20], rax",
+            "    mov rdi, qword [rbp-20]",
+            "    call printf",
+            "    jmp .L.end0",
+            ".L.else0:",
+            "    mov qword rax, str_main1",
+            "    mov qword [rbp-12], rax",
+            "    mov rdi, qword [rbp-12]",
+            "    call printf",
+            ".L.end0:",
+            "    mov rax, qword [rbp-28]",
+            "    jmp .L.function_end_main",
+            ".L.function_end_main:",
+            "    mov rsp, rbp",
+            "    pop rbp",
+            "    ret",
+            ""
+          ]
   runX86_64 program @?= expected
