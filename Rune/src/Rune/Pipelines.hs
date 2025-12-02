@@ -14,8 +14,6 @@ import Rune.Lexer.Tokens (Token)
 import Text.Megaparsec (errorBundlePretty)
 import Rune.Semantics.Vars (verifVars)
 
-import Debug.Trace (trace)
-
 --
 -- public
 --
@@ -72,9 +70,7 @@ parseAST (fp, tokens) =
 
 analyseSemantics :: Program -> Either String Program
 analyseSemantics p = 
-  trace (show p)(
   case verifVars p of
     Just err -> Left err
     Nothing -> Right p
-  )
 

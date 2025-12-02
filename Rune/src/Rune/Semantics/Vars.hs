@@ -6,8 +6,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import Rune.Semantics.Func (findFunc, FuncStack)
 
--- import Debug.Trace (trace)
-
 type VarStack = HashMap String Type
 type Stack = (FuncStack, VarStack)
 
