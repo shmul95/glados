@@ -229,11 +229,11 @@ emitAddr sm dest source _ =
   case source of
     _
       | take 4 source == "str_" ->
-          [ emit 1 $ "mov qword " ++ "rax" ++ ", " ++ source,
+          [ emit 1 $ "mov " ++ "rax" ++ ", " ++ source,
             emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
           ]
     _ ->
-      [ emit 1 $ "lea " ++ "rax" ++ ", qword " ++ stackAddr sm source,
+      [ emit 1 $ "lea " ++ "rax" ++ ", " ++ stackAddr sm source,
         emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", " ++ "rax"
       ]
 
