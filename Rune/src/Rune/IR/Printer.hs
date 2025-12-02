@@ -124,11 +124,17 @@ printOperand (IRParam name _) = name
 printOperand (IRGlobal name _) = name
 
 printType :: IRType -> String
+printType IRI8 = "i8"
+printType IRI16 = "i16"
 printType IRI32 = "i32"
 printType IRI64 = "i64"
 printType IRF32 = "f32"
 printType IRF64 = "f64"
 printType IRU8 = "u8"
+printType IRU16 = "u16"
+printType IRU32 = "u32"
+printType IRU64 = "u64"
 printType (IRPtr t) = "*" ++ printType t
 printType (IRStruct s) = s
-printType IRVoid = "void"
+printType IRNull = "null"
+printType IRBool = "bool"

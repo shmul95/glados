@@ -29,27 +29,38 @@ import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IR
 
 -- TODO: handle more types
 astTypeToIRType :: Type -> IRType
+astTypeToIRType TypeI8 = IRI8
+astTypeToIRType TypeI16 = IRI16
 astTypeToIRType TypeI32 = IRI32
 astTypeToIRType TypeI64 = IRI64
+astTypeToIRType TypeU8 = IRU8
+astTypeToIRType TypeU16 = IRU16
+astTypeToIRType TypeU32 = IRU32
+astTypeToIRType TypeU64 = IRU64
 astTypeToIRType TypeF32 = IRF32
 astTypeToIRType TypeF64 = IRF64
-astTypeToIRType TypeU8 = IRU8
-astTypeToIRType TypeString = IRPtr IRU8
-astTypeToIRType TypeNull = IRVoid
-astTypeToIRType (TypeCustom s) = IRStruct s
-astTypeToIRType _ = IRI32
+astTypeToIRType TypeBool = IRBool
+astTypeToIRType TypeNull = IRNull
+astTypeToIRType (TypeCustom name) = IRStruct name
+astTypeToIRType _ = IRNull
 
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers
 sizeOfIRType :: IRType -> Int
+sizeOfIRType IRI8 = 1
+sizeOfIRType IRI16 = 2
 sizeOfIRType IRI32 = 4
 sizeOfIRType IRI64 = 8
 sizeOfIRType IRF32 = 4
 sizeOfIRType IRF64 = 8
 sizeOfIRType IRU8 = 1
-sizeOfIRType (IRPtr _) = 8
-sizeOfIRType (IRStruct _) = 8
-sizeOfIRType IRVoid = 0
+sizeOfIRType IRU16 = 2
+sizeOfIRType IRU32 = 4
+sizeOfIRType IRU64 = 8
+sizeOfIRType IRBool = 1
+sizeOfIRType (IRPtr _) = 8 -- Ô_ö
+sizeOfIRType (IRStruct _) = 8 -- ö_Ô
+sizeOfIRType IRNull = 0
 
 --
 -- symbol table

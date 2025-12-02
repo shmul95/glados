@@ -41,14 +41,20 @@ type IRGen = State GenState
 --
 
 data IRType
-  = IRI32
+  = IRI8
+  | IRI16
+  | IRI32
   | IRI64
+  | IRU8
+  | IRU16
+  | IRU32
+  | IRU64
   | IRF32
   | IRF64
-  | IRU8
+  | IRBool
+  | IRNull
   | IRPtr IRType
   | IRStruct String
-  | IRVoid
   deriving (Show, Eq)
 
 data IRBinaryOp

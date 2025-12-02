@@ -26,6 +26,7 @@ primitiveMap =
     (TypeU8, "u8"),
     (TypeU16, "u16"),
     (TypeU32, "u32"),
+    (TypeU64, "u64"),
     (TypeString, "string"),
     (TypeAny, "any"),
     (TypeNull, "null")

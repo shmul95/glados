@@ -49,7 +49,7 @@ genShowCall genExpr arg = do
   (fmtInstrs, callArgs) <- genShowFmtCall typ finalOp
 
   let callInstr = IRCALL "" funcName callArgs Nothing
-  return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_void" IRVoid, IRVoid)
+  return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
 
 -- | as show is a built-in "printf"-like function
 -- def show(value: any) -> null

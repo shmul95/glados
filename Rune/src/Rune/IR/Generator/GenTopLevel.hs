@@ -113,7 +113,7 @@ clearFunctionState :: IRGen ()
 clearFunctionState = modify $ \s -> s {gsCurrentFunc = Nothing}
 
 ensureReturn :: IRType -> [IRInstruction] -> [IRInstruction]
-ensureReturn IRVoid instrs =
+ensureReturn IRNull instrs =
   case lastOrNothing instrs of
     Just (IRRET _) -> instrs
     _ -> instrs ++ [IRRET Nothing]

@@ -26,6 +26,7 @@ data Type
   | TypeU8
   | TypeU16
   | TypeU32
+  | TypeU64
   | TypeString
   | TypeAny
   | TypeNull
@@ -49,33 +50,33 @@ data BinaryOp
   deriving (Show, Eq)
 
 data UnaryOp
-  = Negate         -- -x
+  = Negate -- -x
   | PropagateError -- x?
-  | PrefixInc      -- ++x
-  | PrefixDec      -- --x
-  | PostfixInc     -- x++
-  | PostfixDec     -- x--
+  | PrefixInc -- ++x
+  | PrefixDec -- --x
+  | PostfixInc -- x++
+  | PostfixDec -- x--
   deriving (Show, Eq)
 
-data Program = Program 
+data Program = Program
   { programName :: String,
     programDefs :: [TopLevelDef]
   }
   deriving (Show, Eq)
 
 data TopLevelDef
-    -- | function definition
+  = -- | function definition
     -- def foo(x: i32, y: f64) -> i32
     -- {
     --    ...
     -- }
-    = DefFunction
+    DefFunction
       { funcName :: String,
         funcParams :: [Parameter],
         funcReturnType :: Type,
         funcBody :: Block
       }
-    -- | struct definition
+  | -- | struct definition
     -- struct Vec2f
     -- {
     --    x: f32,
@@ -87,17 +88,17 @@ data TopLevelDef
     --    }
     --
     -- }
-    | DefStruct
+    DefStruct
       { structName :: String,
         structFields :: [Field],
         structMethods :: [TopLevelDef]
       }
-    -- | method override definition
+  | -- | method override definition
     -- override def show(value: Vec2f) -> null
     -- {
     --    ...
     -- }
-    | DefOverride
+    DefOverride
       { overrideName :: String,
         overrideParams :: [Parameter],
         overrideReturnType :: Type,
@@ -128,22 +129,22 @@ data Field = Field {fieldName :: String, fieldType :: Type}
 -- | statements
 -- variable declaration, return, if, for, expression statement
 data Statement
-    -- | variable declaration
+  = -- | variable declaration
     -- x: i32 = 10; //<< explicit type annotation
     -- y = 20.5; //<< infer type from value
-    = StmtVarDecl
+    StmtVarDecl
       { varName :: String,
         varType :: Maybe Type, -- << optional type annotation, may infer from value
         varValue :: Expression
       }
-    -- | variable assignment (including compound assignments like +=)
+  | -- | variable assignment (including compound assignments like +=)
     -- x = 10;
     -- y += 5;
-    | StmtAssignment
+    StmtAssignment
       { assignLValue :: Expression, -- << LValue (variable, field access, etc.)
-        assignRValue :: Expression  -- << RValue (result of operation, e.g., x + 5 for x += 5)
+        assignRValue :: Expression -- << RValue (result of operation, e.g., x + 5 for x += 5)
       }
-    -- | return statement
+  | -- | return statement
     -- {
     --     return expression;
     -- }
@@ -153,8 +154,8 @@ data Statement
     -- {
     --     expression //<< implicit return of the last expression if no ';' and no explicit return
     -- }
-    | StmtReturn (Maybe Expression)
-    -- | if else statement
+    StmtReturn (Maybe Expression)
+  | -- | if else statement
     -- {
     --     if condition {
     --         ...
@@ -162,12 +163,12 @@ data Statement
     --         ...
     --     }
     -- }
-    | StmtIf
+    StmtIf
       { ifCond :: Expression,
         ifThen :: Block,
         ifElse :: Maybe Block
       }
-    -- | for loop
+  | -- | for loop
     -- {
     --     for i = 0 to 10 {
     --         ...
@@ -179,81 +180,81 @@ data Statement
     --         ...
     --     }
     -- }
-    | StmtFor
+    StmtFor
       { forVar :: String,
         forVarType :: Maybe Type,
         forStart :: Maybe Expression, -- << optional start expression
         forEnd :: Expression,
         forBody :: Block
       }
-    -- | for-each loop
+  | -- | for-each loop
     -- {
     --     for item in iterable {
     --         ...
     --     }
     -- }
-    | StmtForEach
+    StmtForEach
       { forEachVar :: String,
         forEachVarType :: Maybe Type,
         forEachIterable :: Expression,
         forEachBody :: Block
       }
-    -- | infinite loop
+  | -- | infinite loop
     -- loop {
     --    ...
     -- }
-    | StmtLoop Block
-    | StmtStop
-    | StmtNext
-    -- | expression statement
+    StmtLoop Block
+  | StmtStop
+  | StmtNext
+  | -- | expression statement
     -- {
     --    expression;
     --    ...
     -- }
-    | StmtExpr Expression
+    StmtExpr Expression
   deriving (Show, Eq)
 
 -- | expressions
 -- binary operations, unary operations, function calls, struct initializations, field accesses, literals, variables
 data Expression
-    -- | binary operation
+  = -- | binary operation
     -- left <op> right
-    = ExprBinary BinaryOp Expression Expression
-    -- | unary operation
+    ExprBinary BinaryOp Expression Expression
+  | -- | unary operation
     -- <op> expr
-    | ExprUnary UnaryOp Expression
-    -- | function call
+    ExprUnary UnaryOp Expression
+  | -- | function call
     -- foo(arg1, arg2, ...)
-    | ExprCall
+    ExprCall
       { callName :: String,
         callArgs :: [Expression]
       }
-    -- | struct initialization
+  | -- | struct initialization
     -- Vec2f { x: 1.0, y: 2.0 }
-    | ExprStructInit
+    ExprStructInit
       { initStructName :: String,
         initFields :: [(String, Expression)]
       }
-    -- | field access
+  | -- | field access
     -- vec.x;
     -- vec.y;
-    | ExprAccess
+    ExprAccess
       { accessTarget :: Expression,
         accessField :: String
       }
-    -- | literals and variables
+  | -- | literals and variables
     -- 42
-    | ExprLitInt Int
-    -- 3.14
-    | ExprLitFloat Double
-    -- "hello"
-    | ExprLitString String
-    -- 'c'
-    | ExprLitChar Char
-    -- true | false
-    | ExprLitBool Bool
-    -- null
-    | ExprLitNull
-    -- variable
-    | ExprVar String
+    ExprLitInt Int
+  | -- 3.14
+    ExprLitFloat Double
+  | -- "hello"
+    ExprLitString String
+  | -- 'c'
+    ExprLitChar Char
+  | -- true | false
+    ExprLitBool Bool
+  | -- null
+    ExprLitNull
+  | -- variable
+    ExprVar String
   deriving (Show, Eq)

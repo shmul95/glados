@@ -34,7 +34,7 @@ genLitBool True = return ([], IRConstInt 1, IRI32)
 genLitBool False = return ([], IRConstInt 0, IRI32)
 
 genLitNull :: IRGen ([IRInstruction], IROperand, IRType)
-genLitNull = return ([], IRConstInt 0, IRVoid)
+genLitNull = return ([], IRConstInt 0, IRNull)
 
 genLitString :: String -> IRGen ([IRInstruction], IROperand, IRType)
 genLitString s = do
