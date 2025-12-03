@@ -108,10 +108,8 @@ test-suite rune-test
       AST.ParserSpec
       AST.PrinterSpec
       AST.ProgramSyntaxSpec
-      Backend.X86_64Spec
       CLISpec
       IR.IRNodesSpecs
-      IR.IRSpec
       Lexer.LexerSpec
       Lexer.TokensSpec
       PipelinesSpec
