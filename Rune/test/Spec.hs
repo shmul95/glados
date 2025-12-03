@@ -90,8 +90,8 @@ irSpecs =
       irGeneratorTests,
       irStatementsTests,
       irPrinterTests,
-      irExpressionsTests
-      , irControlFlowTests
+      irExpressionsTests,
+      irControlFlowTests
     ]
 
 backendSpecs :: TestTree
