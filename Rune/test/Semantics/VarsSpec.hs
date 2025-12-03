@@ -26,7 +26,20 @@ varsSemanticsTests =
       expectErr "struct init fields must exist" structInitErrorProgram "fieldVal",
       expectErr "access target must exist" accessErrorProgram "target",
       expectErr "binary operands validated" binaryErrorProgram "lhs",
-      expectErr "unary operand validated" unaryErrorProgram "value"
+      expectErr "unary operand validated" unaryErrorProgram "value",
+      -- New tests for better coverage
+      expectTypeOverwrite "detects type overwrite error" typeOverwriteProgram,
+      expectMultipleType "detects multiple type error" multipleTypeProgram,
+      expectOk "handles loop statements" loopProgram,
+      expectOk "handles stop/next statements" stopNextProgram,
+      expectOk "handles non-variable assignments" nonVarAssignmentProgram,
+      expectOk "handles for loop without start" forWithoutStartProgram,
+      expectErr "validates for loop end expression" forEndErrorProgram "endVar",
+      expectErr "validates if condition" ifConditionErrorProgram "condVar",
+      expectOk "handles literal expressions" literalExpressionsProgram,
+      expectOk "handles struct definitions" structDefProgram,
+      expectOk "handles function calls with known functions" knownFunctionCallProgram,
+      expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar"
     ]
 
 expectOk :: String -> Program -> TestTree
@@ -36,8 +49,20 @@ expectErr :: String -> Program -> String -> TestTree
 expectErr label program missingVar =
   testCase label $ verifVars program @?= Just (undefinedMsg missingVar)
 
+expectTypeOverwrite :: String -> Program -> TestTree
+expectTypeOverwrite label program =
+  testCase label $ case verifVars program of
+    Just msg | "TypeOverwrite:" `elem` words msg -> return ()
+    result -> fail $ "Expected TypeOverwrite error, got: " ++ show result
+
+expectMultipleType :: String -> Program -> TestTree
+expectMultipleType label program =
+  testCase label $ case verifVars program of
+    Just msg | "MultipleType:" `elem` words msg -> return ()
+    result -> fail $ "Expected MultipleType error, got: " ++ show result
+
 undefinedMsg :: String -> String
-undefinedMsg name = "\n\t" ++ name ++ " : var doesn't exist in the scope"
+undefinedMsg name = "\n\tUndefinedVar: " ++ name ++ " doesn't exist in the scope"
 
 validProgram :: Program
 validProgram =
@@ -265,4 +290,149 @@ unaryErrorProgram =
         []
         TypeNull
         [StmtExpr (ExprUnary Negate (ExprVar "value"))]
+    ]
+
+-- New test programs for better coverage
+
+typeOverwriteProgram :: Program
+typeOverwriteProgram =
+  Program
+    "type-overwrite"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "x" (Just TypeI32) (ExprLitInt 42),
+          StmtVarDecl "x" (Just TypeF32) (ExprLitFloat 3.14)
+        ]
+    ]
+
+multipleTypeProgram :: Program
+multipleTypeProgram =
+  Program
+    "multiple-type"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [StmtVarDecl "x" (Just TypeI32) (ExprLitFloat 3.14)]
+    ]
+
+loopProgram :: Program
+loopProgram =
+  Program
+    "loop"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "x" Nothing (ExprLitInt 1),
+          StmtLoop [StmtExpr (ExprVar "x")]
+        ]
+    ]
+
+stopNextProgram :: Program
+stopNextProgram =
+  Program
+    "stop-next"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtLoop [StmtStop, StmtNext]
+        ]
+    ]
+
+nonVarAssignmentProgram :: Program
+nonVarAssignmentProgram =
+  Program
+    "non-var-assign"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "point" Nothing (ExprStructInit "Point" [("x", ExprLitInt 1)]),
+          StmtAssignment (ExprAccess (ExprVar "point") "x") (ExprLitInt 2)
+        ]
+    ]
+
+forWithoutStartProgram :: Program
+forWithoutStartProgram =
+  Program
+    "for-no-start"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtFor "i" (Just TypeI32) Nothing (ExprLitInt 10) [StmtExpr (ExprVar "i")]
+        ]
+    ]
+
+forEndErrorProgram :: Program
+forEndErrorProgram =
+  Program
+    "for-end-error"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprVar "endVar") [StmtExpr (ExprVar "i")]
+        ]
+    ]
+
+ifConditionErrorProgram :: Program
+ifConditionErrorProgram =
+  Program
+    "if-cond-error"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtIf (ExprVar "condVar") [] Nothing
+        ]
+    ]
+
+literalExpressionsProgram :: Program
+literalExpressionsProgram =
+  Program
+    "literals"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "i" Nothing (ExprLitInt 42),
+          StmtVarDecl "f" Nothing (ExprLitFloat 3.14),
+          StmtVarDecl "s" Nothing (ExprLitString "hello"),
+          StmtVarDecl "c" Nothing (ExprLitChar 'a'),
+          StmtVarDecl "b" Nothing (ExprLitBool True),
+          StmtVarDecl "n" Nothing ExprLitNull
+        ]
+    ]
+
+structDefProgram :: Program
+structDefProgram =
+  Program
+    "struct-def"
+    [ DefStruct "Point" [] []
+    ]
+
+knownFunctionCallProgram :: Program
+knownFunctionCallProgram =
+  Program
+    "known-func"
+    [ DefFunction "helper" [] TypeI32 [StmtReturn (Just (ExprLitInt 1))],
+      DefFunction "main" [] TypeNull [StmtExpr (ExprCall "helper" [])]
+    ]
+
+assignmentRHSErrorProgram :: Program
+assignmentRHSErrorProgram =
+  Program
+    "assign-rhs-error"
+    [ DefFunction
+        "test"
+        []
+        TypeNull
+        [ StmtVarDecl "x" Nothing (ExprLitInt 1),
+          StmtAssignment (ExprVar "x") (ExprVar "rhsVar")
+        ]
     ]
