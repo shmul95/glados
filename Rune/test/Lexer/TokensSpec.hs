@@ -45,6 +45,8 @@ allTokenKinds =
     TypeU8,
     TypeU16,
     TypeU32,
+    TypeU64,
+    TypeChar,
     TypeString,
     TypeAny,
     TypeNull,
