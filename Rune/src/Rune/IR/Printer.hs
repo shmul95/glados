@@ -114,6 +114,8 @@ printInstruction (IRGET_FIELD dest base structName field typ) =
   dest ++ ": " ++ printType typ ++ " = GET_FIELD " ++ printOperand base ++ ", \"" ++ structName ++ "\", \"" ++ field ++ "\""
 printInstruction (IRSET_FIELD base structName field val) =
   "SET_FIELD " ++ printOperand base ++ ", \"" ++ structName ++ "\", \"" ++ field ++ "\", " ++ printOperand val
+printInstruction (IRCAST dest op fromType toType) =
+  dest ++ ": " ++ printType toType ++ " = CAST " ++ printOperand op ++ " from " ++ printType fromType
 
 printOperand :: IROperand -> String
 printOperand (IRConstInt n) = show n
