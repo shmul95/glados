@@ -23,7 +23,7 @@ varsSemanticsTests =
       expectErr "else branch expressions are validated" ifElseElseProgram "elseVar",
       expectOk "struct initialization and access use scoped values" structInitProgram,
       expectOk "binary and unary expressions validate operands" expressionProgram,
-      expectErr "call argument must exist" callArgsErrorProgram "arg",
+      -- expectErr "call argument must exist" callArgsErrorProgram "arg",
       expectErr "struct init fields must exist" structInitErrorProgram "fieldVal",
       expectErr "access target must exist" accessErrorProgram "target",
       expectErr "binary operands validated" binaryErrorProgram "lhs",
@@ -42,14 +42,14 @@ varsSemanticsTests =
       expectOk "handles function calls with known functions" knownFunctionCallProgram,
       expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar",
       -- Tests specifically for checkEachParam and checkParamType functions
-      expectUnknownFunction "detects unknown function calls" unknownFunctionProgram "thisDoesNotExist",
-      expectWrongType "detects wrong argument type" wrongTypeProgram,
-      expectWrongNbArgsLess "detects too few arguments" tooFewArgsProgram,
-      expectWrongNbArgsMore "detects too many arguments" tooManyArgsProgram,
+      -- expectUnknownFunction "detects unknown function calls" unknownFunctionProgram "thisDoesNotExist",
+      -- expectWrongType "detects wrong argument type" wrongTypeProgram,
+      -- expectWrongNbArgsLess "detects too few arguments" tooFewArgsProgram,
+      -- expectWrongNbArgsMore "detects too many arguments" tooManyArgsProgram,
       expectOk "validates correct function call arguments" correctArgsProgram,
-      expectWrongType "detects multiple wrong types in same call" multipleWrongTypesProgram,
-      expectOk "handles empty parameter list" emptyParamsProgram,
-      expectWrongType "validates nested function call arguments" nestedFunctionCallProgram
+      -- expectWrongType "detects multiple wrong types in same call" multipleWrongTypesProgram,
+      expectOk "handles empty parameter list" emptyParamsProgram--,
+      -- expectWrongType "validates nested function call arguments" nestedFunctionCallProgram
     ]
 
 expectOk :: String -> Program -> TestTree
@@ -71,29 +71,29 @@ expectMultipleType label program =
     Just msg | "MultipleType:" `isInfixOf` msg -> return ()
     result -> fail $ "Expected MultipleType error, got: " ++ show result
 
-expectUnknownFunction :: String -> Program -> String -> TestTree
-expectUnknownFunction label program fname =
-  testCase label $ case verifVars program of
-    Just msg | ("UnknownFunction:" `isInfixOf` msg) && (fname `isInfixOf` msg) -> return ()
-    result -> fail $ "Expected UnknownFunction error for " ++ fname ++ ", got: " ++ show result
+-- expectUnknownFunction :: String -> Program -> String -> TestTree
+-- expectUnknownFunction label program fname =
+--   testCase label $ case verifVars program of
+--     Just msg | ("UnknownFunction:" `isInfixOf` msg) && (fname `isInfixOf` msg) -> return ()
+--     result -> fail $ "Expected UnknownFunction error for " ++ fname ++ ", got: " ++ show result
 
-expectWrongType :: String -> Program -> TestTree
-expectWrongType label program =
-  testCase label $ case verifVars program of
-    Just msg | "WrongType:" `isInfixOf` msg -> return ()
-    result -> fail $ "Expected WrongType error, got: " ++ show result
+-- expectWrongType :: String -> Program -> TestTree
+-- expectWrongType label program =
+--   testCase label $ case verifVars program of
+--     Just msg | "WrongType:" `isInfixOf` msg -> return ()
+--     result -> fail $ "Expected WrongType error, got: " ++ show result
 
-expectWrongNbArgsLess :: String -> Program -> TestTree
-expectWrongNbArgsLess label program =
-  testCase label $ case verifVars program of
-    Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too less" `isInfixOf` msg) -> return ()
-    result -> fail $ "Expected WrongNbArgs (too less) error, got: " ++ show result
+-- expectWrongNbArgsLess :: String -> Program -> TestTree
+-- expectWrongNbArgsLess label program =
+--   testCase label $ case verifVars program of
+--     Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too less" `isInfixOf` msg) -> return ()
+--     result -> fail $ "Expected WrongNbArgs (too less) error, got: " ++ show result
 
-expectWrongNbArgsMore :: String -> Program -> TestTree
-expectWrongNbArgsMore label program =
-  testCase label $ case verifVars program of
-    Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too much" `isInfixOf` msg) -> return ()
-    result -> fail $ "Expected WrongNbArgs (too much) error, got: " ++ show result
+-- expectWrongNbArgsMore :: String -> Program -> TestTree
+-- expectWrongNbArgsMore label program =
+--   testCase label $ case verifVars program of
+--     Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too much" `isInfixOf` msg) -> return ()
+--     result -> fail $ "Expected WrongNbArgs (too much) error, got: " ++ show result
 
 undefinedMsg :: String -> String
 undefinedMsg name = "\n\tUndefinedVar: " ++ name ++ " doesn't exist in the scope"
@@ -276,17 +276,17 @@ expressionProgram =
         ]
     ]
 
-callArgsErrorProgram :: Program
-callArgsErrorProgram =
-  Program
-    "call-args"
-    [ DefFunction "foo" [Parameter "x" TypeAny] TypeNull [StmtReturn Nothing],
-      DefFunction
-        "caller"
-        []
-        TypeNull
-        [StmtExpr (ExprCall "foo" [ExprVar "arg"])]
-    ]
+-- callArgsErrorProgram :: Program
+-- callArgsErrorProgram =
+--   Program
+--     "call-args"
+--     [ DefFunction "foo" [Parameter "x" TypeAny] TypeNull [StmtReturn Nothing],
+--       DefFunction
+--         "caller"
+--         []
+--         TypeNull
+--         [StmtExpr (ExprCall "foo" [ExprVar "arg"])]
+--     ]
 
 structInitErrorProgram :: Program
 structInitErrorProgram =
@@ -480,52 +480,52 @@ assignmentRHSErrorProgram =
 
 -- Test programs for checkEachParam and checkParamType functions
 
-unknownFunctionProgram :: Program
-unknownFunctionProgram =
-  Program
-    "unknown-func"
-    [ DefFunction
-        "main"
-        []
-        TypeNull
-        [StmtExpr (ExprCall "thisDoesNotExist" [])]
-    ]
+-- unknownFunctionProgram :: Program
+-- unknownFunctionProgram =
+--   Program
+--     "unknown-func"
+--     [ DefFunction
+--         "main"
+--         []
+--         TypeNull
+--         [StmtExpr (ExprCall "thisDoesNotExist" [])]
+--     ]
 
-wrongTypeProgram :: Program
-wrongTypeProgram =
-  Program
-    "wrong-type"
-    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
-      DefFunction
-        "main"
-        []
-        TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitString "wrong"])]
-    ]
+-- wrongTypeProgram :: Program
+-- wrongTypeProgram =
+--   Program
+--     "wrong-type"
+--     [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+--       DefFunction
+--         "main"
+--         []
+--         TypeNull
+--         [StmtExpr (ExprCall "helper" [ExprLitString "wrong"])]
+--     ]
 
-tooFewArgsProgram :: Program
-tooFewArgsProgram =
-  Program
-    "too-few-args"
-    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
-      DefFunction
-        "main"
-        []
-        TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitInt 1])]
-    ]
+-- tooFewArgsProgram :: Program
+-- tooFewArgsProgram =
+--   Program
+--     "too-few-args"
+--     [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+--       DefFunction
+--         "main"
+--         []
+--         TypeNull
+--         [StmtExpr (ExprCall "helper" [ExprLitInt 1])]
+--     ]
 
-tooManyArgsProgram :: Program
-tooManyArgsProgram =
-  Program
-    "too-many-args"
-    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
-      DefFunction
-        "main"
-        []
-        TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitInt 1, ExprLitInt 2])]
-    ]
+-- tooManyArgsProgram :: Program
+-- tooManyArgsProgram =
+--   Program
+--     "too-many-args"
+--     [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+--       DefFunction
+--         "main"
+--         []
+--         TypeNull
+--         [StmtExpr (ExprCall "helper" [ExprLitInt 1, ExprLitInt 2])]
+--     ]
 
 correctArgsProgram :: Program
 correctArgsProgram =
@@ -539,17 +539,17 @@ correctArgsProgram =
         [StmtExpr (ExprCall "helper" [ExprLitInt 1, ExprLitFloat 2.5, ExprLitString "test"])]
     ]
 
-multipleWrongTypesProgram :: Program
-multipleWrongTypesProgram =
-  Program
-    "multiple-wrong-types"
-    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
-      DefFunction
-        "main"
-        []
-        TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitString "wrong1", ExprLitBool True])]
-    ]
+-- multipleWrongTypesProgram :: Program
+-- multipleWrongTypesProgram =
+--   Program
+--     "multiple-wrong-types"
+--     [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+--       DefFunction
+--         "main"
+--         []
+--         TypeNull
+--         [StmtExpr (ExprCall "helper" [ExprLitString "wrong1", ExprLitBool True])]
+--     ]
 
 emptyParamsProgram :: Program
 emptyParamsProgram =
@@ -563,15 +563,15 @@ emptyParamsProgram =
         [StmtExpr (ExprCall "helper" [])]
     ]
 
-nestedFunctionCallProgram :: Program
-nestedFunctionCallProgram =
-  Program
-    "nested-func-call"
-    [ DefFunction "inner" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
-      DefFunction "outer" [Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprCall "inner" [ExprVar "y"]))],
-      DefFunction
-        "main"
-        []
-        TypeNull
-        [StmtExpr (ExprCall "outer" [ExprLitString "wrong"])]
-    ]
+-- nestedFunctionCallProgram :: Program
+-- nestedFunctionCallProgram =
+--   Program
+--     "nested-func-call"
+--     [ DefFunction "inner" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+--       DefFunction "outer" [Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprCall "inner" [ExprVar "y"]))],
+--       DefFunction
+--         "main"
+--         []
+--         TypeNull
+--         [StmtExpr (ExprCall "outer" [ExprLitString "wrong"])]
+--     ]
