@@ -7,7 +7,12 @@ import qualified Data.HashMap.Strict as HM
 type FuncStack = HashMap String (Type, [Type])
 
 findFunc :: Program -> FuncStack
-findFunc (Program _ defs) = foldl findDefs HM.empty defs
+findFunc (Program _ defs) =
+  let builtins = HM.fromList
+        [ ("show", (TypeNull, [TypeAny]))
+        , ("error", (TypeNull, [TypeAny]))
+        ]
+  in foldl findDefs builtins defs
 
 findDefs :: FuncStack -> TopLevelDef -> FuncStack
 findDefs s (DefFunction name params rType _) =
