@@ -110,6 +110,7 @@ exprType _ ExprLitNull = TypeNull
 exprType _ (ExprAccess _ _) = TypeAny -- don't know how to use struct
 exprType s (ExprBinary _ expr _) = exprType s expr -- assume both expr are of the same type
 exprType s (ExprUnary _ expr) = exprType s expr -- assume the op don't change the type
+exprType _ (ExprCast _ ty) = ty
 exprType (fs, _) (ExprCall fn _) =
     case HM.lookup fn fs of
         Just (t, _) -> t
