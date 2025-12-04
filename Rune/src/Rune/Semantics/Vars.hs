@@ -89,11 +89,10 @@ verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
 verifExpr s (ExprVar var) =
-    let msg = "\n\tUndefinedVar: " ++ var
-          ++ " doesn't exist in the scope"
+    let msg = "\n\tUndefinedVar: %d doesn't exist in the scope"
     in case HM.member var (snd s) of
         True  -> Nothing
-        False -> Just msg
+        False -> Just $ printf msg var
 verifExpr _ _ = Nothing
 
 --
@@ -140,25 +139,22 @@ exprType (_, vs) (ExprVar name) =
 assignVarType :: VarStack -> String -> Type -> (VarStack, Maybe String)
 assignVarType s _ TypeAny = (s, Nothing)
 assignVarType s v t =
-    let msg = "\n\tTypeOverwrite: " ++ v
-          ++ " has already type " ++ show t
+    let msg = "\n\tTypeOverwrite: %d has already %s but %s were given"
         updated = (HM.insert v t s, Nothing)
     in case HM.lookup v s of
       Nothing       -> updated
       Just TypeAny  -> updated
       Just TypeNull -> updated
       Just t' | t' == t   -> updated
-              | otherwise -> (s, Just msg)
+              | otherwise -> (s, Just $ printf msg v (show t') (show t))
 
 checkMultipleType :: String -> Maybe Type -> Type -> Maybe String
 checkMultipleType _ _ TypeAny  = Nothing
 checkMultipleType _ _ TypeNull = Nothing
 checkMultipleType v t e_t = 
-    let msg = "\n\tMultipleType: " ++ v
-          ++ " is " ++ show t ++ " and "
-          ++ show e_t
+    let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
     in case t of
         Nothing      -> Nothing
         Just TypeAny -> Nothing
         Just t' | t' == e_t -> Nothing
-                | otherwise -> Just msg
+                | otherwise -> Just $ printf msg v (show t) (show e_t)
