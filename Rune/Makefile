@@ -13,7 +13,7 @@ all:
 	else \
 		$(STACK) build $(STACK_BUILD_FLAGS); \
 	fi
-	@$(MAKE) symlink
+	@$(MAKE) copy_binary
 
 tests:
 	@if grep -q 'ID=nixos' /etc/os-release; then \
@@ -46,7 +46,7 @@ fclean:
 
 re: fclean all
 
-symlink:
-	@ln -sf "$$(find $(shell pwd)/.stack-work -type f -name $(STACK_BINARY_NAME) | head -n 1)" $(NAME)
+copy_binary:
+	@cp "$$(find $(shell pwd)/.stack-work -type f -name $(STACK_BINARY_NAME) | head -n 1)" $(NAME)
 
-.PHONY: all clean fclean re test coverage symlink
+.PHONY: all clean fclean re test coverage copy_binary

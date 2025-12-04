@@ -1,0 +1,35 @@
+{
+  "branches": [
+    {
+      "name": "main",
+      "channel": "stable",
+      "prerelease": false
+    },
+    {
+      "name": "dev",
+      "channel": "beta",
+      "prerelease": true
+    }
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "output/*",
+            "label": "Binaries"
+          }
+        ]
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "echo Build prepared"
+      }
+    ]
+  ]
+}
