@@ -5,6 +5,7 @@ import qualified Data.Map.Strict as Map
 import Rune.AST.Nodes (Expression (..))
 import Rune.IR.Generator.Expression.Binary (genBinary)
 import Rune.IR.Generator.Expression.Call (genCall, genShowCall)
+import Rune.IR.Generator.Expression.Cast (genCast)
 import Rune.IR.Generator.Expression.Literals
 import Rune.IR.Generator.Expression.Struct (genAccess, genStructInit)
 import Rune.IR.Generator.Expression.Unary (genUnary)
@@ -24,6 +25,7 @@ genExpression (ExprLitString s) = genLitString s
 genExpression (ExprVar name) = genVar name
 genExpression (ExprBinary op l r) = genBinary genExpression op l r
 genExpression (ExprUnary op e) = genUnary genExpression op e
+genExpression (ExprCast expr ty) = genCast genExpression expr ty
 genExpression (ExprCall "show" [a]) = genShowCall genExpression a
 genExpression (ExprCall name args) = genCall genExpression name args
 genExpression (ExprAccess t f) = genAccess genExpression t f
