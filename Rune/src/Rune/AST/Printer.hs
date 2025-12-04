@@ -184,6 +184,12 @@ visitExpression (ExprUnary op val) = do
   newLine
   visitExpression val
   dedent
+visitExpression (ExprCast expr ty) = do
+  emit $ "ExprCast -> " ++ showType ty
+  indent
+  newLine
+  visitExpression expr
+  dedent
 visitExpression (ExprCall name args) = do
   emit $ "ExprCall " ++ name
   emitBlock "Arguments:" (mapM_ (\a -> newLine >> visitExpression a) args)
