@@ -2,7 +2,9 @@ name: run_unit_tests
 
 on:
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - dev
 
 jobs:
   run_unit_tests:
