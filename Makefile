@@ -5,7 +5,7 @@ LISP_BINARY_NAME := glados
 RUNE_BINARY_NAME := rune
 
 
-all: lisp rune move_binaries
+all: move_binaries
 
 clean:
 	@$(MAKE) -C $(LISP_DIRECTORY) clean
@@ -14,7 +14,7 @@ clean:
 fclean:
 	@$(MAKE) -C $(LISP_DIRECTORY) fclean
 	@$(MAKE) -C $(RUNE_DIRECTORY) fclean
-	@find . -maxdepth 1 -type l \( -name $(LISP_BINARY_NAME) -o -name $(RUNE_BINARY_NAME) \) -delete
+	@find . -maxdepth 1 -type f \( -name $(LISP_BINARY_NAME) -o -name $(RUNE_BINARY_NAME) \) -delete
 
 re: fclean all
 
@@ -32,14 +32,15 @@ lisp:
 rune:
 	@$(MAKE) -C $(RUNE_DIRECTORY)
 
-move_binaries:
-	@if [ -L $(LISP_DIRECTORY)/$(LISP_BINARY_NAME) ]; then \
+move_binaries: lisp rune
+	@echo "Move binaries to root directory..."
+	@if [ -f $(LISP_DIRECTORY)/$(LISP_BINARY_NAME) ]; then \
         mv $(LISP_DIRECTORY)/$(LISP_BINARY_NAME) .; \
     else \
         echo "Error: $(LISP_DIRECTORY)/$(LISP_BINARY_NAME) not found"; \
         exit 1; \
     fi
-	@if [ -L $(RUNE_DIRECTORY)/$(RUNE_BINARY_NAME) ]; then \
+	@if [ -f $(RUNE_DIRECTORY)/$(RUNE_BINARY_NAME) ]; then \
 		mv $(RUNE_DIRECTORY)/$(RUNE_BINARY_NAME) .; \
 	else \
 		echo "Error: $(RUNE_DIRECTORY)/$(RUNE_BINARY_NAME) not found"; \

@@ -1,0 +1,64 @@
+name: Pre-release Build
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Cache Stack and Node
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.stack
+            .stack-work
+            ~/.local/bin
+            ~/.npm
+            ~/.cache
+          key: ${{ runner.os }}-stack-node-${{ hashFiles('stack.yaml', '**/*.cabal', 'package.json', 'package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-node-
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install system GHC
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          system-ghc: true
+          stack-version: latest
+          ghc-version: latest
+
+      - name: Build binaries
+        run: |
+          make
+          mkdir -p output
+          cp glados output/glados-linux
+          cp rune output/rune-linux
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: output/*
+
+      - name: Install semantic-release
+        run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator
+
+      - name: Run semantic-release for pre-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release --ci
