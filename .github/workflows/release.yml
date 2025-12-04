@@ -1,4 +1,4 @@
-name: Rolling Release build
+name: Rolling Release Build
 
 on:
   push:
@@ -14,13 +14,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install GHC & Stack
+      - name: Setup Haskell with Stack
         uses: haskell-actions/setup@v2
         with:
           enable-stack: true
-          system-ghc: true
           stack-version: 2.15.9
           ghc-version: 9.10.2
+          stack-setup-ghc: true
 
       - name: Cache Stack
         uses: actions/cache@v4
@@ -35,7 +35,7 @@ jobs:
       - name: Pre-install GHC and dependencies
         shell: bash
         run: |
-          stack --resolver lts-24.19 setup --install-ghc
+          stack --resolver lts-24.19 setup
           stack --resolver lts-24.19 build --only-dependencies
 
       - name: Build with Makefile
