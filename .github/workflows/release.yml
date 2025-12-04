@@ -1,4 +1,4 @@
-name: Rolling Release Build
+name: Rolling Release build
 
 on:
   push:
