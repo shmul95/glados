@@ -20,7 +20,7 @@ funcSemanticsTests =
         let stack = findFunc shadowProgram
          in HM.lookup "dup" stack @?= Just (TypeBool, [TypeBool]),
       testCase "struct method signatures are ignored" $
-        findFunc structMethodProgram @?= HM.empty
+        findFunc structMethodProgram @?= HM.fromList [("show",(TypeNull,[TypeAny])),("error",(TypeNull,[TypeAny]))]
     ]
 
 mixedProgram :: Program

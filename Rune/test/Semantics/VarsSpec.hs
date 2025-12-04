@@ -4,6 +4,7 @@ import Rune.AST.Nodes
 import Rune.Semantics.Vars (verifVars)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+import Data.List (isInfixOf)
 
 varsSemanticsTests :: TestTree
 varsSemanticsTests =
@@ -39,7 +40,16 @@ varsSemanticsTests =
       expectOk "handles literal expressions" literalExpressionsProgram,
       expectOk "handles struct definitions" structDefProgram,
       expectOk "handles function calls with known functions" knownFunctionCallProgram,
-      expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar"
+      expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar",
+      -- Tests specifically for checkEachParam and checkParamType functions
+      expectUnknownFunction "detects unknown function calls" unknownFunctionProgram "thisDoesNotExist",
+      expectWrongType "detects wrong argument type" wrongTypeProgram,
+      expectWrongNbArgsLess "detects too few arguments" tooFewArgsProgram,
+      expectWrongNbArgsMore "detects too many arguments" tooManyArgsProgram,
+      expectOk "validates correct function call arguments" correctArgsProgram,
+      expectWrongType "detects multiple wrong types in same call" multipleWrongTypesProgram,
+      expectOk "handles empty parameter list" emptyParamsProgram,
+      expectWrongType "validates nested function call arguments" nestedFunctionCallProgram
     ]
 
 expectOk :: String -> Program -> TestTree
@@ -52,14 +62,38 @@ expectErr label program missingVar =
 expectTypeOverwrite :: String -> Program -> TestTree
 expectTypeOverwrite label program =
   testCase label $ case verifVars program of
-    Just msg | "TypeOverwrite:" `elem` words msg -> return ()
+    Just msg | "TypeOverwrite:" `isInfixOf` msg -> return ()
     result -> fail $ "Expected TypeOverwrite error, got: " ++ show result
 
 expectMultipleType :: String -> Program -> TestTree
 expectMultipleType label program =
   testCase label $ case verifVars program of
-    Just msg | "MultipleType:" `elem` words msg -> return ()
+    Just msg | "MultipleType:" `isInfixOf` msg -> return ()
     result -> fail $ "Expected MultipleType error, got: " ++ show result
+
+expectUnknownFunction :: String -> Program -> String -> TestTree
+expectUnknownFunction label program fname =
+  testCase label $ case verifVars program of
+    Just msg | ("UnknownFunction:" `isInfixOf` msg) && (fname `isInfixOf` msg) -> return ()
+    result -> fail $ "Expected UnknownFunction error for " ++ fname ++ ", got: " ++ show result
+
+expectWrongType :: String -> Program -> TestTree
+expectWrongType label program =
+  testCase label $ case verifVars program of
+    Just msg | "WrongType:" `isInfixOf` msg -> return ()
+    result -> fail $ "Expected WrongType error, got: " ++ show result
+
+expectWrongNbArgsLess :: String -> Program -> TestTree
+expectWrongNbArgsLess label program =
+  testCase label $ case verifVars program of
+    Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too less" `isInfixOf` msg) -> return ()
+    result -> fail $ "Expected WrongNbArgs (too less) error, got: " ++ show result
+
+expectWrongNbArgsMore :: String -> Program -> TestTree
+expectWrongNbArgsMore label program =
+  testCase label $ case verifVars program of
+    Just msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too much" `isInfixOf` msg) -> return ()
+    result -> fail $ "Expected WrongNbArgs (too much) error, got: " ++ show result
 
 undefinedMsg :: String -> String
 undefinedMsg name = "\n\tUndefinedVar: " ++ name ++ " doesn't exist in the scope"
@@ -69,6 +103,11 @@ validProgram =
   Program
     "valid"
     [ DefFunction
+        "bar"
+        [Parameter "x" TypeI32]
+        TypeNull
+        [StmtReturn Nothing],
+      DefFunction
         "foo"
         [Parameter "arg" TypeI32]
         TypeI32
@@ -155,7 +194,7 @@ overrideValidProgram =
     [ DefOverride
         "print"
         [Parameter "value" TypeI32]
-        TypeNull
+        TypeI32
         [StmtReturn (Just (ExprVar "value"))]
     ]
 
@@ -241,7 +280,8 @@ callArgsErrorProgram :: Program
 callArgsErrorProgram =
   Program
     "call-args"
-    [ DefFunction
+    [ DefFunction "foo" [Parameter "x" TypeAny] TypeNull [StmtReturn Nothing],
+      DefFunction
         "caller"
         []
         TypeNull
@@ -421,7 +461,8 @@ knownFunctionCallProgram =
   Program
     "known-func"
     [ DefFunction "helper" [] TypeI32 [StmtReturn (Just (ExprLitInt 1))],
-      DefFunction "main" [] TypeNull [StmtExpr (ExprCall "helper" [])]
+      DefFunction "main" [] TypeNull [StmtExpr (ExprCall "helper" [])],
+      DefFunction "test_show" [] TypeNull [StmtExpr (ExprCall "show" [ExprLitString "test"])]
     ]
 
 assignmentRHSErrorProgram :: Program
@@ -435,4 +476,102 @@ assignmentRHSErrorProgram =
         [ StmtVarDecl "x" Nothing (ExprLitInt 1),
           StmtAssignment (ExprVar "x") (ExprVar "rhsVar")
         ]
+    ]
+
+-- Test programs for checkEachParam and checkParamType functions
+
+unknownFunctionProgram :: Program
+unknownFunctionProgram =
+  Program
+    "unknown-func"
+    [ DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "thisDoesNotExist" [])]
+    ]
+
+wrongTypeProgram :: Program
+wrongTypeProgram =
+  Program
+    "wrong-type"
+    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+      DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "helper" [ExprLitString "wrong"])]
+    ]
+
+tooFewArgsProgram :: Program
+tooFewArgsProgram =
+  Program
+    "too-few-args"
+    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+      DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "helper" [ExprLitInt 1])]
+    ]
+
+tooManyArgsProgram :: Program
+tooManyArgsProgram =
+  Program
+    "too-many-args"
+    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+      DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "helper" [ExprLitInt 1, ExprLitInt 2])]
+    ]
+
+correctArgsProgram :: Program
+correctArgsProgram =
+  Program
+    "correct-args"
+    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeF32, Parameter "z" TypeString] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+      DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "helper" [ExprLitInt 1, ExprLitFloat 2.5, ExprLitString "test"])]
+    ]
+
+multipleWrongTypesProgram :: Program
+multipleWrongTypesProgram =
+  Program
+    "multiple-wrong-types"
+    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+      DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "helper" [ExprLitString "wrong1", ExprLitBool True])]
+    ]
+
+emptyParamsProgram :: Program
+emptyParamsProgram =
+  Program
+    "empty-params"
+    [ DefFunction "helper" [] TypeI32 [StmtReturn (Just (ExprLitInt 42))],
+      DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "helper" [])]
+    ]
+
+nestedFunctionCallProgram :: Program
+nestedFunctionCallProgram =
+  Program
+    "nested-func-call"
+    [ DefFunction "inner" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+      DefFunction "outer" [Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprCall "inner" [ExprVar "y"]))],
+      DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (ExprCall "outer" [ExprLitString "wrong"])]
     ]
