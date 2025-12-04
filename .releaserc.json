@@ -22,7 +22,8 @@
             "path": "output/*",
             "label": "Binaries"
           }
-        ]
+        ],
+        "success": false
       }
     ],
     [
