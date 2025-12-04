@@ -17,7 +17,7 @@ verifVars (Program n defs) = foldMap (verifDefs (findFunc (Program n defs))) def
 verifDefs :: FuncStack -> TopLevelDef -> Maybe String
 verifDefs fs (DefFunction _ params _ body) = verifScope (fs, HM.fromList (map (\p -> (paramName p, paramType p)) params)) body
 verifDefs fs (DefOverride _ params _ body) = verifScope (fs, HM.fromList (map (\p -> (paramName p, paramType p)) params)) body
--- verifDefs fs (DefStruct _ attr _) = undefined -- when there will be type and all
+-- verifDefs fs (DefStruct _ _ methods) = foldMap (verifDefs fs) methods
 verifDefs _ _ = Nothing
 
 
@@ -89,10 +89,11 @@ verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
 verifExpr s (ExprVar var) =
-    let msg = "\n\tUndefinedVar: %d doesn't exist in the scope"
+    let msg = "\n\tUndefinedVar: " ++ var
+          ++ " doesn't exist in the scope"
     in case HM.member var (snd s) of
         True  -> Nothing
-        False -> Just $ printf msg var
+        False -> Just msg
 verifExpr _ _ = Nothing
 
 --

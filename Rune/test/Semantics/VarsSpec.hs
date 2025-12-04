@@ -42,7 +42,7 @@ varsSemanticsTests =
       expectOk "handles function calls with known functions" knownFunctionCallProgram,
       expectErr "validates assignment right-hand side" assignmentRHSErrorProgram "rhsVar",
       -- Tests specifically for checkEachParam and checkParamType functions
-      expectUnknownFunction "detects unknown function calls" unknownFunctionProgram "unknownFunc",
+      expectUnknownFunction "detects unknown function calls" unknownFunctionProgram "thisDoesNotExist",
       expectWrongType "detects wrong argument type" wrongTypeProgram,
       expectWrongNbArgsLess "detects too few arguments" tooFewArgsProgram,
       expectWrongNbArgsMore "detects too many arguments" tooManyArgsProgram,
@@ -194,7 +194,7 @@ overrideValidProgram =
     [ DefOverride
         "print"
         [Parameter "value" TypeI32]
-        TypeNull
+        TypeI32
         [StmtReturn (Just (ExprVar "value"))]
     ]
 
@@ -461,7 +461,8 @@ knownFunctionCallProgram =
   Program
     "known-func"
     [ DefFunction "helper" [] TypeI32 [StmtReturn (Just (ExprLitInt 1))],
-      DefFunction "main" [] TypeNull [StmtExpr (ExprCall "helper" [])]
+      DefFunction "main" [] TypeNull [StmtExpr (ExprCall "helper" [])],
+      DefFunction "test_show" [] TypeNull [StmtExpr (ExprCall "show" [ExprLitString "test"])]
     ]
 
 assignmentRHSErrorProgram :: Program
@@ -487,7 +488,7 @@ unknownFunctionProgram =
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "unknownFunc" [])]
+        [StmtExpr (ExprCall "thisDoesNotExist" [])]
     ]
 
 wrongTypeProgram :: Program
