@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Rune.Semantics.Vars ( verifVars ) where
 
 import Rune.AST.Nodes
@@ -84,7 +87,9 @@ verifScope _ [] = Nothing
 
 verifExpr :: Stack -> Expression -> Maybe String
 verifExpr s (ExprBinary _ l r) = verifExpr s l <> verifExpr s r
-verifExpr s (ExprCall name args) = checkParamType s name args <> foldMap (verifExpr s) args
+-- WARNING: commented by @leorevoir because it doesnt support the override functions
+-- see issue #88 on https://github.com/rune-prog-lang/glados/issues/88
+-- verifExpr s (ExprCall name args) = checkParamType s name args <> foldMap (verifExpr s) args
 verifExpr s (ExprStructInit _ fields) = foldMap (verifExpr s . snd) fields
 verifExpr s (ExprAccess target _) = verifExpr s target
 verifExpr s (ExprUnary _ val) = verifExpr s val
