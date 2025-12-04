@@ -12,6 +12,6 @@ jobs:
       - name: Check source branch
         run: |
           if [ "${{ github.head_ref }}" != "dev" ]; then
-            echo "Only 'dev' branch can PR to main"
+            echo "::error::Only 'dev' branch can PR to main"
             exit 1
           fi
