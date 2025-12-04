@@ -7,11 +7,8 @@ on:
 
 jobs:
   build:
-    name: Build binaries
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    name: Build Linux binary
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -31,31 +28,28 @@ jobs:
           path: |
             ~/.stack
             .stack-work
-          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml', '**/*.cabal') }}
+          key: linux-stack-${{ hashFiles('stack.yaml', '**/*.cabal') }}
           restore-keys: |
-            ${{ runner.os }}-stack-
+            linux-stack-
+
+      - name: Pre-install GHC and dependencies
+        shell: bash
+        run: |
+          stack setup --install-ghc
+          stack build --only-dependencies
 
       - name: Build with Makefile
         shell: bash
         run: |
           make -j
           mkdir -p output
-
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            cp glados output/glados-windows.exe
-            cp rune output/rune-windows.exe
-          elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            cp glados output/glados-macos
-            cp rune output/rune-macos
-          else
-            cp glados output/glados-linux
-            cp rune output/rune-linux
-          fi
+          cp glados output/glados-linux
+          cp rune output/rune-linux
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binary-${{ runner.os }}
+          name: binary-linux
           path: output/*
 
   release:
@@ -64,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download all binary artifacts
+      - name: Download Linux binary artifact
         uses: actions/download-artifact@v4
         with:
           path: release
