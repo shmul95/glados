@@ -7,7 +7,7 @@ where
 
 import Control.Applicative ((<|>))
 import Rune.AST.Nodes (BinaryOp (..), Expression (..), UnaryOp (..))
-import Rune.AST.Parser.ParseTypes (parseIdentifier)
+import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (between, chainPostfix, chainl1, choice, expect, failParse, sepBy, sepEndBy, tokenMap, try, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
@@ -35,7 +35,7 @@ parseEquality = chainl1 parseComparison op
     op = (ExprBinary Eq <$ expect T.OpEq) <|> (ExprBinary Neq <$ expect T.OpNeq)
 
 parseComparison :: Parser Expression
-parseComparison = chainl1 parseTerm op
+parseComparison = chainl1 parseCast op
   where
     op =
       choice
@@ -44,6 +44,17 @@ parseComparison = chainl1 parseTerm op
           ExprBinary Gt <$ expect T.OpGt,
           ExprBinary Gte <$ expect T.OpGte
         ]
+
+parseCast :: Parser Expression
+parseCast = do
+  expr <- parseTerm
+  parseCastSuffix expr <|> pure expr
+
+parseCastSuffix :: Expression -> Parser Expression
+parseCastSuffix expr = do
+  _ <- expect T.KwAs
+  targetType <- parseType
+  pure $ ExprCast expr targetType
 
 parseTerm :: Parser Expression
 parseTerm = chainl1 parseFactor op
