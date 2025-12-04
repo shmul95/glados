@@ -9,8 +9,8 @@ type FuncStack = HashMap String (Type, [Type])
 findFunc :: Program -> FuncStack
 findFunc (Program _ defs) =
   let builtins = HM.fromList
-        [ ("show", (TypeNull, []))
-        , ("error", (TypeNull, []))
+        [ ("show", (TypeNull, [TypeAny]))
+        , ("error", (TypeNull, [TypeAny]))
         ]
   in foldl findDefs builtins defs
 

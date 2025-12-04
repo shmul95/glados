@@ -108,11 +108,12 @@ checkParamType (fs, vs) fname es =
     Just (_, at) -> checkEachParam (fs, vs) 0 es at
 
 checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
+checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
 checkEachParam s i (e:es) (t:at) =
   let wrong_type = "\n\tWrongType: arg%d exp %s but have %s"
       next = checkEachParam s (i + 1) es at
   in case exprType s e == t of
-    True  -> Nothing <> next
+    True  -> next
     False -> Just (printf wrong_type i (show t) (show $ exprType s e)) <> next
 checkEachParam _ _ [] [] = Nothing
 checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too less)") (length at + i) (i)
