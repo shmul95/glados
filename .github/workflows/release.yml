@@ -14,12 +14,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # TEMP: clear Stack cache -> TO REMOVE LATER
-      - name: Clear Stack cache
-        run: |
-          rm -rf ~/.stack
-          rm -rf .stack-work
-
       - name: Install system GHC
         uses: haskell-actions/setup@v2
         with:
