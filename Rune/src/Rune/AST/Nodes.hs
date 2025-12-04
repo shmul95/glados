@@ -224,6 +224,12 @@ data Expression
   | -- | unary operation
     -- <op> expr
     ExprUnary UnaryOp Expression
+  | -- | type cast
+    -- expr as Type
+    ExprCast
+      { castExpr :: Expression,
+        castType :: Type
+      }
   | -- | function call
     -- foo(arg1, arg2, ...)
     ExprCall
