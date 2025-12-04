@@ -64,4 +64,6 @@ jobs:
       - name: Run semantic-release for pre-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --branches dev --prerelease beta --ci
+        run: npx semantic-release --ci
+        # USE IT WHEN EVERYTHING IS WORKING ON DEV
+        # run: npx semantic-release --branches dev --prerelease beta --ci
