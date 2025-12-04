@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-  # ADDED to allow manual triggering of the workflow, will be removed later
-  workflow_dispatch:
 
 permissions:
   contents: write

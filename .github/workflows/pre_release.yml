@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - dev
-      - 61-cd-workflow-to-release-a-binary-of-the-project
-  # ADDED to allow manual triggering of the workflow, will be removed later
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -64,6 +61,4 @@ jobs:
       - name: Run semantic-release for pre-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --ci
-        # USE IT WHEN EVERYTHING IS WORKING ON DEV
-        # run: npx semantic-release --branches dev --prerelease beta --ci
+        run: npx semantic-release --branches dev --prerelease beta --ci

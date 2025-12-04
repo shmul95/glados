@@ -9,11 +9,6 @@
       "name": "dev",
       "channel": "beta",
       "prerelease": true
-    },
-    {
-      "name": "61-cd-workflow-to-release-a-binary-of-the-project",
-      "channel": "beta",
-      "prerelease": true
     }
   ],
   "plugins": [
