@@ -26,6 +26,7 @@ declare -A TYPE_MAP=(
 BUMP_TYPE="${TYPE_MAP[$PR_TYPE]:-PATCH}"
 
 if [[ "$BUMP_TYPE" == "NONE" ]]; then
+    echo ""
     exit 0
 fi
 
