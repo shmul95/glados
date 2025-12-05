@@ -18,7 +18,6 @@ jobs:
         with:
           fetch-depth: 0
 
-
       - name: Cache Stack and Node
         uses: actions/cache@v4
         with:
@@ -59,7 +58,7 @@ jobs:
           path: output/*
 
       - name: Install semantic-release
-        run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator
+        run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/git
 
       - name: Run semantic-release for pre-release
         env:
