@@ -26,7 +26,6 @@ declare -A TYPE_MAP=(
 BUMP_TYPE="${TYPE_MAP[$PR_TYPE]:-PATCH}"
 
 if [[ "$BUMP_TYPE" == "NONE" ]]; then
-    echo "PR type '$PR_TYPE' has no SemVer impact. Exiting."
     exit 0
 fi
 
