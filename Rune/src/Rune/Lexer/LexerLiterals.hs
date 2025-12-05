@@ -97,20 +97,13 @@ charChar =
       noneOf ['\'', '\\', '\n', '\r', '\t']
     ]
 
-nullLitParser :: Parser (Int -> Int -> Token)
-nullLitParser = try $ do
-  void $ string "null"
-  notFollowedBy (alphaNumChar <|> char '_')
-  return $ mkLiteralConstructor LitNull "null"
-
 literalParsers :: [Parser (Int -> Int -> Token)]
 literalParsers =
   [ floatLitParser,
     intLitParser,
     boolLitParser,
     stringLitParser,
-    charLitParser,
-    nullLitParser
+    charLitParser
   ]
 
 stringChar :: Parser Char

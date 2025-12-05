@@ -33,6 +33,7 @@ data TokenKind
   | TypeChar
   | TypeString
   | TypeAny
+  | TypeNull
   -- | literals
   | LitInt Int
   | LitFloat Double
