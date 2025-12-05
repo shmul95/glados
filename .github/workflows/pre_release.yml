@@ -38,9 +38,7 @@ jobs:
           path: output/*
 
       - name: Install GitHub CLI
-        run: |
-          sudo apt update
-          sudo apt install -y gh
+        uses: cli/gh-action@v3
 
       - name: Authenticate GitHub CLI
         env:
