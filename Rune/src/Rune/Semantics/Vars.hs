@@ -1,18 +1,29 @@
-module Rune.Semantics.Vars ( verifVars ) where
+module Rune.Semantics.Vars (verifVars) where
 
-import Rune.AST.Nodes
-import Data.HashMap.Strict (HashMap)
 import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
-import Rune.Semantics.Func (findFunc, FuncStack)
-import Text.Printf (printf)
 
-type VarStack = HashMap String Type
-type Stack = (FuncStack, VarStack)
+import Rune.AST.Nodes
+import Rune.Semantics.Func (findFunc)
+
+import Rune.Semantics.Type
+  ( FuncStack
+  , Stack
+  )
+
+import Rune.Semantics.Helper
+  ( checkParamType
+  , exprType
+  , assignVarType
+  , checkMultipleType
+  )
 
 -- if Nothing everything good else Error message
 verifVars :: Program -> Maybe String
-verifVars (Program n defs) = foldMap (verifDefs (findFunc (Program n defs))) defs
+verifVars (Program n defs) = 
+  case findFunc (Program n defs) of
+    Left err -> Just err
+    Right fs -> foldMap (verifDefs fs) defs
 
 verifDefs :: FuncStack -> TopLevelDef -> Maybe String
 verifDefs fs (DefFunction _ params _ body) = verifScope (fs, HM.fromList (map (\p -> (paramName p, paramType p)) params)) body
@@ -96,66 +107,3 @@ verifExpr s (ExprVar var) =
         False -> Just msg
 verifExpr _ _ = Nothing
 
---
--- helper
---
-
-checkParamType :: Stack -> String -> [Expression] -> Maybe String
-checkParamType (fs, vs) fname es =
-  let unknown_func = "\n\tUnknownFunction: %s is not known"
-  in case HM.lookup fname fs of
-    Nothing      -> Just $ printf unknown_func fname
-    Just (_, at) -> checkEachParam (fs, vs) 0 es at
-
-checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
-checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
-checkEachParam s i (e:es) (t:at) =
-  let wrong_type = "\n\tWrongType: arg%d exp %s but have %s"
-      next = checkEachParam s (i + 1) es at
-  in case exprType s e == t of
-    True  -> next
-    False -> Just (printf wrong_type i (show t) (show $ exprType s e)) <> next
-checkEachParam _ _ [] [] = Nothing
-checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too less)") (length at + i) (i)
-checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too much)") (i) (length es + i)
-
-exprType :: Stack -> Expression -> Type
-exprType _ (ExprLitInt _) = TypeI32
-exprType _ (ExprLitFloat  _) = TypeF32
-exprType _ (ExprLitString  _) = TypeString
-exprType _ (ExprLitChar _ ) = TypeU8
-exprType _ (ExprLitBool  _) = TypeBool
-exprType _ (ExprStructInit st _) = TypeCustom st
-exprType _ ExprLitNull = TypeNull
-exprType _ (ExprAccess _ _) = TypeAny -- don't know how to use struct
-exprType s (ExprBinary _ expr _) = exprType s expr -- assume both expr are of the same type
-exprType s (ExprUnary _ expr) = exprType s expr -- assume the op don't change the type
-exprType (fs, _) (ExprCall fn _) =
-    case HM.lookup fn fs of
-        Just (t, _) -> t
-        Nothing -> TypeAny
-exprType (_, vs) (ExprVar name) =
-    fromMaybe TypeAny (HM.lookup name vs)
-
-assignVarType :: VarStack -> String -> Type -> (VarStack, Maybe String)
-assignVarType s _ TypeAny = (s, Nothing)
-assignVarType s v t =
-    let msg = "\n\tTypeOverwrite: %d has already %s but %s were given"
-        updated = (HM.insert v t s, Nothing)
-    in case HM.lookup v s of
-      Nothing       -> updated
-      Just TypeAny  -> updated
-      Just TypeNull -> updated
-      Just t' | t' == t   -> updated
-              | otherwise -> (s, Just $ printf msg v (show t') (show t))
-
-checkMultipleType :: String -> Maybe Type -> Type -> Maybe String
-checkMultipleType _ _ TypeAny  = Nothing
-checkMultipleType _ _ TypeNull = Nothing
-checkMultipleType v t e_t = 
-    let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
-    in case t of
-        Nothing      -> Nothing
-        Just TypeAny -> Nothing
-        Just t' | t' == e_t -> Nothing
-                | otherwise -> Just $ printf msg v (show t) (show e_t)

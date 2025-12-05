@@ -1,25 +1,35 @@
-module Rune.Semantics.Func ( findFunc, FuncStack ) where
+module Rune.Semantics.Func (findFunc) where
 
-import Rune.AST.Nodes
-import Data.HashMap.Strict (HashMap)
+import Control.Monad (foldM)
 import qualified Data.HashMap.Strict as HM
 
-type FuncStack = HashMap String (Type, [Type])
+import Text.Printf (printf)
 
-findFunc :: Program -> FuncStack
+import Rune.AST.Nodes
+import Rune.Semantics.Type (FuncStack)
+
+findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) =
   let builtins = HM.fromList
-        [ ("show", (TypeNull, [TypeAny]))
-        , ("error", (TypeNull, [TypeAny]))
+        [ ("show" , [(TypeNull, [TypeAny])])
+        , ("error", [(TypeNull, [TypeAny])])
         ]
-  in foldl findDefs builtins defs
+  in foldM findDefs builtins defs
 
-findDefs :: FuncStack -> TopLevelDef -> FuncStack
+findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 findDefs s (DefFunction name params rType _) =
     let paramTypes = map paramType params
-    in  HM.insert name (rType, paramTypes) s
+        newSign = (rType, paramTypes)
+        msg = "\n\tFuncAlreadyExist: %s was already defined, use override"
+    in case HM.lookup name s of
+      Nothing -> Right $ HM.insert name [newSign] s
+      Just _  -> Left $ printf msg name
 findDefs s (DefOverride name params rType _) =
     let paramTypes = map paramType params
-    in  HM.insert name (rType, paramTypes) s
-findDefs s _ = s
+        newSign = (rType, paramTypes)
+        msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
+    in case HM.lookup name s of
+      Just list -> Right $ HM.insert name (list ++ [newSign]) s
+      Nothing   -> Left $ printf msg name
+findDefs s _ = Right s
 
