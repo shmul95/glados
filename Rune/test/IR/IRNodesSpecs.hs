@@ -88,8 +88,8 @@ testIROperand =
   testGroup
     "IROperand"
     [ testCase "All IROperand constructors" $
-        let operands = [op_const_int, IRConstFloat 3.14, IRConstChar 'a', op_temp, op_param, op_global]
-            expected = [IRConstInt 42, IRConstFloat 3.14, IRConstChar 'a', IRTemp "t1" IRI32, IRParam "p_x" IRI32, IRGlobal "GLOBAL_str" $ IRPtr IRU8]
+        let operands = [op_const_int, IRConstFloat 3.14, IRConstChar 'a', op_temp, op_param, op_global, IRConstNull]
+            expected = [IRConstInt 42, IRConstFloat 3.14, IRConstChar 'a', IRTemp "t1" IRI32, IRParam "p_x" IRI32, IRGlobal "GLOBAL_str" $ IRPtr IRU8, IRConstNull]
          in operands @?= expected,
       testCase "Deriving Show/Eq" $ show op_temp @?= "IRTemp \"t1\" IRI32"
     ]

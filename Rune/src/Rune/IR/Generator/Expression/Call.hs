@@ -90,6 +90,7 @@ getFormatSpecifier _ IRChar = Just "%c"
 getFormatSpecifier _ IRF32 = Just "%f"
 getFormatSpecifier _ IRF64 = Just "%lf"
 getFormatSpecifier _ IRBool = Just "%d"
+getFormatSpecifier _ IRNull = Just "null"
 getFormatSpecifier _ (IRPtr IRChar) = Just "%s"
 getFormatSpecifier _ _ = Nothing
 

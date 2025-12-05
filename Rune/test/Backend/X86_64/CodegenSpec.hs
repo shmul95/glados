@@ -259,7 +259,37 @@ testMemoryOperations =
                 [IRASSIGN "p" (IRConstInt 100) (IRPtr IRI32), IRDEC (IRTemp "p" (IRPtr IRI32)), IRRET Nothing]
             irProg = IRProgram "test" [IRFunctionDef func]
             asm = emitAssembly irProg
-         in assertBool "contains sub instruction" (any ("sub" `isInfixOf`) (lines asm))
+         in assertBool "contains sub instruction" (any ("sub" `isInfixOf`) (lines asm)),
+      testCase "IRASSIGN with IRConstNull" $
+        let func =
+              IRFunction
+                "test"
+                []
+                Nothing
+                [IRASSIGN "ptr" IRConstNull (IRPtr IRI32), IRRET Nothing]
+            irProg = IRProgram "test" [IRFunctionDef func]
+            asm = emitAssembly irProg
+         in assertBool "contains mov qword ... 0" (any ("mov qword" `isInfixOf`) (lines asm) && any (", 0" `isInfixOf`) (lines asm)),
+      testCase "IRRET with IRConstNull" $
+        let func =
+              IRFunction
+                "test"
+                []
+                (Just (IRPtr IRI32))
+                [IRRET (Just IRConstNull)]
+            irProg = IRProgram "test" [IRFunctionDef func]
+            asm = emitAssembly irProg
+         in assertBool "contains mov rax, 0" (any ("mov rax, 0" `isInfixOf`) (lines asm)),
+      testCase "IRCALL with IRConstNull argument" $
+        let func =
+              IRFunction
+                "test"
+                []
+                Nothing
+                [IRCALL "res" "foo" [IRConstNull] (Just (IRPtr IRChar)), IRRET Nothing]
+            irProg = IRProgram "test" [IRExtern "foo", IRFunctionDef func]
+            asm = emitAssembly irProg
+         in assertBool "contains mov rdi, 0" (any ("mov rdi, 0" `isInfixOf`) (lines asm))
     ]
 
 isInfixOf :: Eq a => [a] -> [a] -> Bool

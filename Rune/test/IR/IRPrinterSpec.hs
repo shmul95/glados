@@ -62,6 +62,9 @@ opConstFloat = IRConstFloat 3.14
 opConstChar :: IROperand
 opConstChar = IRConstChar 'x'
 
+opConstNull :: IROperand
+opConstNull = IRConstNull
+
 irTypePtrChar :: IRType
 irTypePtrChar = IRPtr IRChar
 
@@ -119,8 +122,9 @@ testPrintTopLevelFunctionDef =
 testPrintInstructionAssign :: IO ()
 testPrintInstructionAssign =
   let instr = IRASSIGN "a" opTemp IRI32
-      func = IRFunction "f" [] Nothing [instr]
-      expected = "PROGRAM p:\nDEF f():\n    a: i32 = t1\n"
+      instr2 = IRASSIGN "n" opConstNull IRNull
+      func = IRFunction "f" [] Nothing [instr, instr2]
+      expected = "PROGRAM p:\nDEF f():\n    a: i32 = t1\n    n: null = null\n"
    in prettyPrintIR (IRProgram "p" [IRFunctionDef func]) @?= expected
 
 testPrintInstructionBinOps :: IO ()

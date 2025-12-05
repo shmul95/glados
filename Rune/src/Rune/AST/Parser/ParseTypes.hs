@@ -49,5 +49,6 @@ tokenToType T.TypeF64 = Just TypeF64
 tokenToType T.TypeBool = Just TypeBool
 tokenToType T.TypeString = Just TypeString
 tokenToType T.TypeAny = Just TypeAny
+tokenToType T.TypeNull = Just TypeNull
 tokenToType T.LitNull = Just TypeNull
 tokenToType _ = Nothing

@@ -30,11 +30,10 @@ genLitChar :: Char -> IRGen ([IRInstruction], IROperand, IRType)
 genLitChar c = return ([], IRConstChar c, IRChar)
 
 genLitBool :: Bool -> IRGen ([IRInstruction], IROperand, IRType)
-genLitBool True = return ([], IRConstInt 1, IRI32)
-genLitBool False = return ([], IRConstInt 0, IRI32)
+genLitBool b = return ([], IRConstBool b, IRBool)
 
 genLitNull :: IRGen ([IRInstruction], IROperand, IRType)
-genLitNull = return ([], IRConstInt 0, IRNull)
+genLitNull = return ([], IRConstNull, IRNull)
 
 genLitString :: String -> IRGen ([IRInstruction], IROperand, IRType)
 genLitString s = do
