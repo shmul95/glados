@@ -56,3 +56,5 @@ git add "$VERSION_FILE"
 git commit -m "chore(release): bump version to $NEW_VERSION"
 git tag "v$NEW_VERSION"
 git push origin HEAD --tags
+
+echo "$NEW_VERSION"

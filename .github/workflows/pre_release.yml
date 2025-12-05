@@ -25,14 +25,35 @@ jobs:
           cp glados output/glados-linux
           cp rune output/rune-linux
 
-      - name: Upload binaries
+      - name: Run pre-release version script
+        id: bump
+        run: |
+          NEW_VERSION=$(./scripts/git_scripts/bump_version.sh "${{ github.event.pull_request.title }}" "dev")
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+      - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: binaries
           path: output/*
 
-      - name: Run pre-release version script
+      - name: Install GitHub CLI
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          ./scripts/git_scripts/bump_version.sh "${{ github.event.pull_request.title }}" "dev"
+          sudo apt update
+          sudo apt install -y gh
+
+      - name: Authenticate GitHub CLI
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh auth setup-git
+
+      - name: Create GitHub pre-release
+        if: env.NEW_VERSION != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ env.NEW_VERSION }}" \
+            --prerelease \
+            --title "Pre-release ${{ env.NEW_VERSION }}" \
+            --notes "Pre-release generated from PR: ${{ github.event.pull_request.title }}" \
+            output/*
