@@ -52,13 +52,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set PR title output
+        id: set-title
+        run: |
+          PR_TITLE=$(echo '${{ steps.pr.outputs.data }}' | jq -r '.[0].title')
+          echo "PR_TITLE=$PR_TITLE" >> $GITHUB_ENV
+
       - name: Create temporary branch with PR title commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git fetch origin dev
           git checkout -b temp-pr-release origin/dev
-          git commit --allow-empty -m "${{ steps.pr.outputs.data[0].title }}"
+          git commit --allow-empty -m "${{ env.PR_TITLE }}"
 
       - name: Run semantic-release for pre-release
         env:
