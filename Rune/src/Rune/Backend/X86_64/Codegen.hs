@@ -251,6 +251,7 @@ operandAddr :: Map String Int -> IROperand -> String
 operandAddr _ (IRConstInt n) = show n
 operandAddr _ (IRConstChar c) = show $ fromEnum c
 operandAddr _ IRConstNull = "0"
+operandAddr _ (IRConstBool b) = if b then "1" else "0"
 operandAddr sm (IRTemp name _) = stackAddr sm name
 operandAddr sm (IRParam name _) = stackAddr sm name
 operandAddr _ (IRGlobal name _) = error $ "Global operand should be loaded via ADDR/LOAD: " ++ name
