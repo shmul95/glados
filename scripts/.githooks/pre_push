@@ -9,13 +9,16 @@ NC='\033[0m'
 
 while read local_ref local_sha remote_ref remote_sha; do
     for commit in $(git rev-list $remote_sha..$local_sha); do
+        if git log --format=%B -n 1 "$commit" | grep -q "^Merge"; then
+            continue
+        fi
         msg=$(git log --format=%B -n 1 $commit)
         if ! echo "$msg" | grep -qE "$PATTERN"; then
             echo -e "${RED}ERROR:${NC} Commit $commit does not follow Conventional Commits!"
             echo -e "${YELLOW}Commit message:${NC} $msg"
             echo ""
             echo -e "${GREEN}Example of a valid Conventional Commit:${NC}"
-            echo -e "  feat(auth): add login feature"
+            echo "  feat(auth): add login feature"
             echo ""
             echo -e "${RED}Push aborted.${NC}"
             exit 1
