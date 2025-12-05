@@ -80,7 +80,7 @@ testSizeOfIRType =
       testCase "IRBool" $ sizeOfIRType IRBool @?= 1,
       testCase "IRPtr" $ sizeOfIRType (IRPtr IRI32) @?= 8,
       testCase "IRStruct" $ sizeOfIRType (IRStruct "Vec") @?= 8,
-      testCase "IRNull" $ sizeOfIRType IRNull @?= 0
+      testCase "IRNull" $ sizeOfIRType IRNull @?= 8
     ]
 
 testRegisterVar :: TestTree

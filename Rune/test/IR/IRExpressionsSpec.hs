@@ -83,21 +83,21 @@ testGenLitBoolTrue :: IO ()
 testGenLitBoolTrue =
   let expr = ExprLitBool True
       (result, _) = runIRGen (genExpression expr)
-      expected = ([], IRConstInt 1, IRI32)
+      expected = ([], IRConstBool True, IRBool)
    in result @?= expected
 
 testGenLitBoolFalse :: IO ()
 testGenLitBoolFalse =
   let expr = ExprLitBool False
       (result, _) = runIRGen (genExpression expr)
-      expected = ([], IRConstInt 0, IRI32)
+      expected = ([], IRConstBool False, IRBool)
    in result @?= expected
 
 testGenLitNull :: IO ()
 testGenLitNull =
   let expr = ExprLitNull
       (result, _) = runIRGen (genExpression expr)
-      expected = ([], IRConstInt 0, IRNull)
+      expected = ([], IRConstNull, IRNull)
    in result @?= expected
 
 testGenLitString :: IO ()

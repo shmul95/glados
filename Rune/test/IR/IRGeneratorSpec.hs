@@ -1,5 +1,6 @@
 module IR.IRGeneratorSpec (irGeneratorTests) where
 
+import qualified Rune.AST.Nodes as AST
 import Rune.AST.Nodes hiding (Field)
 import Rune.IR.Generator (generateIR)
 import Rune.IR.Nodes
@@ -21,7 +22,9 @@ irGeneratorTests =
       testGlobalStringGeneration,
       testExternFunctionDetection,
       testMultipleFunctions,
-      testFunctionCallDetection
+      testFunctionCallDetection,
+      testShowNull,
+      testShowStruct
     ]
 
 --
@@ -178,6 +181,38 @@ testFunctionCallDetection =
         defs = irProgramDefs irProg
         hasHelperDef = any (\d -> case d of IRFunctionDef f -> irFuncName f == "helper"; _ -> False) defs
      in assertBool "Has helper function" hasHelperDef
+
+testShowNull :: TestTree
+testShowNull =
+  testCase "Generate IR for show(null) using (null) format" $
+    let callExpr = ExprCall {callName = "show", callArgs = [ExprLitNull]}
+        func =
+          DefFunction
+            { funcName = "main",
+              funcParams = [],
+              funcReturnType = TypeNull,
+              funcBody = [StmtExpr callExpr, StmtReturn Nothing]
+            }
+        astProg = Program "test" [func]
+        irProg = generateIR astProg
+        defs = irProgramDefs irProg
+        hasNullFormat = any (\d -> case d of IRGlobalString _ s -> s == "(null)"; _ -> False) defs
+     in assertBool "Has (null) format string" hasNullFormat
+
+testShowStruct :: TestTree
+testShowStruct =
+  testCase "Generate IR for show(struct)" $
+    let structDef = DefStruct "Vec" [AST.Field "x" TypeI32] []
+        initExpr = ExprStructInit "Vec" [("x", ExprLitInt 1)]
+        callExpr = ExprCall "show" [initExpr]
+        func = DefFunction "main" [] TypeNull [StmtExpr callExpr, StmtReturn Nothing]
+        prog = Program "test" [structDef, func]
+        irProg = generateIR prog
+        defs = irProgramDefs irProg
+        hasShowVec = any (\d -> case d of IRFunctionDef f -> any isCallShowVec (irFuncBody f); _ -> False) defs
+        isCallShowVec (IRCALL _ "show_Vec" _ _) = True
+        isCallShowVec _ = False
+     in assertBool "Has call to show_Vec" hasShowVec
 
 isReturnInstr :: IRInstruction -> Bool
 isReturnInstr (IRRET _) = True

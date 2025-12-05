@@ -79,6 +79,8 @@ data IROperand
   = IRConstInt Int
   | IRConstFloat Double
   | IRConstChar Char
+  | IRConstBool Bool
+  | IRConstNull
   | IRTemp String IRType
   | IRParam String IRType
   | IRGlobal String IRType

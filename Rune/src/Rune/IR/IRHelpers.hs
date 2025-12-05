@@ -63,7 +63,7 @@ sizeOfIRType IRU64 = 8
 sizeOfIRType IRBool = 1
 sizeOfIRType (IRPtr _) = 8 -- Ô_ö
 sizeOfIRType (IRStruct _) = 8 -- ö_Ô
-sizeOfIRType IRNull = 0
+sizeOfIRType IRNull = 8
 
 --
 -- symbol table

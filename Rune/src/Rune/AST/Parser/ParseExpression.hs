@@ -125,7 +125,7 @@ parsePrimary =
       parseLitString,
       parseChar,
       parseLitBool,
-      ExprLitNull <$ expect T.LitNull,
+      ExprLitNull <$ (expect T.LitNull <|> expect T.TypeNull),
       parseStructInitOrVar,
       between (expect T.LParen) (expect T.RParen) (withContext "parenthesized expression" parseExpression)
     ]

@@ -90,6 +90,7 @@ getFormatSpecifier _ IRChar = Just "%c"
 getFormatSpecifier _ IRF32 = Just "%f"
 getFormatSpecifier _ IRF64 = Just "%lf"
 getFormatSpecifier _ IRBool = Just "%d"
+getFormatSpecifier _ IRNull = Just "(null)"
 getFormatSpecifier _ (IRPtr IRChar) = Just "%s"
 getFormatSpecifier _ _ = Nothing
 
@@ -99,8 +100,8 @@ mangleName base ((_, _, IRPtr (IRStruct s)) : _) = s ++ "_" ++ base
 mangleName base _ = base
 
 prepareArg :: ([IRInstruction], IROperand, IRType) -> ([IRInstruction], IROperand)
-prepareArg (i, (IRTemp n t), IRStruct _) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
-prepareArg (i, (IRTemp n t), IRPtr (IRStruct _)) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
+prepareArg (i, IRTemp n t, IRStruct _) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
+prepareArg (i, IRTemp n t, IRPtr (IRStruct _)) = (i ++ [IRADDR ("p_" ++ n) n (IRPtr t)], IRTemp ("p_" ++ n) (IRPtr t))
 prepareArg (i, op, _) = (i, op)
 
 prepareAddr :: IROperand -> IRType -> ([IRInstruction], IROperand)

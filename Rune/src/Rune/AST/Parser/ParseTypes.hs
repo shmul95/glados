@@ -19,7 +19,7 @@ import qualified Rune.Lexer.Tokens as T
 parseType :: Parser Type
 parseType =
   choice
-    [ tokenMap tokenTypeToType,
+    [ tokenMap tokenToType,
       TypeCustom <$> parseIdentifier
     ]
     <|> failParse "Expected type"
@@ -34,20 +34,21 @@ parseIdentifier =
 -- private helpers
 --
 
-tokenTypeToType :: T.TokenKind -> Maybe Type
-tokenTypeToType T.TypeI8 = Just TypeI8
-tokenTypeToType T.TypeI16 = Just TypeI16
-tokenTypeToType T.TypeI32 = Just TypeI32
-tokenTypeToType T.TypeI64 = Just TypeI64
-tokenTypeToType T.TypeU8 = Just TypeU8
-tokenTypeToType T.TypeU16 = Just TypeU16
-tokenTypeToType T.TypeU32 = Just TypeU32
-tokenTypeToType T.TypeU64 = Just TypeU64
-tokenTypeToType T.TypeChar = Just TypeChar
-tokenTypeToType T.TypeF32 = Just TypeF32
-tokenTypeToType T.TypeF64 = Just TypeF64
-tokenTypeToType T.TypeBool = Just TypeBool
-tokenTypeToType T.TypeString = Just TypeString
-tokenTypeToType T.TypeAny = Just TypeAny
-tokenTypeToType T.TypeNull = Just TypeNull
-tokenTypeToType _ = Nothing
+tokenToType :: T.TokenKind -> Maybe Type
+tokenToType T.TypeI8 = Just TypeI8
+tokenToType T.TypeI16 = Just TypeI16
+tokenToType T.TypeI32 = Just TypeI32
+tokenToType T.TypeI64 = Just TypeI64
+tokenToType T.TypeU8 = Just TypeU8
+tokenToType T.TypeU16 = Just TypeU16
+tokenToType T.TypeU32 = Just TypeU32
+tokenToType T.TypeU64 = Just TypeU64
+tokenToType T.TypeChar = Just TypeChar
+tokenToType T.TypeF32 = Just TypeF32
+tokenToType T.TypeF64 = Just TypeF64
+tokenToType T.TypeBool = Just TypeBool
+tokenToType T.TypeString = Just TypeString
+tokenToType T.TypeAny = Just TypeAny
+tokenToType T.TypeNull = Just TypeNull
+tokenToType T.LitNull = Just TypeNull
+tokenToType _ = Nothing

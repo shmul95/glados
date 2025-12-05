@@ -37,7 +37,7 @@ emitAssembly (IRProgram _ topLevels) =
 -- | extern <function>
 emitExterns :: [Extern] -> [String]
 emitExterns [] = []
-emitExterns xs = map (\n -> "extern " ++ n) xs
+emitExterns xs = map ("extern " ++) xs
 
 --
 -- section .data
@@ -152,6 +152,10 @@ emitAssign sm dest (IRConstInt n) t
   | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
 emitAssign sm dest (IRConstChar c) _ =
   [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
+emitAssign sm dest (IRConstBool b) _ =
+  [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ if b then "1" else "0"]
+emitAssign sm dest IRConstNull t =
+  [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"]
 emitAssign sm dest (IRTemp name _) t = moveStackToStack sm dest name t
 emitAssign sm dest (IRParam name _) t = moveStackToStack sm dest name t
 emitAssign sm dest op t =
@@ -246,6 +250,8 @@ stackAddr sm name = case Map.lookup name sm of
 operandAddr :: Map String Int -> IROperand -> String
 operandAddr _ (IRConstInt n) = show n
 operandAddr _ (IRConstChar c) = show $ fromEnum c
+operandAddr _ IRConstNull = "0"
+operandAddr _ (IRConstBool b) = if b then "1" else "0"
 operandAddr sm (IRTemp name _) = stackAddr sm name
 operandAddr sm (IRParam name _) = stackAddr sm name
 operandAddr _ (IRGlobal name _) = error $ "Global operand should be loaded via ADDR/LOAD: " ++ name
@@ -282,6 +288,8 @@ moveStackToStack sm dest src t =
 loadReg :: Map String Int -> String -> IROperand -> [String]
 loadReg _ reg (IRConstInt n) = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
 loadReg _ reg (IRConstChar c) = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
+loadReg _ reg IRConstNull = [emit 1 $ "mov " ++ reg ++ ", 0"]
+loadReg _ reg (IRConstBool b) = [emit 1 $ "mov " ++ reg ++ ", " ++ if b then "1" else "0"]
 loadReg sm baseReg op@(IRTemp _ t) = loadVarReg sm baseReg op t
 loadReg sm baseReg op@(IRParam _ t) = loadVarReg sm baseReg op t
 loadReg sm baseReg op = [emit 1 $ "mov " ++ baseReg ++ ", qword " ++ varStackAddr sm op]
@@ -301,6 +309,8 @@ varStackAddr _ op = error $ "Unsupported IROperand for stack address: " ++ show 
 loadRegWithExt :: Map String Int -> (String, IROperand) -> [String]
 loadRegWithExt _ (reg, IRConstInt n) = [emit 1 $ "mov " ++ reg ++ ", " ++ show n]
 loadRegWithExt _ (reg, IRConstChar c) = [emit 1 $ "mov " ++ reg ++ ", " ++ show (fromEnum c)]
+loadRegWithExt _ (reg, IRConstNull) = [emit 1 $ "mov " ++ reg ++ ", 0"]
+loadRegWithExt _ (reg, IRConstBool b) = [emit 1 $ "mov " ++ reg ++ ", " ++ if b then "1" else "0"]
 loadRegWithExt sm (reg, op@(IRTemp _ t)) = extendVar sm reg op t
 loadRegWithExt sm (reg, op@(IRParam _ t)) = extendVar sm reg op t
 loadRegWithExt sm (reg, op) = [emit 1 $ "mov " ++ reg ++ ", qword " ++ varStackAddr sm op]
