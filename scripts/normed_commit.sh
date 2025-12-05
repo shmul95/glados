@@ -72,7 +72,10 @@ read -p "Enter the commit message: " MESSAGE
 
 COMMIT_MSG="$TYPE$SCOPE: $MESSAGE"
 
-git commit -m "$COMMIT_MSG"
+if ! git commit -m "$COMMIT_MSG"; then
+    echo "Commit failed or was cancelled"
+    exit 1
+fi
 
 read -p "Do you want to push the commit to the remote repository now? [y/N]: " PUSH_CONFIRM
 if [[ "$PUSH_CONFIRM" =~ ^[Yy]$ ]]; then
