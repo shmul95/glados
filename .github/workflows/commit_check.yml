@@ -1,0 +1,17 @@
+name: Commit message lint
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  lint-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check commit messages
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: .commitlintrc.js
