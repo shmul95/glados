@@ -1,49 +1,21 @@
 name: Stable Release
 
 on:
-  push:
-    branches:
-      - main
+  pull_request:
+    types: [closed]
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  build:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-
-      - name: Cache Stack and Node
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.stack
-            .stack-work
-            ~/.local/bin
-            ~/.npm
-            ~/.cache
-          key: ${{ runner.os }}-stack-node-${{ hashFiles('stack.yaml', '**/*.cabal', 'package.json', 'package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-stack-node-
-
-      - name: Install Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-
-      - name: Install system GHC
-        uses: haskell-actions/setup@v2
-        with:
-          enable-stack: true
-          system-ghc: true
-          stack-version: latest
-          ghc-version: latest
 
       - name: Build binaries
         run: |
@@ -52,16 +24,74 @@ jobs:
           cp glados output/glados-linux
           cp rune output/rune-linux
 
-      - name: Upload binaries
+      - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: binaries
           path: output/*
 
-      - name: Install semantic-release
-        run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator
+  release:
+    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Run semantic-release for stable release
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: output
+
+      - name: Read current version
+        id: version
+        run: |
+          VERSION=$(cat VERSION.md | sed 's/^v//')
+          echo "current=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Bump version (stable release)
+        id: bump
+        run: |
+          NEW_VERSION=$(./scripts/git_scripts/bump_version.sh "${{ github.event.pull_request.title }}")
+          if [[ -z "$NEW_VERSION" ]]; then
+            echo "No version bump required"
+            exit 0
+          fi
+          echo "$NEW_VERSION" > VERSION.md
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION.md
+          git commit -m "chore(release): bump version to v$NEW_VERSION"
+          git push origin main
+
+      - name: Create Git tag
+        if: steps.bump.outputs.new != ''
+        run: |
+          git tag "v${{ steps.bump.outputs.new }}"
+          git push origin "v${{ steps.bump.outputs.new }}"
+
+      - name: Install GitHub CLI
+        if: steps.bump.outputs.new != ''
+        run: |
+          sudo apt update
+          sudo apt install -y gh
+
+      - name: Authenticate GitHub CLI
+        if: steps.bump.outputs.new != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --branches main --ci
+        run: gh auth setup-git
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.new != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.bump.outputs.new }}" \
+            --title "v${{ steps.bump.outputs.new }} (Stable Release)" \
+            --notes "Release generated from merge of PR: ${{ github.event.pull_request.title }}" \
+            output/*
