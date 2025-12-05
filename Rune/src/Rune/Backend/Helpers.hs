@@ -31,7 +31,7 @@ calculateStackMap func =
       varsList = Map.toList varsMap
       (totalUsedSize, offsetsMap) = foldl' (accumulateOffset varsMap) (0, Map.empty) varsList
       totalSize = alignUp totalUsedSize 16
-      rbpOffsetsMap = Map.map (\offset -> -(totalUsedSize - offset)) offsetsMap
+      rbpOffsetsMap = Map.map (makeRbpOffset totalUsedSize) offsetsMap
    in (rbpOffsetsMap, totalSize)
 
 escapeString :: String -> String
@@ -52,7 +52,7 @@ collectTopLevel _ acc = acc
 
 collectIRVars :: Function -> Map.Map String IRType
 collectIRVars (IRFunction _ params _ body) =
-  let initialMap = Map.fromList (map (\(n, t) -> (n, t)) params)
+  let initialMap = Map.fromList params
    in foldl' collectVars initialMap body
 
 collectVars :: Map.Map String IRType -> IRInstruction -> Map.Map String IRType
@@ -99,3 +99,6 @@ encodeCharacter s@(c : cs)
 
 isPrintable :: Char -> Bool
 isPrintable ch = ch >= ' ' && ch <= '~'
+
+makeRbpOffset :: Int -> Int -> Int
+makeRbpOffset totalUsedSize offset = -(totalUsedSize - offset)
