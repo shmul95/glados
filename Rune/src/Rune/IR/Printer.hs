@@ -119,8 +119,9 @@ printOperand :: IROperand -> String
 printOperand (IRConstInt n) = show n
 printOperand (IRConstFloat f) = show f
 printOperand (IRConstChar c) = show c
-printOperand (IRConstBool b) = if b then "true" else "false"
-printOperand IRConstNull = "null"
+printOperand (IRConstBool True) = "true"
+printOperand (IRConstBool False) = "false"
+printOperand IRConstNull = "(null)"
 printOperand (IRTemp name _) = name
 printOperand (IRParam name _) = name
 printOperand (IRGlobal name _) = name
