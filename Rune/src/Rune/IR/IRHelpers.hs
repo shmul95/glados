@@ -151,6 +151,7 @@ getCurrentLoop = do
 -- operand helpers
 --
 
+-- | determine the type of an IROperand 
 getOperandType :: IROperand -> Maybe IRType
 getOperandType (IRTemp _ t) = Just t
 getOperandType (IRParam _ t) = Just t

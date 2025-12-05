@@ -12,6 +12,7 @@ import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, GlobalString)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
+import Lib (isPrintable)
 
 --
 -- public
@@ -97,8 +98,6 @@ encodeCharacter s@(c : cs)
       let (printables, rest) = span isPrintable s
        in ("\"" ++ printables ++ "\"") : encodeCharacter rest
 
-isPrintable :: Char -> Bool
-isPrintable ch = ch >= ' ' && ch <= '~'
-
+-- | convert offset from function stack frame to RBP-relative offset
 makeRbpOffset :: Int -> Int -> Int
 makeRbpOffset totalUsedSize offset = -(totalUsedSize - offset)
