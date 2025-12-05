@@ -1,0 +1,29 @@
+#!/bin/bash
+
+PATTERN="^(feat|fix|perf|refactor|BREAKING|docs|style|chore|test|build|ci)(\([a-zA-Z0-9_-]+\))?: .+"
+
+RED='\033[1;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[1;32m'
+NC='\033[0m'
+
+while read local_ref local_sha remote_ref remote_sha; do
+    for commit in $(git rev-list $remote_sha..$local_sha); do
+        if git log --format=%B -n 1 "$commit" | grep -q "^Merge"; then
+            continue
+        fi
+        msg=$(git log --format=%B -n 1 $commit)
+        if ! echo "$msg" | grep -qE "$PATTERN"; then
+            echo -e "${RED}ERROR:${NC} Commit $commit does not follow Conventional Commits!"
+            echo -e "${YELLOW}Commit message:${NC} $msg"
+            echo ""
+            echo -e "${GREEN}Example of a valid Conventional Commit:${NC}"
+            echo "  feat(auth): add login feature"
+            echo ""
+            echo -e "${RED}Push aborted.${NC}"
+            exit 1
+        fi
+    done
+done
+
+exit 0

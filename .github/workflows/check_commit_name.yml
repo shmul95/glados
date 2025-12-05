@@ -1,0 +1,29 @@
+name: PR Title Linter
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  lint-pr-title:
+    name: Check PR title format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check PR title
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+            const pattern = /^(feat|fix|chore|docs|style|refactor|perf|test|ci|build)(\(.+\))?: .+/;
+            if (!pattern.test(title)) {
+              core.setFailed(
+                `PR title "${title}" does not follow Conventional Commits format.\n` +
+                `Format required: type(scope?): message\n` +
+                `Example: feat(auth): add login functionality`
+              );
+            } else {
+              console.log(`PR title "${title}" follows the Conventional Commits format.`);
+            }
