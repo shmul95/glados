@@ -29,8 +29,7 @@ primitiveMap =
     (TypeU64, "u64"),
     (TypeChar, "char"),
     (TypeString, "string"),
-    (TypeAny, "any"),
-    (TypeNull, "null")
+    (TypeAny, "any")
   ]
 
 primitiveParsers :: [Parser (Int -> Int -> Token)]
