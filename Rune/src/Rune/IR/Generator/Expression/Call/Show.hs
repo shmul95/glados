@@ -1,8 +1,10 @@
 module Rune.IR.Generator.Expression.Call.Show (genShowCall) where
 
+import Control.Monad (unless)
+import Control.Monad.State (gets, modify)
 import Rune.AST.Nodes (Expression)
-import Rune.IR.IRHelpers (genFormatString, registerCall)
-import Rune.IR.Nodes (IRGen, IRInstruction (..), IROperand (..), IRType (..))
+import Rune.IR.IRHelpers (genFormatString, registerCall, newStringGlobal, newTemp, nextLabelIndex, makeLabel)
+import Rune.IR.Nodes (IRGen, GenState(..), IRInstruction (..), IROperand (..), IRType (..), IRTopLevel(..), IRFunction(..))
 
 --
 -- callbacks to avoid circular dependencies
@@ -23,17 +25,40 @@ type GenExprCallback = Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall :: GenExprCallback -> Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall genExpr arg = do
   (instrs, op, typ) <- genExpr arg
-  let funcName = getShowFunc op typ
-      (prep, finalOp) = prepareAddr op typ
+  if typ == IRBool
+    then genShowBoolCall instrs op
+    else do
+      let funcName = getShowFunc op typ
+          (prep, finalOp) = prepareAddr op typ
 
-  registerCall funcName
-  (fmtInstrs, callArgs) <- genShowFmtCall op typ finalOp
+      registerCall funcName
+      (fmtInstrs, callArgs) <- genShowFmtCall op typ finalOp
 
-  let callInstr = IRCALL "" funcName callArgs Nothing
-  return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+      let callInstr = IRCALL "" funcName callArgs Nothing
+      return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
 
 --
 -- private
+--
+
+--
+-- helpers
+--
+
+mkShowOverride :: String -> IRType -> IRFunction
+mkShowOverride name paramType = IRFunction
+  { irFuncName = name
+  , irFuncParams = [("value", paramType)]
+  , irFuncRetType = Just IRNull
+  , irFuncBody = []
+  }
+
+overrideExists :: IRTopLevel -> String -> Bool
+overrideExists (IRFunctionDef f) name = irFuncName f == name
+overrideExists _ _ = False
+
+--
+-- def show(value: any) -> null
 --
 
 -- | as show is a built-in "printf"-like function
@@ -63,7 +88,6 @@ getFormatSpecifier _ IRU64 = Just "%lu"
 getFormatSpecifier _ IRChar = Just "%c"
 getFormatSpecifier _ IRF32 = Just "%f"
 getFormatSpecifier _ IRF64 = Just "%lf"
-getFormatSpecifier _ IRBool = Just "%d" -- should be 1 ? "true" : "false"
 getFormatSpecifier _ IRNull = Just "(null)"
 getFormatSpecifier _ (IRPtr IRChar) = Just "%s"
 getFormatSpecifier _ _ = Nothing
@@ -78,3 +102,49 @@ prepareAddr (IRTemp n _) (IRPtr (IRStruct t)) =
   , IRTemp ("addr_" ++ n) (IRPtr (IRPtr (IRStruct t)))
   )
 prepareAddr op _ = ([], op)
+
+--
+-- def show(value: bool) -> null
+--
+
+-- | show(<bool>) -> show_bool(<bool>)
+-- instead of printing 1 | 0 we print "(true)" | "(false)"
+genShowBoolCall :: [IRInstruction] -> IROperand -> IRGen ([IRInstruction], IROperand, IRType)
+genShowBoolCall instrs op = do
+  ensureShowBoolFunc
+  registerCall "show_bool"
+  let callInstr = IRCALL "" "show_bool" [op] Nothing
+  return (instrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+
+
+ensureShowBoolFunc :: IRGen ()
+ensureShowBoolFunc = do
+  globals <- gets gsGlobals
+  let alreadyExists = any (`overrideExists` "show_bool") globals
+  unless alreadyExists mkShowBoolFunc
+
+mkShowBoolFunc :: IRGen ()
+mkShowBoolFunc = do
+  strTrue <- newStringGlobal "(true)"
+  strFalse <- newStringGlobal "(false)"
+  tTrue <- newTemp "fmt_true" (IRPtr IRChar)
+  tFalse <- newTemp "fmt_false" (IRPtr IRChar)
+  idx <- nextLabelIndex
+
+  let func = (mkShowOverride "show_bool" IRBool)
+        { irFuncBody =
+            [ IRJUMP_TRUE (IRParam "value" IRBool) (makeLabel "bool_true" idx)
+            , IRADDR tFalse strFalse (IRPtr IRChar)
+            , IRCALL "" "printf" [IRTemp tFalse (IRPtr IRChar)] Nothing
+            , IRJUMP (makeLabel "bool_end" idx)
+            , IRLABEL (makeLabel "bool_true" idx)
+            , IRADDR tTrue strTrue (IRPtr IRChar)
+            , IRCALL "" "printf" [IRTemp tTrue (IRPtr IRChar)] Nothing
+            , IRLABEL (makeLabel "bool_end" idx)
+            , IRRET Nothing
+            ]
+        }
+
+  modify $ \s -> s { gsGlobals = IRFunctionDef func : gsGlobals s }
+  registerCall "printf"
+
