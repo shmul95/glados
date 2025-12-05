@@ -84,3 +84,26 @@ jobs:
             --title "v$NEW_VERSION (Stable Release)" \
             --notes "Release generated from merge of PR: ${{ github.event.pull_request.title }}" \
             output/*
+
+  sync-dev:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Pull VERSION.md from main
+        run: |
+          git fetch origin main
+          git checkout origin/main -- VERSION.md
+
+      - name: Commit and push updated VERSION.md to dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION.md
+          git commit -m "chore: sync VERSION.md from main"
+          git push origin dev
