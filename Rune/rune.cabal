@@ -44,6 +44,7 @@ library
       Rune.IR.Generator
       Rune.IR.Generator.Expression.Binary
       Rune.IR.Generator.Expression.Call
+      Rune.IR.Generator.Expression.Call.Show
       Rune.IR.Generator.Expression.Literals
       Rune.IR.Generator.Expression.Struct
       Rune.IR.Generator.Expression.Unary

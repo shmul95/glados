@@ -4,7 +4,8 @@ import Control.Monad.State (gets)
 import qualified Data.Map.Strict as Map
 import Rune.AST.Nodes (Expression (..))
 import Rune.IR.Generator.Expression.Binary (genBinary)
-import Rune.IR.Generator.Expression.Call (genCall, genShowCall)
+import Rune.IR.Generator.Expression.Call (genCall)
+import Rune.IR.Generator.Expression.Call.Show (genShowCall)
 import Rune.IR.Generator.Expression.Literals
 import Rune.IR.Generator.Expression.Struct (genAccess, genStructInit)
 import Rune.IR.Generator.Expression.Unary (genUnary)
