@@ -73,6 +73,11 @@ read -p "Enter the commit message: " MESSAGE
 COMMIT_MSG="$TYPE$SCOPE: $MESSAGE"
 
 git commit -m "$COMMIT_MSG"
-git push
 
-echo "Commit and push done: $COMMIT_MSG"
+read -p "Do you want to push the commit to the remote repository now? [y/N]: " PUSH_CONFIRM
+if [[ "$PUSH_CONFIRM" =~ ^[Yy]$ ]]; then
+    git push
+    echo "Commit and push done: $COMMIT_MSG"
+else
+    echo "Commit done (not pushed): $COMMIT_MSG"
+fi
