@@ -1,10 +1,10 @@
 name: Stable Release (PR title only)
 
 on:
-  pull_request:
+  push:
     branches:
       - main
-    types: [closed]
+
 permissions:
   contents: write
 

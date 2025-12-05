@@ -1,10 +1,9 @@
 name: Pre-release Build (PR title only)
 
 on:
-  pull_request:
+  push:
     branches:
       - dev
-    types: [closed]
 
 permissions:
   contents: write
