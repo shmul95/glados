@@ -31,6 +31,17 @@ jobs:
           NEW_VERSION=$(./scripts/git_scripts/bump_version.sh "${{ github.event.pull_request.title }}" "dev")
           echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
+      - name: Commit and tag new version
+        if: env.NEW_VERSION != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "$NEW_VERSION" > VERSION.md
+          git add VERSION.md
+          git commit -m "chore(release): bump version to $NEW_VERSION"
+          git tag "v$NEW_VERSION"
+          git push origin HEAD --tags
+
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4
         with:

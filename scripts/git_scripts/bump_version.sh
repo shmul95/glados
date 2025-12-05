@@ -37,7 +37,7 @@ if [[ "$BRANCH" == "dev" ]]; then
 
     LAST_BETA=$(git tag --list "v$MAJOR.$MINOR.$PATCH-beta.*" | sort -V | tail -n1)
     BETA=$(( ${LAST_BETA##*-beta.} + 1 ))
-    [[ "$LAST_BETA" == "" ]] && BETA=1
+    [[ -z "$LAST_BETA" ]] && BETA=1
 
     NEW_VERSION="$MAJOR.$MINOR.$PATCH-beta.$BETA"
 else
@@ -47,14 +47,5 @@ else
 
     NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 fi
-
-echo "New version: $NEW_VERSION"
-
-git config user.name "github-actions[bot]"
-git config user.email "github-actions[bot]@users.noreply.github.com"
-git add "$VERSION_FILE"
-git commit -m "chore(release): bump version to $NEW_VERSION"
-git tag "v$NEW_VERSION"
-git push origin HEAD --tags
 
 echo "$NEW_VERSION"
