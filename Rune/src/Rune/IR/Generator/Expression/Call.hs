@@ -1,8 +1,8 @@
 module Rune.IR.Generator.Expression.Call (genCall, genShowCall) where
 
 import Rune.AST.Nodes (Expression)
-import Rune.IR.IRHelpers (genFormatString, newTemp, registerCall)
-import Rune.IR.Nodes (IRGen, IRInstruction (..), IROperand (..), IRType (..))
+import Rune.IR.IRHelpers (genFormatString, makeLabel, newTemp, nextLabelIndex, registerCall)
+import Rune.IR.Nodes (IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRType (..))
 
 --
 -- callbacks to avoid circular dependencies
@@ -66,6 +66,7 @@ genShowCall genExpr arg = do
 -- def show(value: any) -> null
 -- we need to format the arguments accordingly to the input
 genShowFmtCall :: IROperand -> IRType -> IROperand -> IRGen ([IRInstruction], [IROperand])
+genShowFmtCall _ IRBool boolOp = genBoolShowCall boolOp
 genShowFmtCall originalOp typ finalOp = case getFormatSpecifier originalOp typ of
   Just fmt -> do
     (i, f) <- genFormatString fmt
@@ -89,7 +90,7 @@ getFormatSpecifier _ IRU64 = Just "%lu"
 getFormatSpecifier _ IRChar = Just "%c"
 getFormatSpecifier _ IRF32 = Just "%f"
 getFormatSpecifier _ IRF64 = Just "%lf"
-getFormatSpecifier _ IRBool = Just "%d"
+getFormatSpecifier _ IRBool = Nothing -- handled specially in genShowFmtCall
 getFormatSpecifier _ IRNull = Just "(null)"
 getFormatSpecifier _ (IRPtr IRChar) = Just "%s"
 getFormatSpecifier _ _ = Nothing
@@ -114,3 +115,58 @@ prepareAddr (IRTemp n _) (IRPtr (IRStruct t)) =
     IRTemp ("addr_" ++ n) (IRPtr (IRPtr (IRStruct t)))
   )
 prepareAddr op _ = ([], op)
+
+--
+-- boolean show helpers
+--
+
+-- | Generate IR code to print a boolean as "(true)" or "(false)"
+-- Uses a ternary-like structure: if bool then "(true)" else "(false)"
+genBoolShowCall :: IROperand -> IRGen ([IRInstruction], [IROperand])
+genBoolShowCall boolOp = do
+  (strInstrs, strOp) <- genBoolToStringConversion boolOp
+  (fmtInstrs, fmtOp) <- genFormatString "%s"
+  return (strInstrs ++ fmtInstrs, [fmtOp, strOp])
+
+-- | Convert a boolean operand to a string pointer operand
+-- Returns instructions to perform the conversion and the resulting string operand
+genBoolToStringConversion :: IROperand -> IRGen ([IRInstruction], IROperand)
+genBoolToStringConversion boolOp = do
+  (strInstrs, trueStr, falseStr) <- genBoolStringLiterals
+  resultTemp <- newTemp "bool_str" (IRPtr IRChar)
+  labels <- genBoolConversionLabels
+  let convInstrs = buildBoolConversionInstrs boolOp trueStr falseStr resultTemp labels
+  return (strInstrs ++ convInstrs, IRTemp resultTemp (IRPtr IRChar))
+
+-- | Generate string literals for "(true)" and "(false)"
+-- Returns the instructions to create string pointers and the operands
+genBoolStringLiterals :: IRGen ([IRInstruction], IROperand, IROperand)
+genBoolStringLiterals = do
+  (trueInstrs, trueOp) <- genFormatString "(true)"
+  (falseInstrs, falseOp) <- genFormatString "(false)"
+  return (trueInstrs ++ falseInstrs, trueOp, falseOp)
+
+-- | Generate labels for boolean conversion control flow
+genBoolConversionLabels :: IRGen (IRLabel, IRLabel, IRLabel)
+genBoolConversionLabels = do
+  trueIdx <- nextLabelIndex
+  falseIdx <- nextLabelIndex
+  endIdx <- nextLabelIndex
+  return
+    ( makeLabel "bool_true_" trueIdx,
+      makeLabel "bool_false_" falseIdx,
+      makeLabel "bool_end_" endIdx
+    )
+
+-- | Build the control flow instructions for boolean to string conversion
+buildBoolConversionInstrs :: IROperand -> IROperand -> IROperand -> String -> (IRLabel, IRLabel, IRLabel) -> [IRInstruction]
+buildBoolConversionInstrs boolOp trueStr falseStr resultTemp (trueLabel, falseLabel, endLabel) =
+  [ IRJUMP_TRUE boolOp trueLabel,
+    IRJUMP falseLabel,
+    IRLABEL trueLabel,
+    IRASSIGN resultTemp trueStr (IRPtr IRChar),
+    IRJUMP endLabel,
+    IRLABEL falseLabel,
+    IRASSIGN resultTemp falseStr (IRPtr IRChar),
+    IRLABEL endLabel
+  ]
