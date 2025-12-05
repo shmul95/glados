@@ -55,6 +55,10 @@ Compile both projects using `make`
 make
 ```
 
+## Contributing
+
+We welcome contributions to GLaDOS! Whether you want to fix bugs, add features, or improve documentation, please read our [**CONTRIBUTION.md**](./CONTRIBUTION.md) guide to get started.
+
 ## License
 
 The project is licensed under the BSD-3-Clause License. See [**LICENSE**](./LICENSE) for more details.
