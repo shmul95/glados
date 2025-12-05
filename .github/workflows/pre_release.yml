@@ -1,9 +1,10 @@
-name: Pre-release Build
+name: Pre-release Build (PR title only)
 
 on:
-  push:
+  pull_request:
     branches:
       - dev
+    types: [closed]
 
 permissions:
   contents: write
@@ -18,31 +19,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache Stack and Node
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.stack
-            .stack-work
-            ~/.local/bin
-            ~/.npm
-            ~/.cache
-          key: ${{ runner.os }}-stack-node-${{ hashFiles('stack.yaml', '**/*.cabal', 'package.json', 'package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-stack-node-
-
       - name: Install Node.js
         uses: actions/setup-node@v3
         with:
           node-version: 20
-
-      - name: Install system GHC
-        uses: haskell-actions/setup@v2
-        with:
-          enable-stack: true
-          system-ghc: true
-          stack-version: latest
-          ghc-version: latest
 
       - name: Build binaries
         run: |
@@ -60,7 +40,28 @@ jobs:
       - name: Install semantic-release
         run: npm install -g semantic-release @semantic-release/github @semantic-release/exec @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/git
 
+      - name: Get PR title
+        id: pr
+        uses: octokit/request-action@v5
+        with:
+          route: GET /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create temporary branch with PR title commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin dev
+          git checkout -b temp-pr-release origin/dev
+          git commit --allow-empty -m "${{ steps.pr.outputs.data.title }}"
+
       - name: Run semantic-release for pre-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release --ci
+        run: npx semantic-release --branch temp-pr-release --ci
+
+      - name: Clean up temporary branch
+        run: |
+          git checkout dev
+          git branch -D temp-pr-release
