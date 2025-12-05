@@ -5,7 +5,10 @@ if [ "$#" -lt 1 ]; then
     exit 1
 fi
 
-git add "$@"
+if ! git add "$@"; then
+    echo "Failed to add files"
+    exit 1
+fi
 
 declare -A TYPES_DESC=(
     # PATCH
