@@ -160,7 +160,6 @@ sequenceTests = testGroup "Sequences"
         _ -> assertFailure "Should propagate environment"
   ]
 
--- NOUVEAUX TESTS pour les expressions multiples
 multipleExpressionsTests :: TestTree
 multipleExpressionsTests = testGroup "Multiple Expressions (new feature)"
   [ testCase "evaluates two arithmetic operations" $
