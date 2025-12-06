@@ -105,6 +105,26 @@ def test_bool(a:bool, b:bool) -> i32
     return rv;
 }
 
+def test_and(a:bool, b:bool) -> i32
+{
+    rv: i32 = 0;
+
+    rv += assert(a && a, true);
+    rv += assert(a && b, false);
+    rv += assert(b && b, false);
+    return rv;
+}
+
+def test_or(a:bool, b:bool) -> i32
+{
+    rv: i32 = 0;
+
+    rv += assert(a || a, true);
+    rv += assert(a || b, true);
+    rv += assert(b || b, false);
+    return rv;
+}
+
 def main() -> i32
 {
     ai8 : i8 = 42;
@@ -139,6 +159,8 @@ def main() -> i32
     rv += test_u64(au64, bu64);
     rv += test_char(achar, bchar);
     rv += test_bool(abool, bbool);
+    rv += test_and(abool, bbool);
+    rv += test_or(abool, bbool);
 
     return rv;
 }
