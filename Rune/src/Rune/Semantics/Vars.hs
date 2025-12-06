@@ -128,7 +128,9 @@ exprType _ (ExprLitBool  _) = TypeBool
 exprType _ (ExprStructInit st _) = TypeCustom st
 exprType _ ExprLitNull = TypeNull
 exprType _ (ExprAccess _ _) = TypeAny -- don't know how to use struct
-exprType s (ExprBinary _ expr _) = exprType s expr -- assume both expr are of the same type
+exprType s (ExprBinary op expr _)
+    | op `elem` [Eq, Neq, Lt, Lte, Gt, Gte, And, Or] = TypeBool
+    | otherwise = exprType s expr
 exprType s (ExprUnary _ expr) = exprType s expr -- assume the op don't change the type
 exprType (fs, _) (ExprCall fn _) =
     case HM.lookup fn fs of
