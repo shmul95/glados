@@ -35,19 +35,22 @@ getCompareSetOp CmpLT t
   | isSignedType t = "setl"
   | isUnsignedType t = "setb"
   | isFloatType t = "setb"
+  | otherwise = error $ "Invalid type for CmpLT comparison: " ++ show t
 getCompareSetOp CmpLTE t
   | isSignedType t = "setle"
   | isUnsignedType t = "setbe"
   | isFloatType t = "setbe"
+  | otherwise = error $ "Invalid type for CmpLTE comparison: " ++ show t
 getCompareSetOp CmpGT t
   | isSignedType t = "setg"
   | isUnsignedType t = "seta"
   | isFloatType t = "seta"
+  | otherwise = error $ "Invalid type for CmpGT comparison: " ++ show t
 getCompareSetOp CmpGTE t
   | isSignedType t = "setge"
   | isUnsignedType t = "setae"
   | isFloatType t = "setae"
-getCompareSetOp _ _ = error "Invalid comparison operation: "
+  | otherwise = error $ "Invalid type for CmpGTE comparison: " ++ show t
 
 --
 -- private
