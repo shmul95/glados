@@ -33,20 +33,21 @@ getCompareSetOp CmpEQ _ = "sete"
 getCompareSetOp CmpNEQ _ = "setne"
 getCompareSetOp CmpLT t
   | isSignedType t = "setl"
+  | isUnsignedType t = "setb"
   | isFloatType t = "setb"
-  | otherwise = "setb"
 getCompareSetOp CmpLTE t
   | isSignedType t = "setle"
+  | isUnsignedType t = "setbe"
   | isFloatType t = "setbe"
-  | otherwise = "setbe"
 getCompareSetOp CmpGT t
   | isSignedType t = "setg"
+  | isUnsignedType t = "seta"
   | isFloatType t = "seta"
-  | otherwise = "seta"
 getCompareSetOp CmpGTE t
   | isSignedType t = "setge"
+  | isUnsignedType t = "setae"
   | isFloatType t = "setae"
-  | otherwise = "setae"
+getCompareSetOp _ _ = error "Invalid comparison operation: "
 
 --
 -- private
@@ -95,6 +96,14 @@ isSignedType IRI32 = True
 isSignedType IRI64 = True
 isSignedType IRChar = False
 isSignedType _ = False
+
+isUnsignedType :: IRType -> Bool
+isUnsignedType IRU8 = True
+isUnsignedType IRU16 = True
+isUnsignedType IRU32 = True
+isUnsignedType IRU64 = True
+isUnsignedType IRChar = True
+isUnsignedType _ = False
 
 isFloatType :: IRType -> Bool
 isFloatType IRF32 = True
