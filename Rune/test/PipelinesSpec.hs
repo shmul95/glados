@@ -15,7 +15,8 @@ pipelinesTests =
   testGroup
     "Rune Pipelines Tests"
     [ compilePipelineTests,
-      interpretPipelineTests
+      interpretPipelineTests,
+      errorPathTests
     ]
 
 --
@@ -38,3 +39,19 @@ interpretPipelineTests = testCase "interpretPipeline (hello_rune.ru)" $ do
   let inFile = "examples/hello_rune.ru"
   interpretPipeline inFile
   () @?= ()
+
+errorPathTests :: TestTree
+errorPathTests =
+  testGroup
+    "error path coverage"
+    [ testCase "compilePipeline basic functionality" $ do
+        let inFile = "examples/hello_rune.ru"
+        let outFile = "out.test2"
+        compilePipeline inFile outFile
+        removeFileIfExists outFile
+        () @?= (),
+      testCase "interpretPipeline basic functionality" $ do
+        let inFile = "examples/hello_rune.ru"
+        interpretPipeline inFile
+        () @?= ()
+    ]

@@ -8,6 +8,8 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import Rune.Backend.Helpers (calculateStackMap, collectTopLevels, emit, escapeString)
 import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.Backend.X86_64.Compare (emitCompare)
+import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.Registers (getMovType, getRegisterName, getSizeSpecifier, x86_64ArgsRegisters)
 import Rune.IR.Nodes
   ( IRFunction (IRFunction),
@@ -137,12 +139,12 @@ emitInstruction sm _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
 emitInstruction sm _ (IRMUL_OP dest l r t) = emitBinaryOp sm dest "imul" l r t
 emitInstruction sm _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
 emitInstruction sm _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
-emitInstruction sm _ (IRCMP_EQ dest l r) = emitCompareOp sm dest "sete" l r
-emitInstruction sm _ (IRCMP_NEQ dest l r) = emitCompareOp sm dest "setne" l r
-emitInstruction sm _ (IRCMP_LT dest l r) = emitCompareOp sm dest "setl" l r
-emitInstruction sm _ (IRCMP_LTE dest l r) = emitCompareOp sm dest "setle" l r
-emitInstruction sm _ (IRCMP_GT dest l r) = emitCompareOp sm dest "setg" l r
-emitInstruction sm _ (IRCMP_GTE dest l r) = emitCompareOp sm dest "setge" l r
+emitInstruction sm _ (IRCMP_EQ dest l r) = emitCompare sm dest Cmp.CmpEQ l r
+emitInstruction sm _ (IRCMP_NEQ dest l r) = emitCompare sm dest Cmp.CmpNEQ l r
+emitInstruction sm _ (IRCMP_LT dest l r) = emitCompare sm dest Cmp.CmpLT l r
+emitInstruction sm _ (IRCMP_LTE dest l r) = emitCompare sm dest Cmp.CmpLTE l r
+emitInstruction sm _ (IRCMP_GT dest l r) = emitCompare sm dest Cmp.CmpGT l r
+emitInstruction sm _ (IRCMP_GTE dest l r) = emitCompare sm dest Cmp.CmpGTE l r
 emitInstruction _ _ instr = [emit 1 $ "; TODO: " ++ show instr]
 
 -- | emit dest = op
@@ -220,21 +222,12 @@ emitConditionalJump sm op jumpInstr lbl =
 -- | emit dest = left <asmOp> right
 emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
 emitBinaryOp sm dest asmOp leftOp rightOp t =
-  loadReg sm "rax" leftOp
-    ++ loadReg sm "rbx" rightOp
-    ++ [emit 1 $ asmOp ++ " rax, rbx"]
-    ++ [storeReg sm dest "rax" t]
-
--- | emit dest = left <asmOp> right (comparison)
-emitCompareOp :: Map String Int -> String -> String -> IROperand -> IROperand -> [String]
-emitCompareOp sm dest setOp leftOp rightOp =
-  loadReg sm "rax" leftOp
-    ++ loadReg sm "rbx" rightOp
-    ++ [ emit 1 "cmp rax, rbx",
-         emit 1 $ setOp ++ " al",
-         emit 1 "movzx eax, al",
-         emit 1 $ "mov dword " ++ stackAddr sm dest ++ ", eax"
-       ]
+  let regL = getRegisterName "rax" t
+      regR = getRegisterName "rbx" t
+   in loadReg sm "rax" leftOp
+        ++ loadReg sm "rbx" rightOp
+        ++ [emit 1 $ asmOp ++ " " ++ regL ++ ", " ++ regR]
+        ++ [storeReg sm dest "rax" t]
 
 --
 -- helpers

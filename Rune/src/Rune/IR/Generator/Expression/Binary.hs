@@ -19,14 +19,26 @@ genBinary genExpr op left right = do
   (lInstrs, lOp, lType) <- genExpr left
   (rInstrs, rOp, _) <- genExpr right
 
-  resultTemp <- newTemp "t" lType
+  let resultType = getResultType op lType
+  resultTemp <- newTemp "t" resultType
   let opInstr = mkInstr op resultTemp lOp rOp lType
 
-  return (lInstrs ++ rInstrs ++ [opInstr], IRTemp resultTemp lType, lType)
+  return (lInstrs ++ rInstrs ++ [opInstr], IRTemp resultTemp resultType, resultType)
 
 --
 -- private
 --
+
+getResultType :: BinaryOp -> IRType -> IRType
+getResultType Eq _ = IRBool
+getResultType Neq _ = IRBool
+getResultType Lt _ = IRBool
+getResultType Lte _ = IRBool
+getResultType Gt _ = IRBool
+getResultType Gte _ = IRBool
+getResultType And _ = IRBool
+getResultType Or _ = IRBool
+getResultType _ t = t
 
 mkInstr :: BinaryOp -> String -> IROperand -> IROperand -> IRType -> IRInstruction
 mkInstr Add = IRADD_OP

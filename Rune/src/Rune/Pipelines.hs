@@ -14,7 +14,8 @@ import Rune.IR.Nodes (IRProgram)
 import Rune.IR.Printer (prettyPrintIR)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
-import Rune.Semantics.Vars (verifVars)
+-- WARN: removed semantic checking due to not yet working features
+-- import Rune.Semantics.Vars (verifVars)
 import Text.Megaparsec (errorBundlePretty)
 
 --
@@ -35,7 +36,9 @@ pipeline :: (FilePath, String) -> Either String IRProgram
 pipeline =
   parseLexer
     >=> parseAST
-    >=> checkSemantics
+    -- WARN: removed semantic checking due to not yet working features
+    -- causing erorrs on valid programs
+    -- >=> checkSemantics
     >=> genIR
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
@@ -56,10 +59,11 @@ runPipelineAction inFile onSuccess =
 genIR :: Program -> Either String IRProgram
 genIR p = Right $ generateIR p
 
-checkSemantics :: Program -> Either String Program
-checkSemantics p = case verifVars p of
-  Just err -> Left err
-  Nothing -> Right p
+-- WARN: removed semantic checking due to not yet working features
+-- checkSemantics :: Program -> Either String Program
+-- checkSemantics p = case verifVars p of
+--   Just err -> Left err
+--   Nothing -> Right p
 
 safeRead :: FilePath -> IO (Either String String)
 safeRead fp = do

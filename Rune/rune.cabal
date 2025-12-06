@@ -40,10 +40,12 @@ library
       Rune.Backend.Helpers
       Rune.Backend.Types
       Rune.Backend.X86_64.Codegen
+      Rune.Backend.X86_64.Compare
       Rune.Backend.X86_64.Registers
       Rune.IR.Generator
       Rune.IR.Generator.Expression.Binary
       Rune.IR.Generator.Expression.Call
+      Rune.IR.Generator.Expression.Call.Show
       Rune.IR.Generator.Expression.Literals
       Rune.IR.Generator.Expression.Struct
       Rune.IR.Generator.Expression.Unary
@@ -106,12 +108,14 @@ test-suite rune-test
   other-modules:
       AST.NodesSpec
       AST.ParserSpec
+      AST.ParseTypesSpec
       AST.PrinterSpec
       AST.ProgramSyntaxSpec
       Backend.HelpersSpec
       Backend.TypesSpec
       Backend.X86_64.CodegenExtendedSpec
       Backend.X86_64.CodegenSpec
+      Backend.X86_64.CompareSpec
       Backend.X86_64.RegistersSpec
       CLISpec
       IR.IRControlFlowSpec
@@ -120,6 +124,7 @@ test-suite rune-test
       IR.IRHelpersSpec
       IR.IRNodesSpecs
       IR.IRPrinterSpec
+      IR.IRShowCallSpec
       IR.IRStatementsSpec
       Lexer.LexerSpec
       Lexer.TokensSpec

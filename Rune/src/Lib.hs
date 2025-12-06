@@ -1,8 +1,11 @@
-module Lib (escapeString) where
+module Lib (escapeString, isPrintable) where
 
 --
 -- public
 --
+
+isPrintable :: Char -> Bool
+isPrintable c = c >= ' ' && c <= '~'
 
 escapeString :: String -> String
 escapeString = concatMap escapeChar
