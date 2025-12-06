@@ -162,8 +162,32 @@ getOperandType (IRConstFloat _) = Just IRF32
 getOperandType (IRConstInt _) = Just IRI32
 getOperandType IRConstNull = Just IRNull
 
+-- | promote two IRTypes to a common type according to simple rules:
+-- - if either is IRF32, promote to IRF32
+-- - if both are integer types, promote to the larger
+-- - if both are the same, return that type
+-- - otherwise, default to IRI32
+promoteTypes :: IRType -> IRType -> IRType
+promoteTypes IRF32 _ = IRF32
+promoteTypes _ IRF32 = IRF32
+promoteTypes IRI64 IRI32 = IRI64
+promoteTypes IRI32 IRI64 = IRI64
+promoteTypes IRI32 IRI8 = IRI32
+promoteTypes IRI8 IRI32 = IRI32
+promoteTypes IRI64 IRI8 = IRI64
+promoteTypes IRI8 IRI64 = IRI64
+promoteTypes IRI32 IRI32 = IRI32
+promoteTypes IRI64 IRI64 = IRI64
+promoteTypes IRI8 IRI8 = IRI8
+promoteTypes IRBool IRBool = IRBool
+promoteTypes IRChar IRChar = IRChar
+promoteTypes t1 t2
+  | t1 == t2 = t1
+  | otherwise = IRI32
+
 getCommonType :: IROperand -> IROperand -> IRType
 getCommonType l r = case (getOperandType l, getOperandType r) of
-  (Just t, _) -> t
-  (_, Just t) -> t
+  (Just t1, Just t2) -> promoteTypes t1 t2
+  (Just t, Nothing) -> t
+  (Nothing, Just t) -> t
   _ -> IRI32
