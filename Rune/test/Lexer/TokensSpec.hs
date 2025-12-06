@@ -150,6 +150,8 @@ tokenInstanceTests =
 
         -- show
         length (showToken t1) @?= length (showToken t1)
+        length (show t1) > 0 @? "Show produces non-empty string"
+        length (show t2) > 0 @? "Show produces non-empty string for t2"
 
         -- eq
         t1 == t1 @? "reflexive"
@@ -158,4 +160,12 @@ tokenInstanceTests =
         -- ord
         compareToken t1 t1 @?= EQ
         compareToken t1 t2 @?= LT
+        compare t1 t1 @?= EQ
+        compare t1 t2 @?= LT,
+      testCase "Show for all TokenKind constructors" $ do
+        let kinds = allTokenKinds
+        all (\k -> length (show k) > 0) kinds @? "All TokenKinds have Show instances",
+      testCase "Ord for all TokenKind constructors" $ do
+        let kinds = allTokenKinds
+        all (\k -> compare k k == EQ) kinds @? "All TokenKinds are reflexive under Ord"
     ]
