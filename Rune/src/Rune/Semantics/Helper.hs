@@ -1,5 +1,6 @@
 module Rune.Semantics.Helper
   ( checkParamType
+  , mangleName
   , exprType
   , assignVarType
   , checkMultipleType
@@ -8,6 +9,7 @@ module Rune.Semantics.Helper
   ) where
 
 import Data.Maybe (fromMaybe)
+import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
@@ -20,20 +22,32 @@ import Rune.Semantics.Type
   , Stack
   )
 
-checkParamType :: Stack -> String -> [Expression] -> Maybe String
-checkParamType (fs, vs) fname es =
+checkParamType :: Stack -> String -> [Expression] -> Either String String
+checkParamType s@(fs, _) fname es =
   let unknown_func = "\n\tUnknownFunction: %s is not known"
       no_match = "\n\tNoMatchingSignature: %s doesn't have any signature like this %s"
   in case HM.lookup fname fs of
-    Nothing -> Just $ printf unknown_func fname
-    Just [] -> Just $ printf unknown_func fname
-    Just sigs -> tryAll (printf no_match fname (show sigs)) sigs
+    Nothing    -> Left $ printf unknown_func fname
+    Just []    -> Left $ printf unknown_func fname
+    Just [sig] -> checkSingle sig
+    Just sigs  -> checkAll (printf no_match fname (show sigs)) sigs
   where
-    tryAll err_msg [] = Just err_msg
-    tryAll err_msg ((_, at):rest) =
-      case checkEachParam (fs, vs) 0 es at of
-        Nothing -> Nothing
-        Just _  -> tryAll err_msg rest
+    -- if there is 1 signature so no override
+    checkSingle (_, at) =
+      case checkEachParam s 0 es at of
+        Nothing  -> Right fname
+        Just err -> Left err
+
+    -- if multiple signature so mangle name
+    checkAll err_msg [] = Left err_msg
+    checkAll err_msg ((ret, at):rest) =
+      case checkEachParam s 0 es at of
+        Nothing  -> Right $ mangleName fname ret at
+        Just _   -> checkAll err_msg rest
+
+mangleName :: String -> Type -> [Type] -> String
+mangleName fname ret args =
+    intercalate "_" (show ret : fname : map show args)
 
 exprType :: Stack -> Expression -> Type
 exprType _ (ExprLitInt _) = TypeI32
@@ -54,28 +68,28 @@ exprType s@(fs, _) (ExprCall fn args) =
     Nothing  -> TypeAny
 
 
-assignVarType :: VarStack -> String -> Type -> (VarStack, Maybe String)
-assignVarType s _ TypeAny = (s, Nothing)
-assignVarType s v t =
-    let msg = "\n\tTypeOverwrite: %s has already %s but %s were given"
-        updated = (HM.insert v t s, Nothing)
-    in case HM.lookup v s of
-      Nothing       -> updated
-      Just TypeAny  -> updated
-      Just TypeNull -> updated
-      Just t' | t' == t   -> updated
-              | otherwise -> (s, Just $ printf msg v (show t') (show t))
+assignVarType :: VarStack -> String -> Type -> Either String VarStack
+assignVarType vs _ TypeAny = Right vs
+assignVarType vs v t =
+  let msg = "\n\tTypeOverwrite: %s has already %s but %s were given"
+      updated = Right $ HM.insert v t vs
+  in case HM.lookup v vs of
+    Nothing       -> updated
+    Just TypeAny  -> updated
+    Just TypeNull -> updated
+    Just t' | t' == t   -> updated
+            | otherwise -> Left $ printf msg v (show t') (show t)
 
-checkMultipleType :: String -> Maybe Type -> Type -> Maybe String
-checkMultipleType _ Nothing _      = Nothing
-checkMultipleType _ (Just TypeAny) _ = Nothing
-checkMultipleType _ _ TypeAny      = Nothing
-checkMultipleType _ _ TypeNull     = Nothing
+checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
+checkMultipleType _ Nothing e_t         = Right e_t
+checkMultipleType _ (Just TypeAny) e_t  = Right e_t
+checkMultipleType _ (Just t) TypeAny    = Right t
+checkMultipleType _ _ TypeNull          = Right TypeNull
 checkMultipleType v (Just t) e_t
-  | t == e_t  = Nothing
+  | t == e_t  = Right t
   | otherwise =
     let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
-    in Just $ printf msg v (show t) (show e_t)
+    in Left $ printf msg v (show t) (show e_t)
 
 checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
 checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at

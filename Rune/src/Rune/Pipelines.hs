@@ -57,9 +57,7 @@ genIR :: Program -> Either String IRProgram
 genIR p = Right $ generateIR p
 
 checkSemantics :: Program -> Either String Program
-checkSemantics p = case verifVars p of
-  Just err -> Left err
-  Nothing -> Right p
+checkSemantics = verifVars
 
 safeRead :: FilePath -> IO (Either String String)
 safeRead fp = do
