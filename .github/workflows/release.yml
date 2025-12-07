@@ -41,6 +41,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false  # IMPORTANT: disable default token
 
+      - name: Download binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: output
+
       - name: Set up SSH for deploy key
         uses: webfactory/ssh-agent@v0.8.0
         with:
