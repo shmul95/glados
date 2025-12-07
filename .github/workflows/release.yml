@@ -66,13 +66,13 @@ jobs:
           git config user.email "actions@github.com"
           git add VERSION.md
           git commit -m "chore(release): bump version to v$NEW_VERSION" || true
-          git push git@github.com:<OWNER>/<REPO>.git main
+          git push git@github.com:rune-prog-lang/glados.git main
 
       - name: Create Git tag
         if: env.NEW_VERSION != ''
         run: |
           git tag "v$NEW_VERSION"
-          git push git@github.com:<OWNER>/<REPO>.git "v$NEW_VERSION"
+          git push git@github.com:rune-prog-lang/glados.git "v$NEW_VERSION"
 
       - name: Install GitHub CLI
         if: env.NEW_VERSION != ''
@@ -128,4 +128,4 @@ jobs:
           git config user.email "actions@github.com"
           git add VERSION.md
           git commit -m "chore: sync VERSION.md from main" || true
-          git push git@github.com:<OWNER>/<REPO>.git dev
+          git push git@github.com:rune-prog-lang/glados.git dev
