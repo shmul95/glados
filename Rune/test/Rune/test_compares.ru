@@ -12,7 +12,7 @@ def log_assert(description: string, expression: bool, expected: bool) -> i32
         return 0;
     }
 
-    show("  [-] "); show(description); show("\n");
+    show("  [-] "); show(description); show('\n');
     show("    assertion failed - expected: ");
     show(expected); show(", actual: "); show(expression);
     show('\n');
