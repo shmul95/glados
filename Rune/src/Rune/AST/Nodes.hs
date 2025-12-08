@@ -32,7 +32,7 @@ data Type
   | TypeAny
   | TypeNull
   | TypeCustom String
-  deriving (Eq)
+  deriving (Eq, Ord)
 
 instance Show Type where
   show (TypeI8      ) = "i8"
