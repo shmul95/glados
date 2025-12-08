@@ -6,6 +6,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
+import Debug.Trace (trace)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
@@ -27,19 +28,18 @@ verifVars :: Program -> Either String Program
 verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
-  pure $ Program n defs'
+  pure $ 
+    trace ((show prog) ++ "\n" ++ (show $ Program n defs')) (
+    Program n defs'
+    )
 
 
 verifDefs :: FuncStack -> TopLevelDef -> Either String TopLevelDef
 -- r_t : return type
 verifDefs fs (DefFunction name params r_t body) = do
-  let paramTypes = map paramType params
-  let name' = case HM.lookup name fs of
-        Just (_:_:_)  -> mangleName name r_t paramTypes
-        _             -> name
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body'     <- verifScope (fs, vs) body
-  pure $ DefFunction name' params r_t body'
+  pure $ DefFunction name params r_t body'
 
 verifDefs fs (DefOverride name params r_t body) = do
   let paramTypes = map paramType params
