@@ -7,7 +7,7 @@ override def show(msg: string, value: i32) -> null
 
 def loops() -> i32
 {
-    k: i32;
+    k: i32 = 0;
 
     for i = 0 to 10 {
         ++i;
