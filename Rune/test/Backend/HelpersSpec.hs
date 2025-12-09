@@ -162,5 +162,5 @@ testCollectIRVars =
             varsMap = collectIRVars func
          in do
               Map.size varsMap @?= 6
-              all (\k -> Map.lookup k varsMap == Just IRI32) ["c1", "c2", "c3", "c4", "c5", "c6"] @?= True
+              all (\k -> Map.lookup k varsMap == Just IRBool) ["c1", "c2", "c3", "c4", "c5", "c6"] @?= True
     ]

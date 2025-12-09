@@ -63,7 +63,7 @@ genForTo genExpr genBlock var start end body = do
   registerVar var (IRTemp var IRI32) IRI32
 
   (endInstrs, endOp, _) <- genExpr end
-  cmpTemp <- newTemp "cmp" IRI32
+  cmpTemp <- newTemp "cmp" IRBool
 
   pushLoopContext headerLbl endLbl
   bodyInstrs <- genBlock body
@@ -75,7 +75,7 @@ genForTo genExpr genBlock var start end body = do
         [IRLABEL headerLbl],
         endInstrs,
         [IRCMP_LT cmpTemp (IRTemp var IRI32) endOp],
-        [IRJUMP_FALSE (IRTemp cmpTemp IRI32) endLbl],
+        [IRJUMP_FALSE (IRTemp cmpTemp IRBool) endLbl],
         [IRLABEL bodyLbl],
         bodyInstrs,
         [IRJUMP headerLbl],
