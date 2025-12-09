@@ -19,8 +19,7 @@ module Rune.IR.IRHelpers
 where
 
 import Control.Monad.State (gets, modify)
-import qualified Data.Map.Strict
-import Data.Map.Strict (insert)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Rune.AST.Nodes (Type (..))
@@ -81,7 +80,7 @@ getCommonType l r = case (getOperandType l, getOperandType r) of
 
 registerVar :: String -> IROperand -> IRType -> IRGen ()
 registerVar name op typ = do
-  modify $ \s -> s {gsSymTable = insert name (op, typ) (gsSymTable s)}
+  modify $ \s -> s {gsSymTable = Map.insert name (op, typ) (gsSymTable s)}
 
 registerCall :: String -> IRGen ()
 registerCall funcName = do
@@ -116,7 +115,7 @@ makeLabel prefix idx = IRLabel $ ".L." ++ prefix ++ show idx
 newStringGlobal :: String -> IRGen String
 newStringGlobal value = do
   mp <- gets gsStringMap
-  maybe (createStringGlobal value) pure (Data.Map.Strict.lookup value mp)
+  maybe (createStringGlobal value) pure (Map.lookup value mp)
 
 createStringGlobal :: String -> IRGen String
 createStringGlobal value = do
@@ -137,7 +136,7 @@ insertGlobalString :: String -> String -> IRGen ()
 insertGlobalString name value =
   modify $ \s ->
     s { gsGlobals   = IRGlobalString name value : gsGlobals s
-      , gsStringMap = insert value name (gsStringMap s)
+      , gsStringMap = Map.insert value name (gsStringMap s)
       }
 
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
