@@ -31,7 +31,7 @@ checkParamType s@(fs, _) fname es =
     Just []         -> Left $ printf unknown_func fname
     Just [sig]      -> checkSingle sig
     Just (sig:sigs) -> case checkSingle sig of
-                         Left _  -> checkAll (printf no_match fname (show sigs)) sigs
+                         Left _  -> checkAll (printf no_match fname (show (sig:sigs))) sigs
                          Right r -> Right r
   where
     -- if there is 1 signature so no override
