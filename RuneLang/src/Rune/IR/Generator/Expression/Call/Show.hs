@@ -160,4 +160,3 @@ mkShowBoolFunc = do
 
   modify $ \s -> s { gsGlobals = IRFunctionDef func : gsGlobals s }
   registerCall "printf"
-
