@@ -1,0 +1,49 @@
+name: run_example_files
+
+on:
+  push:
+    branches:
+      - 191-cirune-cicd-worker-to-check-file-compilation
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  run_unit_tests:
+    name: Run Haskell Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system GHC
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          system-ghc: true
+          stack-version: latest
+          ghc-version: latest
+
+      - name: Cache Stack
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.stack
+            .stack-work
+          key: ${{ runner.os }}-stack-${{ hashFiles('stack.yaml', '**/*.cabal') }}
+          restore-keys: |
+            ${{ runner.os }}-stack-
+
+      - name: Install python3
+        run: |
+          sudo apt install -y python3
+
+      - name: Compile the project
+        run: |
+          make
+
+      - name: Test run examples
+        run: |
+          ./scripts/test_rune_examples.py
