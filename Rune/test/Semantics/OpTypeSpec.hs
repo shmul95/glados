@@ -60,22 +60,22 @@ opTypeSemanticsTests =
         
           testCase "rejects operations between different type families" $
             case iHTBinary Add TypeI32 TypeU32 of
-              Left err -> return ()  -- Expected error
+              Left _ -> return ()  -- Expected error
               Right _  -> assertFailure "Should have failed for incompatible types",
         
           testCase "rejects int and float mixing" $
             case iHTBinary Add TypeI32 TypeF32 of
-              Left err -> return ()  -- Expected error  
+              Left _ -> return ()  -- Expected error  
               Right _  -> assertFailure "Should have failed for int/float mixing",
         
           testCase "rejects uint and float mixing" $
             case iHTBinary Add TypeU32 TypeF32 of
-              Left err -> return ()  -- Expected error
+              Left _ -> return ()  -- Expected error
               Right _  -> assertFailure "Should have failed for uint/float mixing",
         
           testCase "rejects operations with non-numeric types" $
             case iHTBinary Add TypeI32 TypeBool of
-              Left err -> return ()  -- Expected error
+              Left _ -> return ()  -- Expected error
               Right _  -> assertFailure "Should have failed for int/bool mixing",
         
           testCase "promotion behavior for Add operation" $ do
