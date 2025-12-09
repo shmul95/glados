@@ -6,7 +6,6 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
-import Debug.Trace (trace)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
@@ -28,9 +27,7 @@ verifVars :: Program -> Either String Program
 verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
-  trace (show prog ++ "\n" ++ show (Program n defs') ++ "\n") (
-      pure $ Program n defs'
-    )
+  pure $ Program n defs'
 
 
 verifDefs :: FuncStack -> TopLevelDef -> Either String TopLevelDef
@@ -57,14 +54,12 @@ verifScope :: Stack -> Block -> Either String Block
 -- e : expression e_t : expression type
 -- a, b : if cond then a else b
 verifScope s@(fs, vs) (StmtVarDecl v t e : stmts) = do
-  e_t     <- trace ("lol" ++ show e ++"\n") (exprType s e)
+  e_t     <- exprType s e
   t'      <- checkMultipleType v t e_t
-  vs'     <- trace (printf "assignVarType %s %s %s [%s]" (show vs) v (show t) (show e_t)) (assignVarType vs v t')
+  vs'     <- assignVarType vs v t'
   e'      <- verifExpr s e
   stmts'  <- verifScope (fs, vs') stmts
-  trace ("::" ++ v ++ " : " ++ show t' ++ "(" ++ show t ++ ":" ++ show e_t ++ ")" ++ "\n") (
-    pure $ StmtVarDecl v (Just t') e' : stmts'
-    )
+  pure $ StmtVarDecl v (Just t') e' : stmts'
 
 verifScope s (StmtExpr e : stmts) = do
   e'      <- verifExpr s e

@@ -13,7 +13,6 @@ import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
-import Debug.Trace (trace)
 
 import Rune.AST.Nodes
 import Rune.Semantics.OpType (iHTBinary, sameType)
@@ -66,14 +65,9 @@ exprType _ (ExprAccess _ _)       = Right TypeAny -- don't know how to use struc
 exprType s (ExprBinary op a b)    = do 
   a' <- exprType s a
   b' <- exprType s b
-  trace (
-    printf "%s -> %s : %s -> %s = iHTBinary : %s"
-    (show a) (show a') (show b) (show b') (show $ iHTBinary op a' b')
-    ) (
-    iHTBinary op a' b'
-    )
+  iHTBinary op a' b'
 exprType s (ExprUnary _ expr)     = exprType s expr -- assume the op don't change the type
-exprType (_, vs) (ExprVar name)   = trace ("ExprVar " ++ (show vs)) (Right $ fromMaybe TypeAny (HM.lookup name vs))
+exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
 exprType s@(fs, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
