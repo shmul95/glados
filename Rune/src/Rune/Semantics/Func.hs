@@ -32,7 +32,7 @@ findDefs s (DefOverride name params rType _) =
         newSign = (rType, paramTypes)
         msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
     in case HM.lookup name s of
-      Just list -> Right $ HM.insert name (newSign : list) s
+      Just list -> Right $ HM.insert name (list ++ [newSign]) s
       Nothing   -> Left $ printf msg name
 findDefs s _ = Right s
 
