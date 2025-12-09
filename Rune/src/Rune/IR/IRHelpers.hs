@@ -137,7 +137,7 @@ insertGlobalString :: String -> String -> IRGen ()
 insertGlobalString name value =
   modify $ \s ->
     s { gsGlobals   = IRGlobalString name value : gsGlobals s
-      , gsStringMap = Data.Map.Strict.insert value name (gsStringMap s)
+      , gsStringMap = insert value name (gsStringMap s)
       }
 
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
