@@ -142,9 +142,7 @@ insertGlobalString name value =
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do
   stringName <- newStringGlobal value
-  ptrName <- newTemp "p_fmt" (IRPtr IRChar)
-  let addrInstr = IRADDR ptrName stringName (IRPtr IRChar)
-  return ([addrInstr], IRTemp ptrName (IRPtr IRChar))
+  return ([], IRGlobal stringName (IRPtr IRChar))
 
 mangleMethodName :: String -> String -> String
 mangleMethodName structName methodName = structName ++ "_" ++ methodName

@@ -8,7 +8,6 @@ import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Nodes
   ( GenState (..),
     IRGen,
-    IRInstruction (..),
     IROperand (..),
     IRTopLevel (IRGlobalString),
     IRType (..),
@@ -106,8 +105,8 @@ testGenLitString =
   let expr = ExprLitString "hello world"
       (result, finalState) = runIRGen (genExpression expr)
 
-      expectedInstrs = [IRADDR "p_ptr0" "str_global0" (IRPtr IRChar)]
-      expectedOperand = IRTemp "p_ptr0" (IRPtr IRChar)
+      expectedInstrs = []
+      expectedOperand = IRGlobal "str_global0" (IRPtr IRChar)
       expectedType = IRPtr IRChar
       expectedGlobals = [IRGlobalString "str_global0" "hello world"]
    in do

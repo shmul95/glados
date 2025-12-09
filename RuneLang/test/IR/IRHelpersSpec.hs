@@ -161,13 +161,13 @@ testNewStringGlobal =
 
 testGenFormatString :: TestTree
 testGenFormatString =
-  testCase "genFormatString generates format string with IRADDR" $
-    let (instrs, _) = evalState (genFormatString "%d") initialState
+  testCase "genFormatString generates format string without temporary" $
+    let (instrs, op) = evalState (genFormatString "%d") initialState
      in do
-          length instrs @?= 1
-          case instrs of
-            [IRADDR _ name _] -> name @?= "str_global0"
-            _ -> error "Expected IRADDR"
+          length instrs @?= 0
+          case op of
+            IRGlobal name _ -> name @?= "str_global0"
+            _ -> error "Expected IRGlobal operand"
 
 testEndsWithRet :: TestTree
 testEndsWithRet =
