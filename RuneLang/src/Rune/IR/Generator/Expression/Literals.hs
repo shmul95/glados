@@ -8,7 +8,7 @@ module Rune.IR.Generator.Expression.Literals
   )
 where
 
-import Rune.IR.IRHelpers (newStringGlobal, newTemp)
+import Rune.IR.IRHelpers (newStringGlobal)
 import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
@@ -38,6 +38,4 @@ genLitNull = return ([], IRConstNull, IRNull)
 genLitString :: String -> IRGen ([IRInstruction], IROperand, IRType)
 genLitString s = do
   stringName <- newStringGlobal s
-  ptrName <- newTemp "p_ptr" (IRPtr IRChar)
-  let addrInstr = IRADDR ptrName stringName (IRPtr IRChar)
-  return ([addrInstr], IRTemp ptrName (IRPtr IRChar), IRPtr IRChar)
+  return ([], IRGlobal stringName (IRPtr IRChar), IRPtr IRChar)
