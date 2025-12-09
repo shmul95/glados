@@ -119,7 +119,8 @@ testGenState =
                   gsSymTable = symTable,
                   gsStructs = structTable,
                   gsLoopStack = loopStack,
-                  gsCalledFuncs = Set.empty
+                  gsCalledFuncs = Set.empty,
+                  gsStringMap = empty
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -134,8 +135,8 @@ testGenState =
               gsLoopStack initialState @?= loopStack
               evalState dummyOp initialState @?= 10,
       testCase "Deriving Show/Eq" $
-        let state1 = GenState 0 0 0 [] Nothing empty empty [] Set.empty
-            state2 = GenState 0 0 0 [] Nothing empty empty [] Set.empty
+        let state1 = GenState 0 0 0 [] Nothing empty empty [] Set.empty empty
+            state2 = GenState 0 0 0 [] Nothing empty empty [] Set.empty empty
          in state1 @?= state2
     ]
 

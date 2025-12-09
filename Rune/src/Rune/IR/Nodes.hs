@@ -30,7 +30,8 @@ data GenState = GenState
     gsSymTable :: Map String (IROperand, IRType),
     gsStructs :: Map String [(String, IRType)],
     gsLoopStack :: [(IRLabel, IRLabel)],
-    gsCalledFuncs :: Set String
+    gsCalledFuncs :: Set String,
+    gsStringMap :: Map String String
   }
   deriving (Show, Eq)
 

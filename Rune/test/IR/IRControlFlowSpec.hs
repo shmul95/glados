@@ -37,7 +37,8 @@ initialState =
       gsSymTable = empty,
       gsStructs = empty,
       gsLoopStack = [],
-      gsCalledFuncs = Set.empty
+      gsCalledFuncs = Set.empty,
+      gsStringMap = empty
     }
 
 runIRGen :: IRGen a -> (a, GenState)

@@ -38,7 +38,8 @@ initialState =
       gsSymTable = Map.empty,
       gsStructs = Map.empty,
       gsLoopStack = [],
-      gsCalledFuncs = Set.empty
+      gsCalledFuncs = Set.empty,
+      gsStringMap = Map.empty
     }
 
 testAstTypeConversion :: TestTree
