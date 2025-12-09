@@ -69,6 +69,7 @@ library
       Rune.Pipelines
       Rune.Semantics.Func
       Rune.Semantics.Helper
+      Rune.Semantics.OpType
       Rune.Semantics.Type
       Rune.Semantics.Vars
   other-modules:

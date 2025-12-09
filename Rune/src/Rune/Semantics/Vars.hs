@@ -6,6 +6,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
+import Debug.Trace (trace)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
@@ -27,7 +28,9 @@ verifVars :: Program -> Either String Program
 verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
-  pure $ Program n defs'
+  trace (show prog ++ "\n" ++ show (Program n defs') ++ "\n") (
+      pure $ Program n defs'
+    )
 
 
 verifDefs :: FuncStack -> TopLevelDef -> Either String TopLevelDef
@@ -54,12 +57,14 @@ verifScope :: Stack -> Block -> Either String Block
 -- e : expression e_t : expression type
 -- a, b : if cond then a else b
 verifScope s@(fs, vs) (StmtVarDecl v t e : stmts) = do
-  let e_t = exprType s e
-  vs'     <- assignVarType vs v e_t
+  e_t     <- trace ("lol" ++ show e ++"\n") (exprType s e)
   t'      <- checkMultipleType v t e_t
+  vs'     <- trace (printf "assignVarType %s %s %s [%s]" (show vs) v (show t) (show e_t)) (assignVarType vs v t')
   e'      <- verifExpr s e
   stmts'  <- verifScope (fs, vs') stmts
-  pure $ StmtVarDecl v (Just t') e' : stmts'
+  trace ("::" ++ v ++ " : " ++ show t' ++ "(" ++ show t ++ ":" ++ show e_t ++ ")" ++ "\n") (
+    pure $ StmtVarDecl v (Just t') e' : stmts'
+    )
 
 verifScope s (StmtExpr e : stmts) = do
   e'      <- verifExpr s e
@@ -89,7 +94,7 @@ verifScope s (StmtIf cond a Nothing : stmts) = do
   pure $ StmtIf cond' a' Nothing : stmts'
 
 verifScope s@(fs, vs) (StmtFor v t (Just start) end body : stmts) = do
-  let e_t = exprType s start
+  e_t     <- exprType s start
   vs'     <- assignVarType vs v e_t
   t'      <- checkMultipleType v t e_t
   start'  <- verifExpr (fs, vs') start
@@ -108,7 +113,7 @@ verifScope s@(fs, vs) (StmtFor v t Nothing end body : stmts) = do
   pure $ StmtFor v (Just t') Nothing end' body' : stmts'
 
 verifScope s@(fs, vs) (StmtForEach v t iter body : stmts) = do
-  let e_t = exprType s iter
+  e_t     <- exprType s iter
   vs'     <- assignVarType vs v e_t
   t'      <- checkMultipleType v t e_t
   iter'   <- verifExpr (fs, vs') iter
@@ -123,7 +128,7 @@ verifScope s (StmtLoop body : stmts) = do
 
 -- bit weird i don't know if it work like this
 verifScope s@(fs, vs) (StmtAssignment (ExprVar lv) rv : stmts) = do
-  let e_t = exprType s rv
+  e_t     <- exprType s rv
   vs'     <- assignVarType vs lv e_t
   rv'     <- verifExpr s rv
   stmts'  <- verifScope (fs, vs') stmts
