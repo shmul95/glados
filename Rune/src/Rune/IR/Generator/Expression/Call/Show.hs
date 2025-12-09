@@ -25,17 +25,10 @@ type GenExprCallback = Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall :: GenExprCallback -> Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genShowCall genExpr arg = do
   (instrs, op, typ) <- genExpr arg
-  if typ == IRBool
-    then genShowBoolCall instrs op
-    else do
-      let funcName = getShowFunc op typ
-          (prep, finalOp) = prepareAddr op typ
-
-      registerCall funcName
-      (fmtInstrs, callArgs) <- genShowFmtCall op typ finalOp
-
-      let callInstr = IRCALL "" funcName callArgs Nothing
-      return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+  case typ of
+    IRBool -> genShowBoolCall instrs op
+    IRChar -> genShowCharCall instrs op
+    _ -> genShowPrintfCall instrs op typ
 
 --
 -- private
@@ -115,6 +108,26 @@ genShowBoolCall instrs op = do
   registerCall "show_bool"
   let callInstr = IRCALL "" "show_bool" [op] Nothing
   return (instrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+
+-- | show(<char>) -> putchar(<char>)
+-- optimized: use putchar instead of printf("%c", char)
+genShowCharCall :: [IRInstruction] -> IROperand -> IRGen ([IRInstruction], IROperand, IRType)
+genShowCharCall instrs op = do
+  registerCall "putchar"
+  let callInstr = IRCALL "" "putchar" [op] Nothing
+  return (instrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+
+-- | generic printf fallback for other types
+genShowPrintfCall :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
+genShowPrintfCall instrs op typ = do
+  let funcName = getShowFunc op typ
+      (prep, finalOp) = prepareAddr op typ
+  
+  registerCall funcName
+  (fmtInstrs, callArgs) <- genShowFmtCall op typ finalOp
+  
+  let callInstr = IRCALL "" funcName callArgs Nothing
+  return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
 
 
 ensureShowBoolFunc :: IRGen ()
