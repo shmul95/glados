@@ -1,5 +1,5 @@
-LISP_DIRECTORY   := Lisp
-RUNE_DIRECTORY   := Rune
+LISP_DIRECTORY   := LispLang
+RUNE_DIRECTORY   := RuneLang
 
 LISP_BINARY_NAME := glados
 RUNE_BINARY_NAME := rune
