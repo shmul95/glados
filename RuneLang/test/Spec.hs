@@ -6,6 +6,7 @@ import Test.Tasty.Runners (NumThreads(..))
 import Core.CLISpecs (cliTests)
 import Core.LibSpecs (libTests)
 import Core.PipelinesSpecs (pipelinesTests)
+import Core.LoggerSpecs (loggerTests)
 
 --
 -- public
@@ -31,5 +32,6 @@ coreSpecs =
     [ libTests
     , pipelinesTests
     , cliTests
+    , loggerTests
     ]
 
