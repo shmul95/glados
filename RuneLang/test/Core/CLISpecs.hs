@@ -37,7 +37,9 @@ usageString =
     ]
 
 cleanOutput :: String -> String
-cleanOutput = dropWhile (/= 'U')
+cleanOutput = unlines . take (length usageLines) . lines . dropWhile (/= 'U')
+  where
+    usageLines = lines usageString
 
 shouldParseTo :: [String] -> Action -> TestTree
 shouldParseTo args expectedAction =

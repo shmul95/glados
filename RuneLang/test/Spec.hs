@@ -1,6 +1,7 @@
 module Main (main) where
 
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty
+import Test.Tasty.Runners (NumThreads(..))
 
 import Core.CLISpecs (cliTests)
 import Core.LibSpecs (libTests)
@@ -13,10 +14,11 @@ import Core.PipelinesSpecs (pipelinesTests)
 main :: IO ()
 main =
   defaultMain $
-    testGroup
-      "All Tests"
-      [ coreSpecs
-      ]
+    localOption (NumThreads 1) $
+      testGroup
+        "All Tests"
+        [ coreSpecs
+        ]
 
 --
 -- private
@@ -26,7 +28,8 @@ coreSpecs :: TestTree
 coreSpecs =
   testGroup
     "Core Tests"
-    [ libTests,
-      pipelinesTests,
-      cliTests
+    [ libTests
+    , pipelinesTests
+    , cliTests
     ]
+
