@@ -11,6 +11,7 @@ import Core.LoggerSpecs (loggerTests)
 import Lexer.LexerSpecs (lexerTests)
 import Lexer.LexerIdentifiersSpecs (lexerIdentifiersTests)
 import Lexer.LexerLiteralsSpecs (lexerLiteralsTests)
+import Lexer.LexerParserSpecs (lexerParserTests)
 
 --
 -- public
@@ -47,4 +48,5 @@ lexerSpecs =
     [ lexerTests
     , lexerIdentifiersTests
     , lexerLiteralsTests
+    , lexerParserTests
     ]
