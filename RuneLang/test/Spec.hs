@@ -25,6 +25,7 @@ import Lexer.TokensSpec (tokensTests)
 import LibSpec (libTests)
 import PipelinesSpec (pipelinesTests)
 import Semantics.FuncSpec (funcSemanticsTests)
+import Semantics.OpTypeSpec (opTypeSemanticsTests)
 import Semantics.VarsSpec (varsSemanticsTests)
 import Test.Tasty (TestTree, defaultMain, testGroup)
 
@@ -82,6 +83,7 @@ semanticsSpecs =
   testGroup
     "Semantics Tests"
     [ funcSemanticsTests,
+      opTypeSemanticsTests,
       varsSemanticsTests
     ]
 

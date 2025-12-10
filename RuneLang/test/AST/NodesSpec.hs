@@ -41,7 +41,7 @@ typeTests =
         t @?= TypeI32,
       testCase "TypeCustom" $ do
         let t = TypeCustom "MyType"
-        show t @?= "type MyType"
+        show t @?= "MyType"
         t @?= TypeCustom "MyType"
     ]
 

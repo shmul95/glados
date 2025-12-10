@@ -15,6 +15,7 @@ import qualified Data.HashMap.Strict as HM
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
+import Rune.Semantics.OpType (iHTBinary, sameType)
 
 import Rune.Semantics.Type
   ( VarStack
@@ -51,24 +52,24 @@ mangleName :: String -> Type -> [Type] -> String
 mangleName fname ret args =
     intercalate "_" (show ret : fname : map show args)
 
-exprType :: Stack -> Expression -> Type
-exprType _ (ExprLitInt _) = TypeI32
-exprType _ (ExprLitFloat  _) = TypeF32
-exprType _ (ExprLitString  _) = TypeString
-exprType _ (ExprLitChar _ ) = TypeU8
-exprType _ (ExprLitBool  _) = TypeBool
-exprType _ (ExprStructInit st _) = TypeCustom st
-exprType _ ExprLitNull = TypeNull
-exprType _ (ExprAccess _ _) = TypeAny -- don't know how to use struct
-exprType s (ExprBinary _ expr _) = exprType s expr -- assume both expr are of the same type
-exprType s (ExprUnary _ expr) = exprType s expr -- assume the op don't change the type
-exprType (_, vs) (ExprVar name) = fromMaybe TypeAny (HM.lookup name vs)
-exprType s@(fs, _) (ExprCall fn args) =
-  let argTypes = map (exprType s) args
-  in case selectSignature fs fn argTypes of 
-    Just ret -> ret
-    Nothing  -> TypeAny
-
+exprType :: Stack -> Expression -> Either String Type
+exprType _ (ExprLitInt _)         = Right TypeI32
+exprType _ (ExprLitFloat  _)      = Right TypeF32
+exprType _ (ExprLitString  _)     = Right TypeString
+exprType _ (ExprLitChar _ )       = Right TypeU8
+exprType _ (ExprLitBool  _)       = Right TypeBool
+exprType _ (ExprStructInit st _)  = Right $ TypeCustom st
+exprType _ ExprLitNull            = Right TypeNull
+exprType _ (ExprAccess _ _)       = Right TypeAny -- don't know how to use struct
+exprType s (ExprBinary op a b)    = do 
+  a' <- exprType s a
+  b' <- exprType s b
+  iHTBinary op a' b'
+exprType s (ExprUnary _ expr)     = exprType s expr -- assume the op don't change the type
+exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+exprType s@(fs, _) (ExprCall fn args) = do
+  argTypes <- sequence $ map (exprType s) args
+  Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs
@@ -79,8 +80,8 @@ assignVarType vs v t =
     Nothing       -> updated
     Just TypeAny  -> updated
     Just TypeNull -> updated
-    Just t' | t' == t   -> updated
-            | otherwise -> Left $ printf msg v (show t') (show t)
+    Just t' | sameType t t' -> updated
+            | otherwise     -> Left $ printf msg v (show t') (show t)
 
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
 checkMultipleType _ Nothing e_t         = Right e_t
@@ -88,7 +89,7 @@ checkMultipleType _ (Just TypeAny) e_t  = Right e_t
 checkMultipleType _ (Just t) TypeAny    = Right t
 checkMultipleType _ _ TypeNull          = Right TypeNull
 checkMultipleType v (Just t) e_t
-  | t == e_t  = Right t
+  | sameType t e_t  = Right t
   | otherwise =
     let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
     in Left $ printf msg v (show t) (show e_t)
@@ -98,9 +99,10 @@ checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
 checkEachParam s i (e:es) (t:at) =
   let wrong_type = "\n\tWrongType: arg%d exp %s but have %s"
       next = checkEachParam s (i + 1) es at
-  in case exprType s e == t of
-    True  -> next
-    False -> Just (printf wrong_type i (show t) (show $ exprType s e)) <> next
+  in case exprType s e of
+    Left err -> Just err
+    Right t' | sameType t t'  -> next
+             | otherwise      -> Just (printf wrong_type i (show t) (show t')) <> next 
 checkEachParam _ _ [] [] = Nothing
 checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
 checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)

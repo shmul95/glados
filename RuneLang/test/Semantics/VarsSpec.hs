@@ -161,21 +161,6 @@ structProgram =
         ]
     ]
 
--- structMethodErrorProgram :: Program
--- structMethodErrorProgram =
---   Program
---     "struct-error"
---     [ DefStruct
---         "Vec"
---         []
---         [ DefFunction
---             "len"
---             []
---             TypeI32
---             [StmtExpr (ExprVar "ghost")]
---         ]
---     ]
-
 overrideLeakProgram :: Program
 overrideLeakProgram =
   Program
@@ -186,17 +171,6 @@ overrideLeakProgram =
         TypeNull
         [StmtExpr (ExprVar "ghost")]
     ]
-
--- overrideValidProgram :: Program
--- overrideValidProgram =
---   Program
---     "override-valid"
---     [ DefOverride
---         "print"
---         [Parameter "value" TypeI32]
---         TypeI32
---         [StmtReturn (Just (ExprVar "value"))]
---     ]
 
 overrideValidProgram :: Program
 overrideValidProgram =
