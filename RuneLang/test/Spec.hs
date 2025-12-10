@@ -9,6 +9,7 @@ import Core.PipelinesSpecs (pipelinesTests)
 import Core.LoggerSpecs (loggerTests)
 
 import Lexer.LexerSpecs (lexerTests)
+import Lexer.LexerIdentifiersSpecs (lexerIdentifiersTests)
 
 --
 -- public
@@ -43,4 +44,5 @@ lexerSpecs =
   testGroup
     "Lexer Tests"
     [ lexerTests
+    , lexerIdentifiersTests
     ]
