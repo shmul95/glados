@@ -1,7 +1,30 @@
+{-# OPTIONS_GHC -cpp #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
-module Rune.Pipelines (compilePipeline, interpretPipeline) where
+#if defined(TESTING_EXPORT)
+module Rune.Pipelines
+  ( compilePipeline,
+    interpretPipeline,
+    pipeline,
+    verifAndGenIR,
+    runPipeline,
+    runPipelineAction,
+    optimizeIR,
+    genIR,
+    checkSemantics,
+    safeRead,
+    parseLexer,
+    parseAST,
+  )
+where
+#else
+module Rune.Pipelines
+  ( compilePipeline,
+    interpretPipeline,
+  )
+where
+#endif
 
 import Control.Exception (IOException, try)
 import Control.Monad ((>=>))
