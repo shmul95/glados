@@ -4,11 +4,7 @@
 module Rune.Pipelines (compilePipeline, interpretPipeline) where
 
 import Control.Exception (IOException, try)
-import Control.Monad ((>=>), unless)
-import Control.Monad.Except (runExceptT, throwError)
-import Control.Monad.Trans(lift)
-import System.Directory (findExecutable)
-import Data.Maybe (isJust)
+import Control.Monad ((>=>))
 import Logger (logError)
 import Rune.AST.Nodes (Program)
 import Rune.AST.Parser (parseRune)
@@ -19,6 +15,7 @@ import Rune.IR.Printer (prettyPrintIR)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
+import Rune.SanityChecks (performSanityChecks)
 import Text.Megaparsec (errorBundlePretty)
 
 --
@@ -44,8 +41,8 @@ pipeline =
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
-  toolSanity <- checkToolchainSanity
-  case toolSanity of
+  sanityCheck <- performSanityChecks
+  case sanityCheck of
     Left err -> pure $ Left err
     Right () -> do
       readContent <- safeRead fp
@@ -60,19 +57,6 @@ runPipelineAction inFile onSuccess =
 --
 -- private encapsulations for error handling
 --
-
-hasTool :: String -> IO Bool
-hasTool = fmap isJust . findExecutable
-
-checkToolchainSanityWith :: (String -> IO Bool) -> IO (Either String ())
-checkToolchainSanityWith hasTool' = runExceptT $ do
-  gcc <- lift $ hasTool' "gcc"
-  nasm <- lift $ hasTool' "nasm"
-  unless gcc $ throwError "'gcc' not found in PATH. Please install GCC to proceed."
-  unless nasm $ throwError "'nasm' not found in PATH. Please install NASM to proceed."
-
-checkToolchainSanity :: IO (Either String ())
-checkToolchainSanity = checkToolchainSanityWith hasTool
 
 genIR :: Program -> Either String IRProgram
 genIR p = Right $ generateIR p
