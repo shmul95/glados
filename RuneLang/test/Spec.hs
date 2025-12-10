@@ -16,6 +16,7 @@ import Lexer.LexerDelimitersSpecs (lexerDelimitersTests)
 import Lexer.LexerKeywordsSpecs (lexerKeywordsTests)
 import Lexer.LexerOperatorsSpecs (lexerOperatorsTests)
 import Lexer.LexerPrimitivesSpecs (lexerPrimitivesTests)
+import Lexer.TokensSpecs (tokensTests)
 
 --
 -- public
@@ -57,4 +58,5 @@ lexerSpecs =
     , lexerKeywordsTests
     , lexerOperatorsTests
     , lexerPrimitivesTests
+    , tokensTests
     ]
