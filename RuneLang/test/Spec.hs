@@ -12,6 +12,10 @@ import Lexer.LexerSpecs (lexerTests)
 import Lexer.LexerIdentifiersSpecs (lexerIdentifiersTests)
 import Lexer.LexerLiteralsSpecs (lexerLiteralsTests)
 import Lexer.LexerParserSpecs (lexerParserTests)
+import Lexer.LexerDelimitersSpecs (lexerDelimitersTests)
+import Lexer.LexerKeywordsSpecs (lexerKeywordsTests)
+import Lexer.LexerOperatorsSpecs (lexerOperatorsTests)
+import Lexer.LexerPrimitivesSpecs (lexerPrimitivesTests)
 
 --
 -- public
@@ -49,4 +53,8 @@ lexerSpecs =
     , lexerIdentifiersTests
     , lexerLiteralsTests
     , lexerParserTests
+    , lexerDelimitersTests
+    , lexerKeywordsTests
+    , lexerOperatorsTests
+    , lexerPrimitivesTests
     ]
