@@ -1,6 +1,3 @@
-/**
-TODO: override like this maybe
-
 override def show(msg: string, value: i32) -> null
 {
     show(msg);
@@ -8,24 +5,9 @@ override def show(msg: string, value: i32) -> null
     show('\n');
 }
 
-def loops() -> i32 { ... }
-
-def main() -> null
-{
-    show("The final value is: ", loops());
-}
-*/
-
-def pretty_show(value: i32) -> null
-{
-    show("The final value is: ");
-    show(value);
-    show('\n');
-}
-
 def loops() -> i32
 {
-    k: i32;
+    k: i32 = 0;
 
     for i = 0 to 10 {
         ++i;
@@ -42,5 +24,5 @@ def loops() -> i32
 
 def main() -> null
 {
-    pretty_show(loops());
+    show("The final value is: ", loops());
 }

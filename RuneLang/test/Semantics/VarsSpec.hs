@@ -86,14 +86,14 @@ expectWrongType label program =
 expectWrongNbArgsLess :: String -> Program -> TestTree
 expectWrongNbArgsLess label program =
   testCase label $ case verifVars program of
-    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too less" `isInfixOf` msg) -> return ()
-    result -> fail $ "Expected WrongNbArgs (too less) error, got: " ++ show result
+    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too few" `isInfixOf` msg) -> return ()
+    result -> fail $ "Expected WrongNbArgs (too few) error, got: " ++ show result
 
 expectWrongNbArgsMore :: String -> Program -> TestTree
 expectWrongNbArgsMore label program =
   testCase label $ case verifVars program of
-    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too much" `isInfixOf` msg) -> return ()
-    result -> fail $ "Expected WrongNbArgs (too much) error, got: " ++ show result
+    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too many" `isInfixOf` msg) -> return ()
+    result -> fail $ "Expected WrongNbArgs (too many) error, got: " ++ show result
 
 undefinedMsg :: String -> String
 undefinedMsg name = "\n\tUndefinedVar: " ++ name ++ " doesn't exist in the scope"

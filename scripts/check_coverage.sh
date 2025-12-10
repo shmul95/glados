@@ -75,10 +75,10 @@ function check_coverage()
     fi
 }
 
-LISP_COV=$(extract_coverage "Lisp" "$LOG_CONTENT")
+LISP_COV=$(extract_coverage "LispLang" "$LOG_CONTENT")
 check_coverage "Lisp (GLaDOS)" "$LISP_COV"
 
-RUNE_COV=$(extract_coverage "Rune" "$LOG_CONTENT")
+RUNE_COV=$(extract_coverage "RuneLang" "$LOG_CONTENT")
 check_coverage "Rune" "$RUNE_COV"
 
 if [ $EXIT_CODE -eq $EXIT_SUCCESS ]; then

@@ -173,8 +173,8 @@ It will be merged into the `dev` branch.
 
 ## Project Structure
 
-- `Lisp/` - Lisp interpreter implementation
-- `Rune/` - Rune language interpreter and compiler
+- `LispLang/` - Lisp interpreter implementation
+- `RuneLang/` - Rune language interpreter and compiler
 - `scripts/` - Utility scripts for development
 - `docs/` - Project documentation
 

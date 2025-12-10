@@ -23,6 +23,8 @@ jobs:
           mkdir -p output
           cp glados output/glados-linux
           cp rune output/rune-linux
+          chmod +x output/glados-linux
+          chmod +x output/rune-linux
 
       - name: Upload binaries as artifacts
         uses: actions/upload-artifact@v4

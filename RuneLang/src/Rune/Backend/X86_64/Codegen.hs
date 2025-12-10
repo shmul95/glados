@@ -198,10 +198,12 @@ emitDeref sm dest ptr typ =
     storeReg sm dest "rax" typ
   ]
 
--- | emit INC/DEC on pointer operand
+-- | emit INC/DEC on pointer or numeric operand
 emitIncDec :: Map String Int -> IROperand -> String -> [String]
-emitIncDec sm (IRTemp name _) asmOp = [emit 1 $ asmOp ++ " qword " ++ stackAddr sm name ++ ", 1"]
-emitIncDec _ op _ = [emit 1 $ "; TODO: " ++ show op ++ " on non-pointer"]
+emitIncDec sm (IRTemp name t) asmOp = 
+  let sizeSpec = getSizeSpecifier t
+  in [emit 1 $ asmOp ++ " " ++ sizeSpec ++ " " ++ stackAddr sm name ++ ", 1"]
+emitIncDec _ op _ = [emit 1 $ "; TODO: " ++ show op ++ " on non-temp/pointer"]
 
 -- | emit ADDR dest, source
 --  cases:
@@ -215,7 +217,7 @@ emitAddr sm dest source t
 -- | emit conditional jump based on test (zero/not-zero)
 emitConditionalJump :: Map String Int -> IROperand -> String -> String -> [String]
 emitConditionalJump sm op jumpInstr lbl =
-  loadReg sm "rax" op
+  loadRegWithExt sm ("rax", op)
     ++ [emit 1 $ "test " ++ getTestReg op ++ ", " ++ getTestReg op]
     ++ [emit 1 $ jumpInstr ++ " " ++ lbl]
 

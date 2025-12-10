@@ -25,7 +25,7 @@
 ## Description
 
 **GLaDOS** is an interpreter and a compiler developed entirely in **Haskell**.<br>
-This project features a [**Lisp**](./Lisp) interpreter and a [**Rune language**](./Rune) interpreter and compiler.
+This project features a [**Lisp**](./LispLang) interpreter and a [**Rune language**](./RuneLang) interpreter and compiler.
 
 ## Prerequisites
 

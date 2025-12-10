@@ -32,7 +32,7 @@ checkParamType s@(fs, _) fname es =
     Just []         -> Left $ printf unknown_func fname
     Just [sig]      -> checkSingle sig
     Just (sig:sigs) -> case checkSingle sig of
-                         Left _  -> checkAll (printf no_match fname (show sigs)) sigs
+                         Left _  -> checkAll (printf no_match fname (show (sig:sigs))) sigs
                          Right r -> Right r
   where
     -- if there is 1 signature so no override
@@ -104,8 +104,8 @@ checkEachParam s i (e:es) (t:at) =
     Right t' | sameType t t'  -> next
              | otherwise      -> Just (printf wrong_type i (show t) (show t')) <> next 
 checkEachParam _ _ [] [] = Nothing
-checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too less)") (length at + i) (i)
-checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d where given (too much)") (i) (length es + i)
+checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
+checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name at =
