@@ -24,6 +24,7 @@ import Lexer.LexerSpec (lexerTests)
 import Lexer.TokensSpec (tokensTests)
 import LibSpec (libTests)
 import PipelinesSpec (pipelinesTests)
+import SanityChecksSpec (sanityChecksTests)
 import Semantics.FuncSpec (funcSemanticsTests)
 import Semantics.OpTypeSpec (opTypeSemanticsTests)
 import Semantics.VarsSpec (varsSemanticsTests)
@@ -56,6 +57,7 @@ coreSpecs =
     "Core Tests"
     [ libTests,
       pipelinesTests,
+      sanityChecksTests,
       cliTests
     ]
 
