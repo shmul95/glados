@@ -7,7 +7,6 @@ import Rune.AST.Nodes (Program (..))
 import Rune.IR.Generator.GenTopLevel (genTopLevel)
 import Rune.IR.Nodes (GenState (..), IRFunction (..), IRProgram (..), IRTopLevel (..))
 import Rune.Semantics.Type (FuncStack)
-import Rune.AST.Printer (prettyPrint)
 
 --
 -- public
