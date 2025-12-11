@@ -21,6 +21,12 @@ import Lexer.TokensSpecs (tokensTests)
 import AST.TypesSpecs (astTypesTests)
 import AST.NodesSpecs (astNodesTests)
 import AST.ParserHelperSpecs (parserHelperTests)
+import AST.PrinterSpecs (printerTests)
+import AST.ParserSpecs (parserTests)
+
+import Semantics.VarsSpecs (varsSemanticsTests)
+
+import IR.NodesSpecs (irNodesTests)
 
 --
 -- public
@@ -35,6 +41,8 @@ main =
         [ coreSpecs
         , lexerSpecs
         , astSpecs
+        , semanticsSpecs
+        , irSpecs
         ]
 
 --
@@ -73,4 +81,19 @@ astSpecs =
     [ astTypesTests
     , parserHelperTests
     , astNodesTests
+    , printerTests
+    , parserTests
+    ]
+semanticsSpecs :: TestTree
+semanticsSpecs =
+  testGroup
+    "Semantics Tests"
+    [ varsSemanticsTests
+    ]
+
+irSpecs :: TestTree
+irSpecs =
+  testGroup
+    "IR Tests"
+    [ irNodesTests
     ]
