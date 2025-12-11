@@ -25,6 +25,7 @@ import AST.PrinterSpecs (printerTests)
 import AST.ParserSpecs (parserTests)
 
 import Semantics.VarsSpecs (varsSemanticsTests)
+import Semantics.OpTypeSpecs (opTypeSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
 
@@ -89,6 +90,7 @@ semanticsSpecs =
   testGroup
     "Semantics Tests"
     [ varsSemanticsTests
+    , opTypeSemanticsTests
     ]
 
 irSpecs :: TestTree
