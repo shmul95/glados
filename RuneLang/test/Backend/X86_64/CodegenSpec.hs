@@ -28,7 +28,12 @@ testEmptyProgram =
   testCase "emit assembly for empty program" $
     let irProg = IRProgram "empty" []
         asm = emitAssembly irProg
-     in asm @?= ""
+     in do
+          -- # explanation
+          -- Allow the stack note section footer even when there are no functions or globals
+          asm @?= "    ; this section is to remove the gcc GNU related warning\nsection .note.GNU-stack noalloc noexec nowrite\n"
+          -- # old code commented out
+          -- asm @?= ""
 
 testSimpleFunction :: TestTree
 testSimpleFunction =
