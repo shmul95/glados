@@ -1,7 +1,26 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.GenTopLevel
+  ( genTopLevel,
+    genFunction,
+    genOverride,
+    genStruct,
+    genStructMethod,
+    genParam,
+    fixSelfParam,
+    resetFunctionState,
+    clearFunctionState,
+    ensureReturn,
+    lastOrNothing
+  )
+where
+#else
 module Rune.IR.Generator.GenTopLevel
   ( genTopLevel,
   )
 where
+#endif
 
 import Control.Monad.State (modify)
 import Data.Map (empty, insert)

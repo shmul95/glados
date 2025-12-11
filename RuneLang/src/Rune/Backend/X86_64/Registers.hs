@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
 module Rune.Backend.X86_64.Registers
   ( x86_64Registers,
     x86_64ArgsRegisters,
@@ -8,6 +11,18 @@ module Rune.Backend.X86_64.Registers
     getMovType,
   )
 where
+#else
+module Rune.Backend.X86_64.Registers
+  ( x86_64Registers,
+    x86_64ArgsRegisters,
+    x86_64CallerSavedRegisters,
+    x86_64CalleeSavedRegisters,
+    getRegisterName,
+    getSizeSpecifier,
+    getMovType,
+  )
+where
+#endif
 
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRType (IRPtr))

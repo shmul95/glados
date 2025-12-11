@@ -16,6 +16,7 @@ where
 import Control.Monad.State (State)
 import Data.Map (Map)
 import Data.Set (Set)
+import Rune.Semantics.Type (FuncStack)
 
 --
 -- state
@@ -31,7 +32,8 @@ data GenState = GenState
     gsStructs :: Map String [(String, IRType)],
     gsLoopStack :: [(IRLabel, IRLabel)],
     gsCalledFuncs :: Set String,
-    gsStringMap :: Map String String
+    gsStringMap :: Map String String,
+    gsFuncStack :: FuncStack
   }
   deriving (Show, Eq)
 

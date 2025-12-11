@@ -1,33 +1,56 @@
 module Main (main) where
 
-import AST.NodesSpec (astNodesTests)
-import AST.ParserSpec (astParserTests)
-import AST.ParseTypesSpec (parseTypesTests)
-import AST.PrinterSpec (astPrinterTests)
-import AST.ProgramSyntaxSpec (programSyntaxTests)
-import Backend.HelpersSpec (backendHelpersTests)
-import Backend.TypesSpec (backendTypesTests)
-import Backend.X86_64.CodegenExtendedSpec (codegenExtendedTests)
-import Backend.X86_64.CodegenSpec (codegenTests)
-import Backend.X86_64.CompareSpec (compareTests)
-import Backend.X86_64.RegistersSpec (registersTests)
-import CLISpec (cliTests)
-import IR.IRExpressionsSpec (irExpressionsTests)
-import IR.IRStatementsSpec (irStatementsTests)
-import IR.IRGeneratorSpec (irGeneratorTests)
-import IR.IRHelpersSpec (irHelpersTests)
-import IR.IRNodesSpecs (irNodesTests)
-import IR.IRPrinterSpec (irPrinterTests)
-import IR.IRShowCallSpec (irShowCallTests)
-import IR.IRControlFlowSpec (irControlFlowTests)
-import Lexer.LexerSpec (lexerTests)
-import Lexer.TokensSpec (tokensTests)
-import LibSpec (libTests)
-import PipelinesSpec (pipelinesTests)
-import Semantics.FuncSpec (funcSemanticsTests)
-import Semantics.OpTypeSpec (opTypeSemanticsTests)
-import Semantics.VarsSpec (varsSemanticsTests)
-import Test.Tasty (TestTree, defaultMain, testGroup)
+import Test.Tasty
+import Test.Tasty.Runners (NumThreads(..))
+
+import Core.CLISpecs (cliTests)
+import Core.LibSpecs (libTests)
+import Core.PipelinesSpecs (pipelinesTests)
+import Core.LoggerSpecs (loggerTests)
+
+import Lexer.LexerSpecs (lexerTests)
+import Lexer.LexerIdentifiersSpecs (lexerIdentifiersTests)
+import Lexer.LexerLiteralsSpecs (lexerLiteralsTests)
+import Lexer.LexerParserSpecs (lexerParserTests)
+import Lexer.LexerDelimitersSpecs (lexerDelimitersTests)
+import Lexer.LexerKeywordsSpecs (lexerKeywordsTests)
+import Lexer.LexerOperatorsSpecs (lexerOperatorsTests)
+import Lexer.LexerPrimitivesSpecs (lexerPrimitivesTests)
+import Lexer.TokensSpecs (tokensTests)
+
+import AST.TypesSpecs (astTypesTests)
+import AST.NodesSpecs (astNodesTests)
+import AST.ParserHelperSpecs (parserHelperTests)
+import AST.PrinterSpecs (astPrinterTests)
+import AST.ParserSpecs (parserTests)
+
+import Semantics.VarsSpecs (varsSemanticsTests)
+import Semantics.OpTypeSpecs (opTypeSemanticsTests)
+import Semantics.HelperSpecs (helperSemanticsTests)
+import Semantics.FuncSpecs (funcSemanticsTests)
+
+import IR.NodesSpecs (irNodesTests)
+import IR.IRHelpersSpecs (irHelpersTests)
+import IR.GeneratorSpecs (generatorTests)
+import IR.Generator.GenTopLevelSpecs (genTopLevelTests)
+import IR.Generator.GenStatementSpecs (genStatementTests)
+import IR.Generator.GenExpressionSpecs (genExpressionTests)
+import IR.Generator.Expression.BinarySpecs (binaryExprTests)
+import IR.Generator.Expression.UnarySpecs (unaryExprTests)
+import IR.Generator.Expression.LiteralsSpecs (literalsTests)
+import IR.Generator.Expression.CallSpecs (callExprTests)
+import IR.Generator.Expression.StructSpecs (structExprTests)
+import IR.Generator.Expression.Call.ShowSpecs (showCallTests)
+import IR.Generator.Statement.ControlFlowSpecs (controlFlowTests)
+import IR.Generator.Statement.LoopsSpecs (loopsTests)
+import IR.PrinterSpecs (irPrinterTests)
+import IR.OptimizerSpecs (optimizerTests)
+
+import Backend.HelpersSpecs (backendHelpersTests)
+import Backend.TypesSpecs (backendTypesTests)
+import Backend.X86_64.RegistersSpecs (registersTests)
+import Backend.X86_64.CompareSpecs (compareTests)
+import Backend.X86_64.CodegenSpecs (codegenTests)
 
 --
 -- public
@@ -36,16 +59,16 @@ import Test.Tasty (TestTree, defaultMain, testGroup)
 main :: IO ()
 main =
   defaultMain $
-    testGroup
-      "All Tests"
-      [ coreSpecs,
-        lexerSpecs,
-        astSpecs,
-        semanticsSpecs,
-        irSpecs,
-        backendSpecs
-      ]
-
+    localOption (NumThreads 1) $
+      testGroup
+        "All Tests"
+        [ coreSpecs
+        , lexerSpecs
+        , astSpecs
+        , semanticsSpecs
+        , irSpecs
+        , backendSpecs
+        ]
 --
 -- private
 --
@@ -54,61 +77,77 @@ coreSpecs :: TestTree
 coreSpecs =
   testGroup
     "Core Tests"
-    [ libTests,
-      pipelinesTests,
-      cliTests
+    [ libTests
+    , pipelinesTests
+    , cliTests
+    , loggerTests
     ]
 
 lexerSpecs :: TestTree
 lexerSpecs =
   testGroup
     "Lexer Tests"
-    [ tokensTests,
-      lexerTests
+    [ lexerTests
+    , lexerIdentifiersTests
+    , lexerLiteralsTests
+    , lexerParserTests
+    , lexerDelimitersTests
+    , lexerKeywordsTests
+    , lexerOperatorsTests
+    , lexerPrimitivesTests
+    , tokensTests
     ]
 
 astSpecs :: TestTree
 astSpecs =
   testGroup
     "AST Tests"
-    [ astNodesTests,
-      astParserTests,
-      parseTypesTests,
-      programSyntaxTests,
-      astPrinterTests
+    [ astTypesTests
+    , parserHelperTests
+    , astNodesTests
+    , astPrinterTests
+    , parserTests
     ]
 
 semanticsSpecs :: TestTree
 semanticsSpecs =
   testGroup
     "Semantics Tests"
-    [ funcSemanticsTests,
-      opTypeSemanticsTests,
-      varsSemanticsTests
+    [ varsSemanticsTests
+    , opTypeSemanticsTests
+    , helperSemanticsTests
+    , funcSemanticsTests
     ]
 
 irSpecs :: TestTree
 irSpecs =
   testGroup
     "IR Tests"
-    [ irNodesTests,
-      irHelpersTests,
-      irGeneratorTests,
-      irStatementsTests,
-      irPrinterTests,
-      irExpressionsTests,
-      irControlFlowTests,
-      irShowCallTests
+    [ irNodesTests
+    , irHelpersTests
+    , generatorTests
+    , genTopLevelTests
+    , genStatementTests
+    , genExpressionTests
+    , binaryExprTests
+    , unaryExprTests
+    , literalsTests
+    , callExprTests
+    , structExprTests
+    , showCallTests
+    , controlFlowTests
+    , loopsTests
+    , irPrinterTests
+    , optimizerTests
     ]
 
 backendSpecs :: TestTree
 backendSpecs =
   testGroup
     "Backend Tests"
-    [ backendTypesTests,
-      backendHelpersTests,
-      registersTests,
-      compareTests,
-      codegenTests,
-      codegenExtendedTests
+    [ backendHelpersTests
+    , backendTypesTests
+    , registersTests
+    , compareTests
+    , codegenTests
     ]

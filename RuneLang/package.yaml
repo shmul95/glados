@@ -32,8 +32,17 @@ ghc-options:
   - -Wpartial-fields
   - -Wredundant-constraints
 
+flags:
+  testing-exports:
+    description: Enable internal exports for testing.
+    default: true
+    manual: true
+
 library:
   source-dirs: src
+  when:
+    condition: flag(testing-exports)
+    cpp-options: -DTESTING_EXPORT
 
 executables:
   rune-exe:
@@ -59,7 +68,7 @@ tests:
       - rune
       - tasty
       - tasty-hunit
+      - filepath
       - directory
-      - process
-      - silently
       - temporary
+      - silently
