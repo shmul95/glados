@@ -18,6 +18,8 @@ import Lexer.LexerOperatorsSpecs (lexerOperatorsTests)
 import Lexer.LexerPrimitivesSpecs (lexerPrimitivesTests)
 import Lexer.TokensSpecs (tokensTests)
 
+import AST.TypesSpecs (astTypesTests)
+
 --
 -- public
 --
@@ -30,6 +32,7 @@ main =
         "All Tests"
         [ coreSpecs
         , lexerSpecs
+        , astSpecs
         ]
 
 --
@@ -59,4 +62,11 @@ lexerSpecs =
     , lexerOperatorsTests
     , lexerPrimitivesTests
     , tokensTests
+    ]
+
+astSpecs :: TestTree
+astSpecs =
+  testGroup
+    "AST Tests"
+    [ astTypesTests
     ]
