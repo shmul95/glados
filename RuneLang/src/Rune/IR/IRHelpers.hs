@@ -148,12 +148,13 @@ newFloatGlobal value typ = do
 createFloatGlobal :: Double -> IRType -> IRGen String
 createFloatGlobal value typ = do
   counter <- gets gsFloatCounter
-  let name = ".float" ++ show counter
+  func    <- gets gsCurrentFunc
+  let base = fromMaybe "global" func
+      name = base ++ "_float" ++ show counter
   modify $ \s ->
-    s
-      { gsFloatCounter = counter + 1,
-        gsGlobals = IRGlobalFloat name value typ : gsGlobals s,
-        gsFloatMap = Map.insert value name (gsFloatMap s)
+    s { gsFloatCounter = counter + 1
+      , gsGlobals = IRGlobalFloat name value typ : gsGlobals s
+      , gsFloatMap = Map.insert value name (gsFloatMap s)
       }
   pure name
 -- old code commented out

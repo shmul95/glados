@@ -8,7 +8,7 @@ where
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.Helpers (emit)
-import Rune.Backend.X86_64.Registers (getRegisterName)
+import Rune.Backend.X86_64.Registers (getRegisterName, x86_64FloatArgsRegisters)
 import Rune.IR.IRHelpers (getCommonType)
 import Rune.IR.Nodes (IROperand (..), IRType (..))
 
@@ -115,9 +115,16 @@ isFloatType IRF64 = True
 isFloatType _ = False
 
 getFloatRegs :: IRType -> (String, String)
-getFloatRegs IRF32 = ("xmm0", "xmm1")
-getFloatRegs IRF64 = ("xmm0", "xmm1")
-getFloatRegs _ = ("xmm0", "xmm1")
+-- explanation
+-- Use the first two SysV float-arg registers instead of hard-coded xmm0/xmm1 for float comparisons
+getFloatRegs IRF32 = (head x86_64FloatArgsRegisters, x86_64FloatArgsRegisters !! 1)
+getFloatRegs IRF64 = (head x86_64FloatArgsRegisters, x86_64FloatArgsRegisters !! 1)
+getFloatRegs _ = (head x86_64FloatArgsRegisters, x86_64FloatArgsRegisters !! 1)
+-- old code commented out
+-- getFloatRegs :: IRType -> (String, String)
+-- getFloatRegs IRF32 = ("xmm0", "xmm1")
+-- getFloatRegs IRF64 = ("xmm0", "xmm1")
+-- getFloatRegs _ = ("xmm0", "xmm1")
 
 stackAddr :: Map String Int -> String -> String
 stackAddr sm name = case Map.lookup name sm of
