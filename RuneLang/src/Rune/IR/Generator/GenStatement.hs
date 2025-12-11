@@ -1,7 +1,22 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.GenStatement
+  ( genStatement,
+    genBlock,
+    genVarDecl,
+    genVarType,
+    genAssignment,
+    genReturnExpr,
+    genExprStmt
+  )
+where
+#else
 module Rune.IR.Generator.GenStatement
   ( genStatement,
   )
 where
+#endif
 
 import Rune.AST.Nodes (Expression, Statement (..), Type)
 import Rune.IR.Generator.GenExpression (genExpression)

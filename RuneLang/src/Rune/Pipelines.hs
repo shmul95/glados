@@ -1,13 +1,33 @@
+{-# OPTIONS_GHC -cpp #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
-module Rune.Pipelines (
-  compilePipeline,
-  compileToObject,
-  compileAsmIntoObject,
-  interpretPipeline,
-  CompileMode (..)
-) where
+#if defined(TESTING_EXPORT)
+module Rune.Pipelines
+  ( CompileMode (..),
+    compilePipeline,
+    compileToObject,
+    compileAsmIntoObject,
+    interpretPipeline,
+    pipeline,
+    verifAndGenIR,
+    runPipeline,
+    runPipelineAction,
+    optimizeIR,
+    genIR,
+    checkSemantics,
+    safeRead,
+    parseLexer,
+    parseAST,
+  )
+where
+#else
+module Rune.Pipelines
+  ( compilePipeline,
+    interpretPipeline,
+  )
+where
+#endif
 
 import Control.Exception (IOException, try)
 import Control.Monad ((>=>))
@@ -18,10 +38,12 @@ import Rune.Backend.X86_64.Codegen (emitAssembly)
 import Rune.IR.Generator (generateIR)
 import Rune.IR.Nodes (IRProgram)
 import Rune.IR.Printer (prettyPrintIR)
+import Rune.IR.Optimizer (runIROptimizer)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
+import Rune.Semantics.Type (FuncStack)
 import Text.Megaparsec (errorBundlePretty)
 import System.Process (system)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
@@ -67,8 +89,13 @@ pipeline :: (FilePath, String) -> Either String IRProgram
 pipeline =
   parseLexer
     >=> parseAST
-    >=> checkSemantics
-    >=> genIR
+    >=> verifAndGenIR
+    >=> optimizeIR
+
+verifAndGenIR :: Program -> Either String IRProgram
+verifAndGenIR p = do
+  (checkedAST, funcStack) <- checkSemantics p
+  genIR checkedAST funcStack
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
@@ -116,10 +143,13 @@ compileObjectIntoExecutable objFile exeFile = do
 -- private encapsulations for error handling
 --
 
-genIR :: Program -> Either String IRProgram
-genIR p = Right $ generateIR p
+optimizeIR :: IRProgram -> Either String IRProgram
+optimizeIR p = Right $ runIROptimizer p
 
-checkSemantics :: Program -> Either String Program
+genIR :: Program -> FuncStack -> Either String IRProgram
+genIR p fs = Right $ generateIR p fs
+
+checkSemantics :: Program -> Either String (Program, FuncStack)
 checkSemantics = verifVars
 
 safeRead :: FilePath -> IO (Either String String)

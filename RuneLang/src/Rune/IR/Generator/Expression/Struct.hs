@@ -1,4 +1,17 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.Expression.Struct
+  ( genStructInit,
+    genAccess,
+    resolveStructPtr,
+    lookupFieldType,
+    genInitField
+  )
+where
+#else
 module Rune.IR.Generator.Expression.Struct (genStructInit, genAccess) where
+#endif
 
 import Control.Monad.State (gets)
 import qualified Data.Map.Strict as Map
