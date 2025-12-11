@@ -34,6 +34,7 @@ emitAssembly (IRProgram _ topLevels) =
           ++ emitDataSection globalStrings
           ++ emitRoDataSection globalFloats
           ++ emitTextSection functions
+          ++ [emit 1 "; this section is to remove the gcc GNU related warning\nsection .note.GNU-stack noalloc noexec nowrite"]
 -- old code commented out
 -- emitAssembly :: IRProgram -> String
 -- emitAssembly (IRProgram _ topLevels) =
@@ -241,9 +242,16 @@ emitCall sm dest funcName args mbType =
             -- explanation
             -- Promote first float arg using the first SysV float-arg register instead of literal xmm0
             case x86_64FloatArgsRegisters of
-              reg0 : _ -> [emit 1 $ "cvtss2sd " ++ reg0 ++ ", " ++ reg0]
-              _ -> [emit 1 "cvtss2sd xmm0, xmm0"]
+              reg0 : _ ->
+                [ emit 1 $ "cvtss2sd " ++ reg0 ++ ", " ++ reg0
+                , emit 1 $ "mov eax, 1"
+                ]
+              _ ->
+                [ emit 1 "cvtss2sd xmm0, xmm0"
+                , emit 1 $ "mov eax, 1"
+                ]
           else []
+
       callInstr = [emit 1 $ "call " ++ funcName]
       retSave = saveCallResult sm dest mbType
    in argSetup ++ printfFixup ++ callInstr ++ retSave
