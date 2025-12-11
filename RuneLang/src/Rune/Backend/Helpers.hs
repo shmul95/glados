@@ -1,3 +1,21 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Backend.Helpers
+  ( emit,
+    escapeString,
+    collectIRVars,
+    collectTopLevels,
+    calculateStackMap,
+    alignUp,
+    collectTopLevel,
+    collectVars,
+    accumulateOffset,
+    encodeCharacter,
+    makeRbpOffset
+  )
+where
+#else
 module Rune.Backend.Helpers
   ( emit,
     escapeString,
@@ -6,6 +24,7 @@ module Rune.Backend.Helpers
     calculateStackMap,
   )
 where
+#endif
 
 import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map

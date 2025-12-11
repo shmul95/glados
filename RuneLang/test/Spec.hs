@@ -38,10 +38,19 @@ import IR.Generator.GenExpressionSpecs (genExpressionTests)
 import IR.Generator.Expression.BinarySpecs (binaryExprTests)
 import IR.Generator.Expression.UnarySpecs (unaryExprTests)
 import IR.Generator.Expression.LiteralsSpecs (literalsTests)
+import IR.Generator.Expression.CallSpecs (callExprTests)
+import IR.Generator.Expression.StructSpecs (structExprTests)
+import IR.Generator.Expression.Call.ShowSpecs (showCallTests)
 import IR.Generator.Statement.ControlFlowSpecs (controlFlowTests)
 import IR.Generator.Statement.LoopsSpecs (loopsTests)
 import IR.PrinterSpecs (irPrinterTests)
 import IR.OptimizerSpecs (optimizerTests)
+
+import Backend.HelpersSpecs (backendHelpersTests)
+import Backend.TypesSpecs (backendTypesTests)
+import Backend.X86_64.RegistersSpecs (registersTests)
+import Backend.X86_64.CompareSpecs (compareTests)
+import Backend.X86_64.CodegenSpecs (codegenTests)
 
 --
 -- public
@@ -58,6 +67,7 @@ main =
         , astSpecs
         , semanticsSpecs
         , irSpecs
+        , backendSpecs
         ]
 --
 -- private
@@ -122,8 +132,22 @@ irSpecs =
     , binaryExprTests
     , unaryExprTests
     , literalsTests
+    , callExprTests
+    , structExprTests
+    , showCallTests
     , controlFlowTests
     , loopsTests
     , irPrinterTests
     , optimizerTests
+    ]
+
+backendSpecs :: TestTree
+backendSpecs =
+  testGroup
+    "Backend Tests"
+    [ backendHelpersTests
+    , backendTypesTests
+    , registersTests
+    , compareTests
+    , codegenTests
     ]

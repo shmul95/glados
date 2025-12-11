@@ -1,4 +1,14 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.Expression.Call
+  ( genCall,
+    prepareArg
+  )
+where
+#else
 module Rune.IR.Generator.Expression.Call (genCall) where
+#endif
 
 import Control.Monad.State (gets)
 import Rune.AST.Nodes (Expression)
