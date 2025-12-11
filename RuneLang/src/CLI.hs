@@ -112,6 +112,11 @@ determineCompileRule args
   where
     hasBoth = "-c" `elem` args && "-S" `elem` args
 
+isSourceFile :: FilePath -> Maybe FilePath -> Action
+isSourceFile inFile outFile = case takeExtension inFile == ".ru" of
+  True -> CompileAll inFile outFile
+  False -> CompileObjToExec inFile outFile
+
 parseBuild :: [String] -> Either String Action
 parseBuild args = do
   (rule, args1) <- determineCompileRule args
@@ -119,7 +124,7 @@ parseBuild args = do
   (outFile, args3) <- findOutputFile args2
   if null args3
     then pure $ case rule of
-      All -> CompileAll inFile outFile
+      All -> isSourceFile inFile outFile
       ToObj -> CompileToObj inFile outFile
       ToAsm -> CreateAsm inFile outFile
       ToExec -> CompileObjToExec inFile outFile
