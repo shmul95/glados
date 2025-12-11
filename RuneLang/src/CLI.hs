@@ -6,12 +6,27 @@ module CLI
 where
 
 import Data.Maybe (fromMaybe)
-import Rune.Pipelines (compilePipeline, interpretPipeline)
+import Rune.Pipelines
+  ( compilePipeline,
+    interpretPipeline,
+    compileObjectIntoExecutable
+  )
+import System.FilePath (takeExtension)
 
 data Action
   = ShowUsage
-  | Compile FilePath (Maybe FilePath)
-  | Interpret FilePath
+  | CompileAll        FilePath (Maybe FilePath)
+  | CompileObjToExec  FilePath (Maybe FilePath)
+  | CompileToObj      FilePath (Maybe FilePath)
+  | CreateAsm         FilePath (Maybe FilePath)
+  | Interpret         FilePath
+  deriving (Show, Eq)
+
+data CompileRule
+  = All
+  | ToObj
+  | ToAsm
+  | ToExec
   deriving (Show, Eq)
 
 usage :: String
@@ -35,9 +50,14 @@ parseArgs (cmd : rest) = parseCommand cmd rest
 runCLI :: Action -> IO ()
 runCLI ShowUsage = putStr usage
 runCLI (Interpret inFile) = interpretPipeline inFile
-runCLI (Compile inFile maybeOutFile) =
-  let outFile = fromMaybe "out" maybeOutFile
+runCLI (CompileAll inFile maybeOutFile) =
+  let outFile = fromMaybe "a.out" maybeOutFile
    in compilePipeline inFile outFile
+runCLI (CompileObjToExec objFile maybeOutFile) =
+  let outFile = fromMaybe "a.out" maybeOutFile
+  in compileObjectIntoExecutable objFile outFile
+runCLI ()
+runCLI _ = putStrLn "This feature is not yet implemented."
 
 parseCommand :: String -> [String] -> Either String Action
 parseCommand "help" _ = pure ShowUsage
@@ -56,9 +76,47 @@ parseRun [file] = Right (Interpret file)
 parseRun [] = Left "The 'run' command requires an input file."
 parseRun _ = Left "The 'run' command takes exactly one file argument."
 
+findInputFile :: [String] -> CompileRule -> Either String (FilePath, [String])
+findInputFile args rule =
+  case break (isValidInputFile rule) args of
+    (_, []) -> Left "No input file provided."
+    (seen, file:rest) -> Right (file, seen ++ rest)
+
+isValidInputFile :: CompileRule -> FilePath -> Bool
+isValidInputFile All file = takeExtension file == ".ru"
+isValidInputFile ToObj file = takeExtension file `elem` [".ru", ".asm"]
+isValidInputFile ToAsm file = takeExtension file == ".ru"
+isValidInputFile ToExec file = takeExtension file == ".o"
+
+findOutputFile :: [String] -> Either String (Maybe FilePath, [String])
+findOutputFile [] = Right (Nothing, [])
+findOutputFile args =
+  case break (\x -> x `elem` ["-o", "--output"]) args of
+    (before, []) -> Right (Nothing, before)
+    (_, "-o":[]) -> Left "Error: -o flag requires an output file."
+    (before, "-o":file:after) -> Right (Just file, before ++ after)
+    (_, "--output":[]) -> Left "Error: --output flag requires an output file."
+    (before, "--output":file:after) -> Right (Just file, before ++ after)
+    (before, _:after) -> findOutputFile (before ++ after)
+
+determineCompileRule :: [String] -> Either String (CompileRule, [String])
+determineCompileRule args
+  | hasBoth = Left "Cannot use both -c and -S options together."
+  | "-c" `elem` args = Right (ToObj, filter (/= "-c") args)
+  | "-S" `elem` args = Right (ToAsm, filter (/= "-S") args)
+  | otherwise = Right (All, args)
+  where
+    hasBoth = "-c" `elem` args && "-S" `elem` args
+
 parseBuild :: [String] -> Either String Action
-parseBuild [] = Left "The 'build' command requires an input file."
-parseBuild [file] = Right (Compile file Nothing)
-parseBuild [file, "-o", outFile] = Right (Compile file (Just outFile))
-parseBuild [file, "--output", outFile] = Right (Compile file (Just outFile))
-parseBuild xs = Left $ "Invalid arguments for build command: " ++ unwords xs
+parseBuild args = do
+  (rule, args1) <- determineCompileRule args
+  (inFile, args2) <- findInputFile args1 rule
+  (outFile, args3) <- findOutputFile args2
+  if null args3
+    then pure $ case rule of
+      All -> CompileAll inFile outFile
+      ToObj -> CompileToObj inFile outFile
+      ToAsm -> CreateAsm inFile outFile
+      ToExec -> CompileObjToExec inFile outFile
+    else Left $ "Invalid arguments for build command: " ++ unwords args3

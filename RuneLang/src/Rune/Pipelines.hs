@@ -1,7 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
-module Rune.Pipelines (compilePipeline, interpretPipeline) where
+module Rune.Pipelines (
+  compilePipeline,
+  writeRuneInAsm,
+  compileAsmIntoObject,
+  compileObjectIntoExecutable,
+  interpretPipeline
+) where
 
 import Control.Exception (IOException, try)
 import Control.Monad ((>=>))
@@ -17,29 +23,41 @@ import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
 import Text.Megaparsec (errorBundlePretty)
-import System.Process (callProcess)
+import System.Process (system)
+import System.Exit (ExitCode (ExitFailure, ExitSuccess))
+import System.FilePath (dropExtension)
 
 --
 -- public
 --
 
-compileAsmIntoObject :: FilePath -> FilePath -> IO ()
-compileAsmIntoObject asmFile objFile = do
-  callProcess "nasm" ["-f", "elf64", asmFile, "-o", objFile]
-
-compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
-compileObjectIntoExecutable objFile exeFile = do
-  callProcess "gcc" ["-no-pie", objFile, "-o", exeFile]
-
 compilePipeline :: FilePath -> FilePath -> IO ()
 compilePipeline inFile outFile =
   runPipelineAction inFile (\ir -> do
-    let asmFile = outFile ++ ".asm"
-    let objFile = outFile ++ ".o"
-    writeFile asmFile (emitAssembly ir)
+    let fileWithoutExt = dropExtension inFile
+    let asmFile = fileWithoutExt ++ ".asm"
+    let objFile = fileWithoutExt ++ ".o"
+    writeRuneInAsm fileWithoutExt ir
     compileAsmIntoObject asmFile objFile
     compileObjectIntoExecutable objFile outFile
   )
+
+writeRuneInAsm :: FilePath -> IRProgram -> IO ()
+writeRuneInAsm inFile ir = writeFile (inFile ++ ".asm") (emitAssembly ir)
+
+compileAsmIntoObject :: FilePath -> FilePath -> IO ()
+compileAsmIntoObject asmFile objFile = do
+  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
+  case exitCode of
+    ExitSuccess -> return ()
+    ExitFailure code -> logError $ "Assembly to object compilation failed with exit code: " ++ show code
+
+compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
+compileObjectIntoExecutable objFile exeFile = do
+  exitCode <- system $ "gcc -no-pie " ++ objFile ++ " -o " ++ exeFile
+  case exitCode of
+    ExitSuccess -> return ()
+    ExitFailure code -> logError $ "Object to executable compilation failed with exit code: " ++ show code
 
 interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
