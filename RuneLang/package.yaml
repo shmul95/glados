@@ -19,6 +19,7 @@ dependencies:
   - mtl
   - unordered-containers
   - directory
+  - process
 
 ghc-options:
   - -Wall

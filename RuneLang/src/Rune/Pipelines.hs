@@ -17,13 +17,29 @@ import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
 import Text.Megaparsec (errorBundlePretty)
+import System.Process (callProcess)
 
 --
 -- public
 --
 
+compileAsmIntoObject :: FilePath -> FilePath -> IO ()
+compileAsmIntoObject asmFile objFile = do
+  callProcess "nasm" ["-f", "elf64", asmFile, "-o", objFile]
+
+compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
+compileObjectIntoExecutable objFile exeFile = do
+  callProcess "gcc" ["-no-pie", objFile, "-o", exeFile]
+
 compilePipeline :: FilePath -> FilePath -> IO ()
-compilePipeline inFile outFile = runPipelineAction inFile (writeFile outFile . emitAssembly)
+compilePipeline inFile outFile =
+  runPipelineAction inFile (\ir -> do
+    let asmFile = outFile ++ ".asm"
+    let objFile = outFile ++ ".o"
+    writeFile asmFile (emitAssembly ir)
+    compileAsmIntoObject asmFile objFile
+    compileObjectIntoExecutable objFile outFile
+  )
 
 interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
