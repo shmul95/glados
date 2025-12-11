@@ -33,6 +33,7 @@ initialState =
     { gsTempCounter = 0,
       gsLabelCounter = 0,
       gsStringCounter = 0,
+      gsFloatCounter = 0,
       gsGlobals = [],
       gsCurrentFunc = Nothing,
       gsSymTable = Map.empty,

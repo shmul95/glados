@@ -7,7 +7,7 @@ module Rune.Backend.Helpers
   )
 where
 
-import Data.List (foldl', intercalate, nub)
+import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, GlobalString, GlobalFloat)
 import Rune.IR.IRHelpers (sizeOfIRType)

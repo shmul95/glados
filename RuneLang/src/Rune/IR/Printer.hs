@@ -26,6 +26,8 @@ printTopLevel (IRExtern name) =
   "EXTERN " ++ name
 printTopLevel (IRGlobalString name value) =
   "GLOBAL " ++ name ++ ": string = \"" ++ escapeString value ++ "\\0\""
+printTopLevel (IRGlobalFloat name value typ) =
+  "GLOBAL " ++ name ++ ": " ++ printType typ ++ " = " ++ show value
 printTopLevel (IRFunctionDef func) =
   printFunction func
 printTopLevel (IRStructDef name fields) =

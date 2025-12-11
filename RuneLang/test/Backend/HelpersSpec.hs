@@ -45,33 +45,37 @@ testCollectTopLevels =
   testGroup
     "collectTopLevels"
     [ testCase "empty list" $
-        let (externs, globals, funcs) = collectTopLevels []
+        let (externs, globals, floatGlobals, funcs) = collectTopLevels []
          in do
               externs @?= []
               globals @?= []
+              floatGlobals @?= []
               funcs @?= [],
       testCase "collect externs" $
         let topLevels = [IRExtern "printf", IRExtern "malloc", IRExtern "printf"]
-            (externs, globals, funcs) = collectTopLevels topLevels
+            (externs, globals, floatGlobals, funcs) = collectTopLevels topLevels
          in do
               length externs @?= 2
               globals @?= []
+              floatGlobals @?= []
               funcs @?= [],
       testCase "collect global strings" $
         let topLevels = [IRGlobalString "str0" "hello", IRGlobalString "str1" "world"]
-            (externs, globals, funcs) = collectTopLevels topLevels
+            (externs, globals, floatGlobals, funcs) = collectTopLevels topLevels
          in do
               externs @?= []
               length globals @?= 2
+              floatGlobals @?= []
               funcs @?= [],
       testCase "collect functions" $
         let func1 = IRFunction "main" [] Nothing []
             func2 = IRFunction "helper" [] Nothing []
             topLevels = [IRFunctionDef func1, IRFunctionDef func2]
-            (externs, globals, funcs) = collectTopLevels topLevels
+            (externs, globals, floatGlobals, funcs) = collectTopLevels topLevels
          in do
               externs @?= []
               globals @?= []
+              floatGlobals @?= []
               length funcs @?= 2,
       testCase "mixed top levels" $
         let func = IRFunction "main" [] Nothing []
@@ -80,10 +84,11 @@ testCollectTopLevels =
                 IRGlobalString "str0" "test",
                 IRFunctionDef func
               ]
-            (externs, globals, funcs) = collectTopLevels topLevels
+            (externs, globals, floatGlobals, funcs) = collectTopLevels topLevels
          in do
               length externs @?= 1
               length globals @?= 1
+              floatGlobals @?= []
               length funcs @?= 1
     ]
 

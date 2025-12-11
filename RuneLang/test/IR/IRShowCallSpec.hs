@@ -30,6 +30,7 @@ initialState =
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,
+      gsFloatCounter = 0,
       gsGlobals = [],
       gsStringCounter = 0,
       gsCurrentFunc = Nothing,

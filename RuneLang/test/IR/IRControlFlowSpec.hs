@@ -32,13 +32,15 @@ initialState =
     { gsTempCounter = 0,
       gsLabelCounter = 0,
       gsStringCounter = 0,
+      gsFloatCounter = 0,
       gsGlobals = [],
       gsCurrentFunc = Nothing,
       gsSymTable = empty,
       gsStructs = empty,
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
-      gsStringMap = empty
+      gsStringMap = empty,
+      gsFloatMap = empty
     }
 
 runIRGen :: IRGen a -> (a, GenState)

@@ -53,7 +53,7 @@ initialState =
       gsStringMap = empty,
       gsFloatMap = empty
     }
-  # old code commented out
+  -- old code commented out
   -- GenState
   --   { gsTempCounter = 0,
   --     gsLabelCounter = 0,

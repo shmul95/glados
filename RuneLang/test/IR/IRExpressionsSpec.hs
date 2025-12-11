@@ -9,7 +9,7 @@ import Rune.IR.Nodes
   ( GenState (..),
     IRGen,
     IROperand (..),
-    IRTopLevel (IRGlobalString),
+    IRTopLevel (IRGlobalString, IRGlobalFloat),
     IRType (..),
   )
 import Test.Tasty (TestTree, testGroup)
