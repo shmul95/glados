@@ -199,9 +199,14 @@ emitAssign sm dest (IRConstInt n) t
 -- explanation
 -- Load interned f32 constants via the first SysV float-arg register instead of hard-coded xmm0
 emitAssign sm dest (IRGlobal name IRF32) IRF32 =
-  let reg = head x86_64FloatArgsRegisters
-   in [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]",
+  case x86_64FloatArgsRegisters of
+    reg : _ ->
+      [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]",
         emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
+      ]
+    _ ->
+      [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]",
+        emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
       ]
 -- old code commented out
 -- emitAssign sm dest (IRGlobal name IRF32) IRF32 =
@@ -235,8 +240,9 @@ emitCall sm dest funcName args mbType =
           then
             -- explanation
             -- Promote first float arg using the first SysV float-arg register instead of literal xmm0
-            let reg0 = head x86_64FloatArgsRegisters
-             in [emit 1 $ "cvtss2sd " ++ reg0 ++ ", " ++ reg0]
+            case x86_64FloatArgsRegisters of
+              reg0 : _ -> [emit 1 $ "cvtss2sd " ++ reg0 ++ ", " ++ reg0]
+              _ -> [emit 1 "cvtss2sd xmm0, xmm0"]
           else []
       callInstr = [emit 1 $ "call " ++ funcName]
       retSave = saveCallResult sm dest mbType
@@ -270,11 +276,17 @@ saveCallResult sm dest (Just t)
   | isFloatType t =
       case t of
         IRF32 ->
-          let retXmm = head x86_64FloatArgsRegisters
-           in [emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ retXmm]
+          case x86_64FloatArgsRegisters of
+            retXmm : _ ->
+              [emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ retXmm]
+            _ ->
+              [emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"]
         IRF64 ->
-          let retXmm = head x86_64FloatArgsRegisters
-           in [emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ retXmm]
+          case x86_64FloatArgsRegisters of
+            retXmm : _ ->
+              [emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ retXmm]
+            _ ->
+              [emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", xmm0"]
         _ -> [emit 1 $ "; TODO: unsupported float return type: " ++ show t]
   | otherwise = [storeReg sm dest "rax" t]
 saveCallResult sm dest Nothing = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
@@ -303,8 +315,11 @@ emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
 emitRet sm endLbl (Just op) =
   case getOperandType op of
     Just t | isFloatType t ->
-      let retXmm = head x86_64FloatArgsRegisters
-       in loadFloatOperand sm retXmm op t ++ [emit 1 $ "jmp " ++ endLbl]
+      case x86_64FloatArgsRegisters of
+        retXmm : _ ->
+          loadFloatOperand sm retXmm op t ++ [emit 1 $ "jmp " ++ endLbl]
+        _ ->
+          loadFloatOperand sm "xmm0" op t ++ [emit 1 $ "jmp " ++ endLbl]
     _ ->
       loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
 -- old code commented out
@@ -365,8 +380,10 @@ emitBinaryOp sm dest asmOp leftOp rightOp t
 -- Map IR float binary ops to scalar SSE instructions and store results back to the stack
 emitFloatBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
 emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
-  let xmmL = head x86_64FloatArgsRegisters
-      xmmR = x86_64FloatArgsRegisters !! 1
+  let (xmmL, xmmR) =
+        case x86_64FloatArgsRegisters of
+          r0 : r1 : _ -> (r0, r1)
+          _ -> ("xmm0", "xmm1")
       loadL = loadFloatOperand sm xmmL leftOp t
       loadR = loadFloatOperand sm xmmR rightOp t
       opInstr =

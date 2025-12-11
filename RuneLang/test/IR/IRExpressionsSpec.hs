@@ -71,9 +71,11 @@ testGenLitFloat :: IO ()
 testGenLitFloat =
   let expr = ExprLitFloat 3.14
       (result, finalState) = runIRGen (genExpression expr)
-      expectedOperand = IRGlobal ".float0" IRF32
+      -- explanation
+      -- Float literals are interned as <func>_float<counter>, using "global" as base when no function is active
+      expectedOperand = IRGlobal "global_float0" IRF32
       expectedType = IRF32
-      expectedGlobals = [IRGlobalFloat ".float0" 3.14 IRF32]
+      expectedGlobals = [IRGlobalFloat "global_float0" 3.14 IRF32]
    in do
         result @?= ([], expectedOperand, expectedType)
         gsGlobals finalState @?= expectedGlobals

@@ -116,10 +116,16 @@ isFloatType _ = False
 
 getFloatRegs :: IRType -> (String, String)
 -- explanation
--- Use the first two SysV float-arg registers instead of hard-coded xmm0/xmm1 for float comparisons
-getFloatRegs IRF32 = (head x86_64FloatArgsRegisters, x86_64FloatArgsRegisters !! 1)
-getFloatRegs IRF64 = (head x86_64FloatArgsRegisters, x86_64FloatArgsRegisters !! 1)
-getFloatRegs _ = (head x86_64FloatArgsRegisters, x86_64FloatArgsRegisters !! 1)
+-- Use the first two SysV float-arg registers (xmm0/xmm1) for float comparisons, falling back to literal names if the list is shorter
+getFloatRegs IRF32 = case x86_64FloatArgsRegisters of
+  r0 : r1 : _ -> (r0, r1)
+  _ -> ("xmm0", "xmm1")
+getFloatRegs IRF64 = case x86_64FloatArgsRegisters of
+  r0 : r1 : _ -> (r0, r1)
+  _ -> ("xmm0", "xmm1")
+getFloatRegs _ = case x86_64FloatArgsRegisters of
+  r0 : r1 : _ -> (r0, r1)
+  _ -> ("xmm0", "xmm1")
 -- old code commented out
 -- getFloatRegs :: IRType -> (String, String)
 -- getFloatRegs IRF32 = ("xmm0", "xmm1")
