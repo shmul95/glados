@@ -1,3 +1,34 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.IRHelpers
+  ( astTypeToIRType,
+    sizeOfIRType,
+    registerVar,
+    registerCall,
+    newTemp,
+    nextLabelIndex,
+    makeLabel,
+    newStringGlobal,
+    genFormatString,
+    endsWithRet,
+    pushLoopContext,
+    popLoopContext,
+    getCurrentLoop,
+    mangleMethodName,
+    getOperandType,
+    getCommonType,
+    selectReturnType,
+    irTypeToASTType,
+    unsignedTypeOfWidth,
+    signedTypeOfWidth,
+    intWidth,
+    isSigned,
+    isIntType,
+    promoteTypes
+  )
+where
+#else
 module Rune.IR.IRHelpers
   ( astTypeToIRType,
     sizeOfIRType,
@@ -18,6 +49,7 @@ module Rune.IR.IRHelpers
     selectReturnType
   )
 where
+#endif
 
 import Control.Monad.State (gets, modify)
 import qualified Data.Map.Strict as Map
@@ -244,8 +276,6 @@ promoteTypes t1 t2
             (False, False) -> unsignedTypeOfWidth maxW
             _              -> signedTypeOfWidth maxW
   -- bool and char
-  | t1 == IRBool && t2 == IRBool = IRBool
-  | t1 == IRChar && t2 == IRChar = IRChar
   | otherwise = IRI32
 
 --

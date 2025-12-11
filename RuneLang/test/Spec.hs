@@ -30,6 +30,7 @@ import Semantics.HelperSpecs (helperSemanticsTests)
 import Semantics.FuncSpecs (funcSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
+import IR.IRHelpersSpecs (irHelpersTests)
 
 --
 -- public
@@ -102,4 +103,5 @@ irSpecs =
   testGroup
     "IR Tests"
     [ irNodesTests
+    , irHelpersTests
     ]
