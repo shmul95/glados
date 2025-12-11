@@ -25,16 +25,17 @@ import Rune.IR.IRHelpers (getOperandType)
 --
 
 -- explanation
--- Emit full assembly including externs, data (.data), float literals in .rodata, and text sections
+-- Emit full assembly including externs, literals in .rodata, text section, and GNU-stack note
 emitAssembly :: IRProgram -> String
 emitAssembly (IRProgram _ topLevels) =
   let (externs, globalStrings, globalFloats, functions) = collectTopLevels topLevels
    in unlines $
         emitExterns externs
-          ++ emitDataSection globalStrings
-          ++ emitRoDataSection globalFloats
+          ++ emitRoDataSection globalStrings globalFloats
           ++ emitTextSection functions
-          ++ [emit 1 "; this section is to remove the gcc GNU related warning\nsection .note.GNU-stack noalloc noexec nowrite"]
+          ++ [ "    ; this section is to remove the gcc GNU related warning",
+               "section .note.GNU-stack noalloc noexec nowrite"
+             ]
 -- old code commented out
 -- emitAssembly :: IRProgram -> String
 -- emitAssembly (IRProgram _ topLevels) =
@@ -57,35 +58,46 @@ emitExterns xs = map ("extern " ++) xs
 -- section .data / .rodata
 --
 
--- | emit global strings
--- <name> db "<value>", 0
+-- | emit global strings and float literals in read-only data
+-- <label>: db "<value>", 0   ; strings
+-- <label>: dd/dq <value>     ; floats
 -- # explanation
--- Emit string literals in the read-only .rodata section alongside float literals
-emitDataSection :: [GlobalString] -> [String]
-emitDataSection [] = []
-emitDataSection gs = "section .rodata" : map emitGlobal gs
+-- Emit both string and float literals into a single .rodata section
+emitRoDataSection :: [GlobalString] -> [GlobalFloat] -> [String]
+emitRoDataSection [] [] = []
+emitRoDataSection gs fs = "section .rodata" : (map emitStr gs ++ map emitFloat fs)
   where
-    emitGlobal (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
--- # old code commented out
--- emitDataSection :: [GlobalString] -> [String]
--- emitDataSection [] = []
--- emitDataSection gs = "section .data" : map emitGlobal gs
---   where
---     emitGlobal (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
-
--- | emit global float literals in read-only data
--- <label>: dd <value>   ; IRF32
--- <label>: dq <value>   ; IRF64
-emitRoDataSection :: [GlobalFloat] -> [String]
-emitRoDataSection [] = []
-emitRoDataSection fs = "section .rodata" : map emitFloat fs
-  where
+    emitStr (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
     emitFloat (name, val, typ) =
       let dir = case typ of
             IRF32 -> "dd"
             IRF64 -> "dq"
             _ -> "dd"
        in name ++ ": " ++ dir ++ " " ++ show val
+-- old code commented out
+-- -- | emit global strings
+-- -- <name> db "<value>", 0
+-- -- # explanation
+-- -- Emit string literals in the read-only .rodata section alongside float literals
+-- emitDataSection :: [GlobalString] -> [String]
+-- emitDataSection [] = []
+-- emitDataSection gs = "section .rodata" : map emitGlobal gs
+--   where
+--     emitGlobal (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
+--
+-- -- | emit global float literals in read-only data
+-- -- <label>: dd <value>   ; IRF32
+-- -- <label>: dq <value>   ; IRF64
+-- emitRoDataSection :: [GlobalFloat] -> [String]
+-- emitRoDataSection [] = []
+-- emitRoDataSection fs = "section .rodata" : map emitFloat fs
+--   where
+--     emitFloat (name, val, typ) =
+--       let dir = case typ of
+--             IRF32 -> "dd"
+--             IRF64 -> "dq"
+--             _ -> "dd"
+--        in name ++ ": " ++ dir ++ " " ++ show val
 
 emitTextSection :: [Function] -> [String]
 emitTextSection [] = []
