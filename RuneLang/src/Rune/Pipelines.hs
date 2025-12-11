@@ -3,10 +3,9 @@
 
 module Rune.Pipelines (
   compilePipeline,
-  writeRuneInAsm,
-  compileAsmIntoObject,
-  compileObjectIntoExecutable,
-  interpretPipeline
+  compileToObject,
+  interpretPipeline,
+  CompileMode (..)
 ) where
 
 import Control.Exception (IOException, try)
@@ -25,29 +24,50 @@ import Rune.SanityChecks (performSanityChecks)
 import Text.Megaparsec (errorBundlePretty)
 import System.Process (system)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
-import System.FilePath (dropExtension)
+import System.FilePath (takeExtension, dropExtension)
+
+data CompileMode
+  = ToObject
+  | ToExecutable
+  | ToAssembly
+  | FullCompile
+  deriving (Show, Eq)
 
 --
 -- public
 --
 
-compilePipeline :: FilePath -> FilePath -> IO ()
-compilePipeline inFile outFile =
+compilePipeline :: FilePath -> FilePath -> CompileMode -> IO ()
+compilePipeline inFile outFile FullCompile =
   runPipelineAction inFile (\ir -> do
     let fileWithoutExt = dropExtension inFile
     let asmFile = fileWithoutExt ++ ".asm"
     let objFile = fileWithoutExt ++ ".o"
-    writeRuneInAsm fileWithoutExt ir
-    compileAsmIntoObject asmFile objFile
+    writeRuneInAsm asmFile ir
+    compileToObject asmFile objFile ir
     compileObjectIntoExecutable objFile outFile
   )
+compilePipeline inFile outFile ToAssembly =
+  runPipelineAction inFile (\ir -> writeRuneInAsm outFile ir)
+compilePipeline inFile outFile ToObject =
+  runPipelineAction inFile (\ir -> compileToObject inFile outFile ir)
+compilePipeline inFile outFile ToExecutable = compileObjectIntoExecutable inFile outFile
 
 writeRuneInAsm :: FilePath -> IRProgram -> IO ()
-writeRuneInAsm inFile ir = writeFile (inFile ++ ".asm") (emitAssembly ir)
+writeRuneInAsm asmFile ir = writeFile asmFile (emitAssembly ir)
 
-compileAsmIntoObject :: FilePath -> FilePath -> IO ()
-compileAsmIntoObject asmFile objFile = do
-  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ objFile
+isRuneSourceFile :: FilePath -> Bool
+isRuneSourceFile fp = takeExtension fp == ".ru"
+
+compileToObject :: FilePath -> FilePath -> IRProgram -> IO ()
+compileToObject inFile outFile ir = do
+  asmFile <- if isRuneSourceFile inFile
+      then do
+        let baseFile = dropExtension inFile ++ ".asm"
+        writeRuneInAsm baseFile ir
+        return $ baseFile
+      else return inFile
+  exitCode <- system $ "nasm -f elf64 " ++ asmFile ++ " -o " ++ outFile
   case exitCode of
     ExitSuccess -> return ()
     ExitFailure code -> logError $ "Assembly to object compilation failed with exit code: " ++ show code

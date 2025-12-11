@@ -9,9 +9,9 @@ import Data.Maybe (fromMaybe)
 import Rune.Pipelines
   ( compilePipeline,
     interpretPipeline,
-    compileObjectIntoExecutable
+    CompileMode (..)
   )
-import System.FilePath (takeExtension)
+import System.FilePath (takeExtension, dropExtension)
 
 data Action
   = ShowUsage
@@ -52,12 +52,16 @@ runCLI ShowUsage = putStr usage
 runCLI (Interpret inFile) = interpretPipeline inFile
 runCLI (CompileAll inFile maybeOutFile) =
   let outFile = fromMaybe "a.out" maybeOutFile
-   in compilePipeline inFile outFile
-runCLI (CompileObjToExec objFile maybeOutFile) =
+   in compilePipeline inFile outFile FullCompile
+runCLI (CompileToObj inFile maybeOutFile) =
+  let outFile = fromMaybe (dropExtension inFile ++ ".o") maybeOutFile
+  in compilePipeline inFile outFile ToObject
+runCLI (CreateAsm inFile maybeOutFile) =
+  let outFile = fromMaybe (dropExtension inFile ++ ".asm") maybeOutFile
+  in compilePipeline inFile outFile ToAssembly
+runCLI (CompileObjToExec inFile maybeOutFile) =
   let outFile = fromMaybe "a.out" maybeOutFile
-  in compileObjectIntoExecutable objFile outFile
-runCLI ()
-runCLI _ = putStrLn "This feature is not yet implemented."
+  in compilePipeline inFile outFile ToExecutable
 
 parseCommand :: String -> [String] -> Either String Action
 parseCommand "help" _ = pure ShowUsage
@@ -83,7 +87,7 @@ findInputFile args rule =
     (seen, file:rest) -> Right (file, seen ++ rest)
 
 isValidInputFile :: CompileRule -> FilePath -> Bool
-isValidInputFile All file = takeExtension file == ".ru"
+isValidInputFile All file = takeExtension file `elem` [".ru", ".o"]
 isValidInputFile ToObj file = takeExtension file `elem` [".ru", ".asm"]
 isValidInputFile ToAsm file = takeExtension file == ".ru"
 isValidInputFile ToExec file = takeExtension file == ".o"
