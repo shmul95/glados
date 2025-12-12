@@ -29,11 +29,7 @@ testEmptyProgram =
     let irProg = IRProgram "empty" []
         asm = emitAssembly irProg
      in do
-          -- # explanation
-          -- Allow the stack note section footer even when there are no functions or globals
-          asm @?= "    ; this section is to remove the gcc GNU related warning\nsection .note.GNU-stack noalloc noexec nowrite\n"
-          -- # old code commented out
-          -- asm @?= ""
+        asm @?= "; this section is to remove the gcc GNU related warning\nsection .note.GNU-stack noalloc noexec nowrite\n"
 
 testSimpleFunction :: TestTree
 testSimpleFunction =
@@ -86,8 +82,8 @@ testFunctionWithGlobalFloats =
         ls = lines asm
      in do
           assertBool "contains section .rodata" ("section .rodata" `elem` ls)
-          assertBool "contains first float literal" (any (".float0: dd 42.0" `isInfixOf`) ls)
-          assertBool "contains second float literal" (any (".float1: dd 13.37" `isInfixOf`) ls)
+          assertBool "contains first float literal" (any ("float_global0 dd 42.0" `isInfixOf`) ls)
+          assertBool "contains second float literal" (any ("float_global1 dd 13.37" `isInfixOf`) ls)
 
 testFunctionWithParameters :: TestTree
 testFunctionWithParameters =
@@ -307,7 +303,7 @@ testMemoryOperations =
                 [IRRET (Just IRConstNull)]
             irProg = IRProgram "test" [IRFunctionDef func]
             asm = emitAssembly irProg
-         in assertBool "contains mov rax, 0" (any ("mov rax, 0" `isInfixOf`) (lines asm)),
+         in assertBool "contains xor rax, rax" (any ("xor rax, rax" `isInfixOf`) (lines asm)),
       testCase "IRCALL with IRConstNull argument" $
         let func =
               IRFunction
