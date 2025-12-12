@@ -30,7 +30,7 @@ where
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.Helpers (emit)
-import Rune.Backend.X86_64.Registers (getRegisterName)
+import Rune.Backend.X86_64.Registers (getRegisterName, x86_64FloatArgsRegisters)
 import Rune.IR.IRHelpers (getCommonType)
 import Rune.IR.Nodes (IROperand (..), IRType (..))
 
@@ -137,9 +137,9 @@ isFloatType IRF64 = True
 isFloatType _ = False
 
 getFloatRegs :: IRType -> (String, String)
-getFloatRegs IRF32 = ("xmm0", "xmm1")
-getFloatRegs IRF64 = ("xmm0", "xmm1")
-getFloatRegs _ = ("xmm0", "xmm1")
+getFloatRegs _ = case x86_64FloatArgsRegisters of
+  r0 : r1 : _ -> (r0, r1)
+  _ -> ("xmm0", "xmm1")
 
 stackAddr :: Map String Int -> String -> String
 stackAddr sm name = case Map.lookup name sm of
@@ -161,15 +161,13 @@ loadOperand sm baseReg (IRParam name _) t =
 loadOperand _ reg _ _ = [emit 1 $ "mov " ++ reg ++ ", 0"]
 
 loadFloatOperand :: Map String Int -> String -> IROperand -> IRType -> [String]
-loadFloatOperand sm reg (IRTemp name _) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam name _) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRTemp name _) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam name _) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand _ reg _ _ = [emit 1 $ "xorps " ++ reg ++ ", " ++ reg]
+loadFloatOperand sm reg (IRTemp   name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRParam  name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRTemp   name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRParam  name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
+loadFloatOperand _  reg (IRGlobal name IRF32) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"]
+loadFloatOperand _  reg (IRGlobal name IRF64) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"]
+loadFloatOperand _  reg _ _                         = [emit 1 $ "xorps " ++ reg ++ ", " ++ reg]
 
 getSizeSpec :: IRType -> String
 getSizeSpec IRI8 = "byte"

@@ -6,7 +6,7 @@ module Backend.TypesSpecs (backendTypesTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 import Rune.Backend.Types
-import Rune.IR.Nodes (IRType(..))
+import Rune.IR.Nodes (IRType(..), IRGlobalValue(..))
 import qualified Data.Map.Strict as Map
 
 --
@@ -67,10 +67,10 @@ testTypeAliases = testGroup "Type Aliases"
           ext = "printf"
       in ext @?= "printf"
 
-  , testCase "GlobalString is tuple" $
-      let gs :: GlobalString
-          gs = ("name", "value")
-      in gs @?= ("name", "value")
+  , testCase "Global is tuple" $
+      let gs :: Global
+          gs = ("name", IRGlobalStringVal "value")
+      in gs @?= ("name", IRGlobalStringVal "value")
 
   , testCase "Struct is list of fields" $
       let s :: Struct

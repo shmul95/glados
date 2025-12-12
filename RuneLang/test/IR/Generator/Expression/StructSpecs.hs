@@ -1,14 +1,18 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeApplications #-}
 #define TESTING_EXPORT
 
 module IR.Generator.Expression.StructSpecs (structExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=), assertBool)
+import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure)
+import Control.Monad.State (runState)
+import qualified Data.Map.Strict as Map
+import Control.Exception (try, evaluate, SomeException)
 import Rune.IR.Generator.Expression.Struct
-import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
+import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..), GenState(..))
 import Rune.AST.Nodes (Expression(..))
-import IR.TestUtils (runGen)
+import IR.TestUtils (runGen, emptyState)
 
 --
 -- public
@@ -19,6 +23,8 @@ structExprTests = testGroup "Rune.IR.Generator.Expression.Struct"
   [ testGenAccess
   , testGenStructInit
   , testResolveStructPtr
+  , testLookupFieldType
+  , testGenInitField
   ]
 
 --
@@ -28,10 +34,34 @@ structExprTests = testGroup "Rune.IR.Generator.Expression.Struct"
 testGenAccess :: TestTree
 testGenAccess = testGroup "genAccess"
   [ testCase "Generates field access for struct" $
-      assertBool "Should generate access" True
+      let genExpr (ExprVar "p") = return ([], IRTemp "p" (IRStruct "Point"), IRStruct "Point")
+          genExpr _             = return ([], IRConstNull, IRNull)
+          initialState =
+            emptyState
+              { gsStructs = Map.fromList [("Point", [("x", IRI32)])]
+              }
+          ((instrs, op, typ), _) =
+            runState (genAccess genExpr (ExprVar "p") "x") initialState
+      in do
+        typ @?= IRI32
+        assertBool "Should emit IRGET_FIELD" (any isGetField instrs)
+        case op of
+          IRTemp _ t -> t @?= IRI32
+          _          -> assertFailure "Expected IRTemp result for field access"
 
   , testCase "Looks up field type" $
-      assertBool "Field lookup works" True
+      let genExpr (ExprVar "p") = return ([], IRTemp "p" (IRPtr (IRStruct "Point")), IRPtr (IRStruct "Point"))
+          genExpr _             = return ([], IRConstNull, IRNull)
+          initialState =
+            emptyState
+              { gsStructs = Map.fromList [("Point", [("y", IRI64)])]
+              }
+          ((instrs, _, typ), _) =
+            runState (genAccess genExpr (ExprVar "p") "y") initialState
+      in do
+        typ @?= IRI64
+        assertBool "Should not emit IRADDR when operand is already a pointer"
+          (not (any isAddr instrs))
   ]
 
 testGenStructInit :: TestTree
@@ -70,6 +100,59 @@ testResolveStructPtr = testGroup "resolveStructPtr"
         name @?= "Vec"
         instrs @?= []
         op @?= IRTemp "p" (IRPtr (IRStruct "Vec"))
+
+  , testCase "Errors on non-struct type" $
+      do
+        result <- try @SomeException (evaluate (resolveStructPtr (IRTemp "n" IRI32) IRI32))
+        case result of
+          Left _  -> return ()
+          Right _ -> assertFailure "Expected error for resolveStructPtr on non-struct type"
+  ]
+
+testLookupFieldType :: TestTree
+testLookupFieldType = testGroup "lookupFieldType"
+  [ testCase "Returns field type when struct and field exist" $
+      let initial =
+            emptyState
+              { gsStructs = Map.fromList [("Point", [("x", IRI32), ("y", IRI32)])]
+              }
+          (t, _) = runState (lookupFieldType "Point" "x") initial
+      in t @?= IRI32
+
+  , testCase "Errors when struct is missing" $
+      do
+        let initial = emptyState
+        result <- try @SomeException (evaluate (fst (runState (lookupFieldType "Missing" "x") initial)))
+        case result of
+          Left _  -> return ()
+          Right _ -> assertFailure "Expected error for missing struct in lookupFieldType"
+
+  , testCase "Errors when field is missing" $
+      do
+        let initial =
+              emptyState
+                { gsStructs = Map.fromList [("Point", [("x", IRI32)])]
+                }
+        result <- try @SomeException (evaluate (fst (runState (lookupFieldType "Point" "y") initial)))
+        case result of
+          Left _  -> return ()
+          Right _ -> assertFailure "Expected error for missing field in lookupFieldType"
+  ]
+
+testGenInitField :: TestTree
+testGenInitField = testGroup "genInitField"
+  [ testCase "Generates address and set-field instructions for struct init" $
+      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+          genExpr _              = return ([], IRConstNull, IRNull)
+          (instrs, _) =
+            runState (genInitField genExpr "Point" "s0" (IRStruct "Point") ("x", ExprLitInt 42)) emptyState
+      in case instrs of
+        [IRADDR ptrName base (IRPtr sType), IRSET_FIELD (IRTemp ptrOpName (IRPtr sType')) "Point" "x" (IRConstInt 42)] -> do
+          base @?= "s0"
+          ptrName @?= ptrOpName
+          sType @?= IRStruct "Point"
+          sType' @?= IRStruct "Point"
+        _ -> assertFailure "Expected IRADDR then IRSET_FIELD for genInitField"
   ]
 
 --
@@ -79,3 +162,11 @@ testResolveStructPtr = testGroup "resolveStructPtr"
 isAlloc :: IRInstruction -> Bool
 isAlloc (IRALLOC _ _) = True
 isAlloc _ = False
+
+isGetField :: IRInstruction -> Bool
+isGetField (IRGET_FIELD _ _ _ _ _) = True
+isGetField _ = False
+
+isAddr :: IRInstruction -> Bool
+isAddr (IRADDR _ _ _) = True
+isAddr _ = False
