@@ -107,10 +107,10 @@ testHelpers = testGroup "Helpers"
       operandType (IRParam "p" IRNull) @?= IRNull
       operandType (IRGlobal "g" IRI8) @?= IRI8
 
-  , testCase "rOp renaming" $ do
-      rOp "pre_" (IRTemp "x" IRI32) @?= IRTemp "pre_x" IRI32
-      rOp "pre_" (IRParam "p" IRI32) @?= IRTemp "pre_p" IRI32
-      rOp "pre_" (IRConstInt 1) @?= IRConstInt 1
+  , testCase "renameOp renaming" $ do
+      renameOp "pre_" (IRTemp "x" IRI32) @?= IRTemp "pre_x" IRI32
+      renameOp "pre_" (IRParam "p" IRI32) @?= IRTemp "pre_p" IRI32
+      renameOp "pre_" (IRConstInt 1) @?= IRConstInt 1
 
   , testCase "replaceRet handling" $ do
       replaceRet "tgt" [IRRET (Just (IRConstInt 1))] @?= [IRASSIGN "tgt" (IRConstInt 1) IRI64]
@@ -130,40 +130,40 @@ testRenameInstr = testGroup "renameInstr"
 
       in do
         check (IRALLOC "x" IRI32) (IRALLOC "p_x" IRI32)
-        check (IRSTORE t t) (IRSTORE (rOp pre t) (rOp pre t))
-        check (IRLOAD "x" t IRI32) (IRLOAD "p_x" (rOp pre t) IRI32)
-        check (IRDEREF "x" t IRI32) (IRDEREF "p_x" (rOp pre t) IRI32)
-        check (IRGET_FIELD "x" t "f1" "f2" IRI32) (IRGET_FIELD "p_x" (rOp pre t) "f1" "f2" IRI32)
-        check (IRSET_FIELD t "f1" "f2" t) (IRSET_FIELD (rOp pre t) "f1" "f2" (rOp pre t))
+        check (IRSTORE t t) (IRSTORE (renameOp pre t) (renameOp pre t))
+        check (IRLOAD "x" t IRI32) (IRLOAD "p_x" (renameOp pre t) IRI32)
+        check (IRDEREF "x" t IRI32) (IRDEREF "p_x" (renameOp pre t) IRI32)
+        check (IRGET_FIELD "x" t "f1" "f2" IRI32) (IRGET_FIELD "p_x" (renameOp pre t) "f1" "f2" IRI32)
+        check (IRSET_FIELD t "f1" "f2" t) (IRSET_FIELD (renameOp pre t) "f1" "f2" (renameOp pre t))
         
-        check (IRADD_OP "x" t p IRI32) (IRADD_OP "p_x" (rOp pre t) (rOp pre p) IRI32)
-        check (IRSUB_OP "x" t p IRI32) (IRSUB_OP "p_x" (rOp pre t) (rOp pre p) IRI32)
-        check (IRMUL_OP "x" t p IRI32) (IRMUL_OP "p_x" (rOp pre t) (rOp pre p) IRI32)
-        check (IRDIV_OP "x" t p IRI32) (IRDIV_OP "p_x" (rOp pre t) (rOp pre p) IRI32)
-        check (IRMOD_OP "x" t p IRI32) (IRMOD_OP "p_x" (rOp pre t) (rOp pre p) IRI32)
+        check (IRADD_OP "x" t p IRI32) (IRADD_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
+        check (IRSUB_OP "x" t p IRI32) (IRSUB_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
+        check (IRMUL_OP "x" t p IRI32) (IRMUL_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
+        check (IRDIV_OP "x" t p IRI32) (IRDIV_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
+        check (IRMOD_OP "x" t p IRI32) (IRMOD_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
         
-        check (IRCMP_EQ "x" t p) (IRCMP_EQ "p_x" (rOp pre t) (rOp pre p))
-        check (IRCMP_NEQ "x" t p) (IRCMP_NEQ "p_x" (rOp pre t) (rOp pre p))
-        check (IRCMP_LT "x" t p) (IRCMP_LT "p_x" (rOp pre t) (rOp pre p))
-        check (IRCMP_LTE "x" t p) (IRCMP_LTE "p_x" (rOp pre t) (rOp pre p))
-        check (IRCMP_GT "x" t p) (IRCMP_GT "p_x" (rOp pre t) (rOp pre p))
-        check (IRCMP_GTE "x" t p) (IRCMP_GTE "p_x" (rOp pre t) (rOp pre p))
+        check (IRCMP_EQ "x" t p) (IRCMP_EQ "p_x" (renameOp pre t) (renameOp pre p))
+        check (IRCMP_NEQ "x" t p) (IRCMP_NEQ "p_x" (renameOp pre t) (renameOp pre p))
+        check (IRCMP_LT "x" t p) (IRCMP_LT "p_x" (renameOp pre t) (renameOp pre p))
+        check (IRCMP_LTE "x" t p) (IRCMP_LTE "p_x" (renameOp pre t) (renameOp pre p))
+        check (IRCMP_GT "x" t p) (IRCMP_GT "p_x" (renameOp pre t) (renameOp pre p))
+        check (IRCMP_GTE "x" t p) (IRCMP_GTE "p_x" (renameOp pre t) (renameOp pre p))
 
-        check (IRAND_OP "x" t p IRI32) (IRAND_OP "p_x" (rOp pre t) (rOp pre p) IRI32)
-        check (IROR_OP "x" t p IRI32) (IROR_OP "p_x" (rOp pre t) (rOp pre p) IRI32)
+        check (IRAND_OP "x" t p IRI32) (IRAND_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
+        check (IROR_OP "x" t p IRI32) (IROR_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
 
         check (IRLABEL l) (IRLABEL (IRLabel "p_lab"))
         check (IRJUMP l) (IRJUMP (IRLabel "p_lab"))
-        check (IRJUMP_TRUE t l) (IRJUMP_TRUE (rOp pre t) (IRLabel "p_lab"))
-        check (IRJUMP_FALSE t l) (IRJUMP_FALSE (rOp pre t) (IRLabel "p_lab"))
-        check (IRJUMP_EQ0 t l) (IRJUMP_EQ0 (rOp pre t) (IRLabel "p_lab"))
+        check (IRJUMP_TRUE t l) (IRJUMP_TRUE (renameOp pre t) (IRLabel "p_lab"))
+        check (IRJUMP_FALSE t l) (IRJUMP_FALSE (renameOp pre t) (IRLabel "p_lab"))
+        check (IRJUMP_EQ0 t l) (IRJUMP_EQ0 (renameOp pre t) (IRLabel "p_lab"))
 
-        check (IRCALL "x" "f" [t] (Just IRI32)) (IRCALL "p_x" "f" [rOp pre t] (Just IRI32))
-        check (IRRET (Just t)) (IRRET (Just (rOp pre t)))
+        check (IRCALL "x" "f" [t] (Just IRI32)) (IRCALL "p_x" "f" [renameOp pre t] (Just IRI32))
+        check (IRRET (Just t)) (IRRET (Just (renameOp pre t)))
         check (IRADDR "x" "y" IRI32) (IRADDR "p_x" "p_y" IRI32)
-        check (IRINC t) (IRINC (rOp pre t))
-        check (IRDEC t) (IRDEC (rOp pre t))
-        check (IRASSIGN "x" t IRI32) (IRASSIGN "p_x" (rOp pre t) IRI32)
+        check (IRINC t) (IRINC (renameOp pre t))
+        check (IRDEC t) (IRDEC (renameOp pre t))
+        check (IRASSIGN "x" t IRI32) (IRASSIGN "p_x" (renameOp pre t) IRI32)
   ]
 
 testSimplify :: TestTree
