@@ -121,7 +121,7 @@ emitParameters params stackMap =
       | isFloatType t && floatIdx < length x86_64FloatArgsRegisters =
           let xmmReg = x86_64FloatArgsRegisters !! floatIdx
               sizeSpec = getSizeSpecifier t
-              storeInstr = getStoreInstr irName xmmReg t
+              storeInstr = getStoreInstr sizeSpec irName xmmReg t
            in (acc ++ [storeInstr], intIdx, floatIdx + 1)
       | not (isFloatType t) && intIdx < length x86_64ArgsRegisters =
           let reg = x86_64ArgsRegisters !! intIdx
