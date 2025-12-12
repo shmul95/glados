@@ -27,6 +27,7 @@ where
 
 import Rune.IR.Nodes
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Control.Monad.State
 import Data.Maybe (fromMaybe)
 
@@ -50,18 +51,34 @@ type OptM = State OptState
 --
 
 runIROptimizer :: IRProgram -> IRProgram
-runIROptimizer (IRProgram name tops) = IRProgram name (optimize <$> tops)
+runIROptimizer (IRProgram name tops) = IRProgram name $ filter isAlive optimized
   where
-    funcs = foldMap funcOf tops
-    optimize = optimizeTopLevel funcs
+    optimized = optimizeTopLevel (funcMap tops) <$> tops
+    optFuncs  = funcMap optimized
+    roots     = if M.member "main" optFuncs then S.singleton "main" else M.keysSet optFuncs
+    reachable = getReachable optFuncs roots
 
-    funcOf :: IRTopLevel -> FuncMap
-    funcOf (IRFunctionDef f) = M.singleton (irFuncName f) f
-    funcOf _ = M.empty
+    isAlive (IRFunctionDef f) = S.member (irFuncName f) reachable
+    isAlive _                 = True
+
+    funcMap = foldMap $ \case
+      IRFunctionDef f -> M.singleton (irFuncName f) f
+      _               -> M.empty
 
 --
 -- private
 --
+
+getReachable :: FuncMap -> S.Set String -> S.Set String
+getReachable funcs = fixpoint step
+  where
+    step seen = S.foldr (S.union . getCalls) seen seen
+    getCalls f = maybe S.empty (S.fromList . foldMap target . irFuncBody) (M.lookup f funcs)
+    
+    target (IRCALL _ t _ _) = [t]
+    target _                = []
+
+    fixpoint f x = let x' = f x in if S.size x == S.size x' then x else fixpoint f x'
 
 emitInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
 emitInstr inst rest = (inst :) <$> optimizeBlock rest
@@ -169,40 +186,40 @@ simplifyOp op@(IRTemp t _) = gets osConsts >>= \m -> pure $ fromMaybe op $ M.loo
 simplifyOp other = pure other
 
 renameInstr :: String -> IRInstruction -> IRInstruction
-renameInstr pre (IRALLOC t ty) = IRALLOC (pre ++ t) ty
+renameInstr pre (IRALLOC t ty) = IRALLOC (pre <> t) ty
 renameInstr pre (IRSTORE a b) = IRSTORE (renameOp pre a) (renameOp pre b)
-renameInstr pre (IRLOAD t a ty) = IRLOAD (pre ++ t) (renameOp pre a) ty
-renameInstr pre (IRDEREF t a ty) = IRDEREF (pre ++ t) (renameOp pre a) ty
-renameInstr pre (IRGET_FIELD t s f1 f2 ty) = IRGET_FIELD (pre ++ t) (renameOp pre s) f1 f2 ty
+renameInstr pre (IRLOAD t a ty) = IRLOAD (pre <> t) (renameOp pre a) ty
+renameInstr pre (IRDEREF t a ty) = IRDEREF (pre <> t) (renameOp pre a) ty
+renameInstr pre (IRGET_FIELD t s f1 f2 ty) = IRGET_FIELD (pre <> t) (renameOp pre s) f1 f2 ty
 renameInstr pre (IRSET_FIELD s f1 f2 v) = IRSET_FIELD (renameOp pre s) f1 f2 (renameOp pre v)
-renameInstr pre (IRADD_OP t o1 o2 ty) = IRADD_OP (pre ++ t) (renameOp pre o1) (renameOp pre o2) ty
-renameInstr pre (IRSUB_OP t o1 o2 ty) = IRSUB_OP (pre ++ t) (renameOp pre o1) (renameOp pre o2) ty
-renameInstr pre (IRMUL_OP t o1 o2 ty) = IRMUL_OP (pre ++ t) (renameOp pre o1) (renameOp pre o2) ty
-renameInstr pre (IRDIV_OP t o1 o2 ty) = IRDIV_OP (pre ++ t) (renameOp pre o1) (renameOp pre o2) ty
-renameInstr pre (IRMOD_OP t o1 o2 ty) = IRMOD_OP (pre ++ t) (renameOp pre o1) (renameOp pre o2) ty
-renameInstr pre (IRCMP_EQ t o1 o2) = IRCMP_EQ (pre ++ t) (renameOp pre o1) (renameOp pre o2)
-renameInstr pre (IRCMP_NEQ t o1 o2) = IRCMP_NEQ (pre ++ t) (renameOp pre o1) (renameOp pre o2)
-renameInstr pre (IRCMP_LT t o1 o2) = IRCMP_LT (pre ++ t) (renameOp pre o1) (renameOp pre o2)
-renameInstr pre (IRCMP_LTE t o1 o2) = IRCMP_LTE (pre ++ t) (renameOp pre o1) (renameOp pre o2)
-renameInstr pre (IRCMP_GT t o1 o2) = IRCMP_GT (pre ++ t) (renameOp pre o1) (renameOp pre o2)
-renameInstr pre (IRCMP_GTE t o1 o2) = IRCMP_GTE (pre ++ t) (renameOp pre o1) (renameOp pre o2)
-renameInstr pre (IRAND_OP t o1 o2 ty) = IRAND_OP (pre ++ t) (renameOp pre o1) (renameOp pre o2) ty
-renameInstr pre (IROR_OP t o1 o2 ty) = IROR_OP (pre ++ t) (renameOp pre o1) (renameOp pre o2) ty
-renameInstr pre (IRLABEL (IRLabel l)) = IRLABEL (IRLabel (pre ++ l))
-renameInstr pre (IRJUMP (IRLabel l)) = IRJUMP (IRLabel (pre ++ l))
-renameInstr pre (IRJUMP_TRUE o (IRLabel l)) = IRJUMP_TRUE (renameOp pre o) (IRLabel (pre ++ l))
-renameInstr pre (IRJUMP_FALSE o (IRLabel l)) = IRJUMP_FALSE (renameOp pre o) (IRLabel (pre ++ l))
-renameInstr pre (IRJUMP_EQ0 o (IRLabel l)) = IRJUMP_EQ0 (renameOp pre o) (IRLabel (pre ++ l))
-renameInstr pre (IRCALL t f args rt) = IRCALL (pre ++ t) f (map (renameOp pre) args) rt
+renameInstr pre (IRADD_OP t o1 o2 ty) = IRADD_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRSUB_OP t o1 o2 ty) = IRSUB_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRMUL_OP t o1 o2 ty) = IRMUL_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRDIV_OP t o1 o2 ty) = IRDIV_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRMOD_OP t o1 o2 ty) = IRMOD_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRCMP_EQ t o1 o2) = IRCMP_EQ (pre <> t) (renameOp pre o1) (renameOp pre o2)
+renameInstr pre (IRCMP_NEQ t o1 o2) = IRCMP_NEQ (pre <> t) (renameOp pre o1) (renameOp pre o2)
+renameInstr pre (IRCMP_LT t o1 o2) = IRCMP_LT (pre <> t) (renameOp pre o1) (renameOp pre o2)
+renameInstr pre (IRCMP_LTE t o1 o2) = IRCMP_LTE (pre <> t) (renameOp pre o1) (renameOp pre o2)
+renameInstr pre (IRCMP_GT t o1 o2) = IRCMP_GT (pre <> t) (renameOp pre o1) (renameOp pre o2)
+renameInstr pre (IRCMP_GTE t o1 o2) = IRCMP_GTE (pre <> t) (renameOp pre o1) (renameOp pre o2)
+renameInstr pre (IRAND_OP t o1 o2 ty) = IRAND_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IROR_OP t o1 o2 ty) = IROR_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRLABEL (IRLabel l)) = IRLABEL (IRLabel (pre <> l))
+renameInstr pre (IRJUMP (IRLabel l)) = IRJUMP (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_TRUE o (IRLabel l)) = IRJUMP_TRUE (renameOp pre o) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_FALSE o (IRLabel l)) = IRJUMP_FALSE (renameOp pre o) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_EQ0 o (IRLabel l)) = IRJUMP_EQ0 (renameOp pre o) (IRLabel (pre <> l))
+renameInstr pre (IRCALL t f args rt) = IRCALL (pre <> t) f (map (renameOp pre) args) rt
 renameInstr pre (IRRET o) = IRRET (fmap (renameOp pre) o)
-renameInstr pre (IRADDR t s ty) = IRADDR (pre ++ t) (pre ++ s) ty
+renameInstr pre (IRADDR t s ty) = IRADDR (pre <> t) (pre <> s) ty
 renameInstr pre (IRINC o) = IRINC (renameOp pre o)
 renameInstr pre (IRDEC o) = IRDEC (renameOp pre o)
-renameInstr pre (IRASSIGN t o ty) = IRASSIGN (pre ++ t) (renameOp pre o) ty
+renameInstr pre (IRASSIGN t o ty) = IRASSIGN (pre <> t) (renameOp pre o) ty
 
 renameOp :: String -> IROperand -> IROperand
-renameOp pre (IRTemp t ty) = IRTemp (pre ++ t) ty
-renameOp pre (IRParam p ty) = IRTemp (pre ++ p) ty
+renameOp pre (IRTemp t ty) = IRTemp (pre <> t) ty
+renameOp pre (IRParam p ty) = IRTemp (pre <> p) ty
 renameOp _ other = other
 
 replaceRet :: String -> [IRInstruction] -> [IRInstruction]

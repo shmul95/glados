@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP #-}
-#define TESTING_EXPORT
-
 module IR.OptimizerSpecs (optimizerTests) where
 
 import Test.Tasty (TestTree, testGroup)
