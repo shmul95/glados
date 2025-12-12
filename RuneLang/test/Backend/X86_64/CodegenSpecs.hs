@@ -34,7 +34,11 @@ testEmitAssembly = testGroup "emitAssembly"
   , testCase "Generates assembly with global string" $
       let prog = IRProgram [] [IRGlobalString "str1" "hello"]
           result = emitAssembly prog
-      in assertBool "Should contain data section" $ "section .data" `elem` lines result
+      -- explanation
+      -- Strings are now emitted in the read-only .rodata section instead of .data
+      in assertBool "Should contain rodata section" $ "section .rodata" `elem` lines result
+      -- old code commented out
+      -- in assertBool "Should contain data section" $ "section .data" `elem` lines result
 
   , testCase "Generates assembly with function" $
       let func = IRFunction "test" [] (Just IRNull) [IRRET Nothing]
@@ -49,6 +53,11 @@ testEmitAssembly = testGroup "emitAssembly"
           prog = IRProgram [] [IRExtern "exit", IRGlobalString "msg" "Hello", IRFunctionDef func]
           result = emitAssembly prog
       in do
+        -- explanation
+        -- Complete assembly now includes extern, .rodata for strings, and .text for code
         assertBool "Should have all sections" $
-          all (`elem` lines result) ["extern exit", "section .data", "section .text"]
+          all (`elem` lines result) ["extern exit", "section .rodata", "section .text"]
+        -- old code commented out
+        -- assertBool "Should have all sections" $
+        --   all (`elem` lines result) ["extern exit", "section .data", "section .text"]
   ]
