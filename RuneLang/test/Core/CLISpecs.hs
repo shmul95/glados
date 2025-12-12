@@ -413,7 +413,7 @@ runCLIActionTests =
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) (Just "specified.bin"))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) (Just (testFolder ++ "specified.bin")))) :: IO (Either SomeException ()))
           assertBool "Should attempt compilation" True
         )
     , testCaseWithSetup "runCLI (CompileToObj file Nothing) uses default .o extension"
@@ -427,7 +427,7 @@ runCLIActionTests =
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileToObj (testFolder ++ testFile) (Just "custom.o"))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileToObj (testFolder ++ testFile) (Just (testFolder ++ "custom.o")))) :: IO (Either SomeException ()))
           assertBool "Should attempt object compilation" True
         )
     , testCaseWithSetup "runCLI (CreateAsm file Nothing) uses default .asm extension"
@@ -441,7 +441,7 @@ runCLIActionTests =
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CreateAsm (testFolder ++ testFile) (Just "custom.asm"))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CreateAsm (testFolder ++ testFile) (Just (testFolder ++ "custom.asm")))) :: IO (Either SomeException ()))
           assertBool "Should attempt assembly generation" True
         )
     , testCaseWithSetup "runCLI (CompileObjToExec file Nothing) uses default output 'a.out'"
@@ -455,7 +455,7 @@ runCLIActionTests =
         (createFile (testFolder ++ "test_compile.o"))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileObjToExec (testFolder ++ "test_compile.o") (Just "custom.exe"))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileObjToExec (testFolder ++ "test_compile.o") (Just (testFolder ++ "custom.exe")))) :: IO (Either SomeException ()))
           assertBool "Should attempt executable generation" True
         )
     ]
