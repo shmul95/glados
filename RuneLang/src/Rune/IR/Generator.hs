@@ -53,6 +53,7 @@ initialState fs =
     { gsTempCounter = 0,
       gsLabelCounter = 0,
       gsStringCounter = 0,
+      gsFloatCounter = 0,
       gsGlobals = [],
       gsCurrentFunc = Nothing,
       gsSymTable = empty,
@@ -60,6 +61,7 @@ initialState fs =
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
       gsStringMap = empty,
+      gsFloatMap = empty,
       gsFuncStack = fs
     }
 

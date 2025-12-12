@@ -1,6 +1,7 @@
 module Rune.IR.Nodes
   ( IRProgram (..),
     IRTopLevel (..),
+    IRGlobalValue (..),
     IRFunction (..),
     IRInstruction (..),
     IROperand (..),
@@ -26,6 +27,7 @@ data GenState = GenState
   { gsTempCounter :: Int,
     gsLabelCounter :: Int,
     gsStringCounter :: Int,
+    gsFloatCounter :: Int,
     gsGlobals :: [IRTopLevel],
     gsCurrentFunc :: Maybe String,
     gsSymTable :: Map String (IROperand, IRType),
@@ -33,6 +35,7 @@ data GenState = GenState
     gsLoopStack :: [(IRLabel, IRLabel)],
     gsCalledFuncs :: Set String,
     gsStringMap :: Map String String,
+    gsFloatMap :: Map Double String,
     gsFuncStack :: FuncStack
   }
   deriving (Show, Eq)
@@ -141,8 +144,13 @@ data IRFunction = IRFunction
   }
   deriving (Show, Eq)
 
+data IRGlobalValue
+  = IRGlobalStringVal String
+  | IRGlobalFloatVal Double IRType
+  deriving (Show, Eq)
+
 data IRTopLevel
-  = IRGlobalString String String
+  = IRGlobalDef String IRGlobalValue
   | IRFunctionDef IRFunction
   | IRStructDef String [(String, IRType)]
   | IRExtern String

@@ -6,7 +6,7 @@ module Backend.HelpersSpecs (backendHelpersTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Rune.Backend.Helpers
-import Rune.IR.Nodes (IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRLabel(..))
+import Rune.IR.Nodes (IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRLabel(..), IRGlobalValue(..))
 import qualified Data.Map.Strict as Map
 
 --
@@ -79,9 +79,9 @@ testCollectTopLevels = testGroup "collectTopLevels"
       in externs @?= ["printf", "malloc"]
 
   , testCase "Collects global strings" $
-      let tls = [IRGlobalString "str1" "hello", IRGlobalString "str2" "world"]
-          (_, strings, _) = collectTopLevels tls
-      in length strings @?= 2
+      let tls = [IRGlobalDef "str1" (IRGlobalStringVal "hello"), IRGlobalDef "str2" (IRGlobalStringVal "world")]
+          (_, globals, _) = collectTopLevels tls
+      in length globals @?= 2
 
   , testCase "Collects functions" $
       let func = IRFunction "test" [] (Just IRNull) []
@@ -96,11 +96,11 @@ testCollectTopLevels = testGroup "collectTopLevels"
 
   , testCase "Handles mixed top levels" $
       let func = IRFunction "f" [] (Just IRNull) []
-          tls = [IRExtern "e", IRGlobalString "s" "v", IRFunctionDef func]
-          (externs, strings, funcs) = collectTopLevels tls
+          tls = [IRExtern "e", IRGlobalDef "s" (IRGlobalStringVal "v"), IRFunctionDef func]
+          (externs, globals, funcs) = collectTopLevels tls
       in do
         externs @?= ["e"]
-        strings @?= [("s", "v")]
+        globals @?= [("s", IRGlobalStringVal "v")]
         length funcs @?= 1
   ]
 
@@ -179,8 +179,8 @@ testCollectTopLevel = testGroup "collectTopLevel"
       in result @?= (["printf"], [], [])
 
   , testCase "Adds global string" $
-      let result = collectTopLevel (IRGlobalString "s" "val") ([], [], [])
-      in result @?= ([], [("s", "val")], [])
+      let result = collectTopLevel (IRGlobalDef "s" (IRGlobalStringVal "val")) ([], [], [])
+      in result @?= ([], [("s", IRGlobalStringVal "val")], [])
 
   , testCase "Adds function" $
       let func = IRFunction "f" [] (Just IRNull) []

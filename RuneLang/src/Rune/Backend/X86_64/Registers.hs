@@ -4,6 +4,7 @@
 module Rune.Backend.X86_64.Registers
   ( x86_64Registers,
     x86_64ArgsRegisters,
+    x86_64FloatArgsRegisters,
     x86_64CallerSavedRegisters,
     x86_64CalleeSavedRegisters,
     getRegisterName,
@@ -59,6 +60,18 @@ x86_64ArgsRegisters =
     "rcx",
     "r8",
     "r9"
+  ]
+
+x86_64FloatArgsRegisters :: [String]
+x86_64FloatArgsRegisters =
+  [ "xmm0",
+    "xmm1",
+    "xmm2",
+    "xmm3",
+    "xmm4",
+    "xmm5",
+    "xmm6",
+    "xmm7"
   ]
 
 x86_64CallerSavedRegisters :: [String]
