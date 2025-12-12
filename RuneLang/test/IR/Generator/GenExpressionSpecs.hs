@@ -43,11 +43,12 @@ testGenExpression = testGroup "genExpression"
       in do
         instrs @?= []
         -- explanation
-        -- Float literals are now interned as globals; expect a global f32 operand
-        op @?= IRGlobal "float_global0" IRF32
+        -- Float literals are now interned as globals; at top level they use the 'global_float<counter>' naming pattern
+        op @?= IRGlobal "global_float0" IRF32
         typ @?= IRF32
         -- old code commented out
-        -- op @?= IRConstFloat 3.14
+        -- op @?= IRGlobal "float_global0" IRF32
+        -- typ @?= IRF32
 
   , testCase "Generates char literal" $
       let (instrs, op, typ) = runGen (genExpression (ExprLitChar 'a'))
