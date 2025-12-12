@@ -95,8 +95,9 @@ checkParamTypeWithReturnContext returnContext s@(fs, _) fname es =
 
 
 mangleName :: String -> Type -> [Type] -> String
-mangleName fname ret args =
-    intercalate "_" (show ret : fname : map show args)
+mangleName fname ret args
+  | TypeAny `elem` args || ret == TypeAny = fname
+  | otherwise = intercalate "_" (show ret : fname : map show args)
 
 exprType :: Stack -> Expression -> Either String Type
 exprType _ (ExprLitInt _)         = Right TypeI32
