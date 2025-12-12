@@ -47,8 +47,12 @@ testGenLitFloat = testGroup "genLitFloat"
       let (instrs, op, typ) = runGen (genLitFloat 3.14)
       in do
         instrs @?= []
-        op @?= IRConstFloat 3.14
+        -- explanation
+        -- genLitFloat now returns an interned global operand for f32 literals
+        op @?= IRGlobal "float_global0" IRF32
         typ @?= IRF32
+        -- old code commented out
+        -- op @?= IRConstFloat 3.14
   ]
 
 testGenLitChar :: TestTree
