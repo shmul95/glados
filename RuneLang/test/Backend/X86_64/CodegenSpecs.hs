@@ -209,9 +209,13 @@ testComplexInstructions = testGroup "complex instruction emission"
           any (("[rax]" `elem`) . words) asmLines
         assertBool "Contains INC/DEC style add/sub" $
           any (\ws -> "add" `elem` ws || "sub" `elem` ws) (map words asmLines)
+        -- explanation: test and jump instructions are on separate lines
         assertBool "Contains conditional jump based on test" $
-          any (\ws -> "test" `elem` ws && any (`elem` ws) ["je", "jne"]) (map words asmLines)
+          any (isInfixOf "test ") asmLines
+            && any (\ws -> "je" `elem` ws || "jne" `elem` ws) (map words asmLines)
         -- old code commented out
+        -- assertBool "Contains conditional jump based on test" $
+        --   any (\ws -> "test" `elem` ws && any (`elem` ws) ["je", "jne"]) (map words asmLines)
         -- assertBool "Contains mov rax for large constant (needsRegisterLoad path)" $
         --   any ("mov rax," `elem`) (map (take 2 . words) asmLines)
   ]
