@@ -47,10 +47,13 @@ irHelpersTests =
 --
 
 emptyState :: GenState
+-- explanation
+-- Empty GenState including float interning state and an empty function stack for IRHelpersSpecs
 emptyState = GenState
   { gsTempCounter = 0
   , gsLabelCounter = 0
   , gsStringCounter = 0
+  , gsFloatCounter = 0
   , gsGlobals = []
   , gsCurrentFunc = Nothing
   , gsSymTable = Map.empty
@@ -58,8 +61,23 @@ emptyState = GenState
   , gsLoopStack = []
   , gsCalledFuncs = Set.empty
   , gsStringMap = Map.empty
+  , gsFloatMap = Map.empty
   , gsFuncStack = HM.empty
   }
+-- old code commented out
+-- emptyState = GenState
+--   { gsTempCounter = 0
+--   , gsLabelCounter = 0
+--   , gsStringCounter = 0
+--   , gsGlobals = []
+--   , gsCurrentFunc = Nothing
+--   , gsSymTable = Map.empty
+--   , gsStructs = Map.empty
+--   , gsLoopStack = []
+--   , gsCalledFuncs = Set.empty
+--   , gsStringMap = Map.empty
+--   , gsFuncStack = HM.empty
+--   }
 
 --
 -- private tests

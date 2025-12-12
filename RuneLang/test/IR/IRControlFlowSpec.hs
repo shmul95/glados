@@ -19,6 +19,7 @@ import Rune.IR.Nodes
     IROperand (..),
     IRType (..),
   )
+import qualified Data.HashMap.Strict as HM
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
@@ -28,6 +29,8 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 initialState :: GenState
 initialState =
+  -- explanation
+  -- Initialise GenState including float interning maps and an empty function stack for control-flow tests
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,
@@ -40,8 +43,24 @@ initialState =
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
       gsStringMap = empty,
-      gsFloatMap = empty
+      gsFloatMap = empty,
+      gsFuncStack = HM.empty
     }
+  -- old code commented out
+  -- GenState
+  --   { gsTempCounter = 0,
+  --     gsLabelCounter = 0,
+  --     gsStringCounter = 0,
+  --     gsFloatCounter = 0,
+  --     gsGlobals = [],
+  --     gsCurrentFunc = Nothing,
+  --     gsSymTable = empty,
+  --     gsStructs = empty,
+  --     gsLoopStack = [],
+  --     gsCalledFuncs = Set.empty,
+  --     gsStringMap = empty,
+  --     gsFloatMap = empty
+  --   }
 
 runIRGen :: IRGen a -> (a, GenState)
 runIRGen m = runState m initialState

@@ -3,6 +3,7 @@ module IR.IRExpressionsSpec (irExpressionsTests) where
 import Control.Monad.State (runState)
 import Data.Map (empty)
 import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HM
 import Rune.AST.Nodes (Expression (..))
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Nodes
@@ -21,6 +22,8 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 initialState :: GenState
 initialState =
+  -- explanation
+  -- Initialise GenState for expression tests, including float interning state and an empty function stack
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,
@@ -33,8 +36,24 @@ initialState =
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
       gsStringMap = empty,
-      gsFloatMap = empty
+      gsFloatMap = empty,
+      gsFuncStack = HM.empty
     }
+  -- old code commented out
+  -- GenState
+  --   { gsTempCounter = 0,
+  --     gsLabelCounter = 0,
+  --     gsStringCounter = 0,
+  --     gsFloatCounter = 0,
+  --     gsGlobals = [],
+  --     gsCurrentFunc = Nothing,
+  --     gsSymTable = empty,
+  --     gsStructs = empty,
+  --     gsLoopStack = [],
+  --     gsCalledFuncs = Set.empty,
+  --     gsStringMap = empty,
+  --     gsFloatMap = empty
+  --   }
 
 runIRGen :: IRGen a -> (a, GenState)
 runIRGen m = runState m initialState

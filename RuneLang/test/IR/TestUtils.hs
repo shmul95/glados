@@ -15,10 +15,13 @@ import Rune.IR.Nodes
 --
 
 emptyState :: GenState
+-- explanation
+-- Shared empty GenState for IR test utilities, including float maps and func stack
 emptyState = GenState
   { gsTempCounter = 0,
     gsLabelCounter = 0,
     gsStringCounter = 0,
+    gsFloatCounter = 0,
     gsGlobals = [],
     gsCurrentFunc = Nothing,
     gsSymTable = Map.empty,
@@ -26,8 +29,23 @@ emptyState = GenState
     gsLoopStack = [],
     gsCalledFuncs = Set.empty,
     gsStringMap = Map.empty,
+    gsFloatMap = Map.empty,
     gsFuncStack = HM.empty
   }
+-- old code commented out
+-- emptyState = GenState
+--   { gsTempCounter = 0,
+--     gsLabelCounter = 0,
+--     gsStringCounter = 0,
+--     gsGlobals = [],
+--     gsCurrentFunc = Nothing,
+--     gsSymTable = Map.empty,
+--     gsStructs = Map.empty,
+--     gsLoopStack = [],
+--     gsCalledFuncs = Set.empty,
+--     gsStringMap = Map.empty,
+--     gsFuncStack = HM.empty
+--   }
 
 runGen :: IRGen a -> a
 runGen action = evalState action emptyState

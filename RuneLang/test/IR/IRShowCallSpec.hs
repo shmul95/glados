@@ -26,21 +26,40 @@ irShowCallTests =
 --
 
 initialState :: GenState
+-- explanation
+-- GenState baseline for show-call tests, including float maps and an empty function stack
 initialState =
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,
+      gsStringCounter = 0,
       gsFloatCounter = 0,
       gsGlobals = [],
-      gsStringCounter = 0,
       gsCurrentFunc = Nothing,
       gsSymTable = mempty,
       gsStructs = mempty,
       gsLoopStack = [],
       gsCalledFuncs = mempty,
       gsStringMap = mempty,
-      gsFloatMap = mempty
+      gsFloatMap = mempty,
+      gsFuncStack = mempty
     }
+-- old code commented out
+-- initialState =
+--   GenState
+--     { gsTempCounter = 0,
+--       gsLabelCounter = 0,
+--       gsFloatCounter = 0,
+--       gsGlobals = [],
+--       gsStringCounter = 0,
+--       gsCurrentFunc = Nothing,
+--       gsSymTable = mempty,
+--       gsStructs = mempty,
+--       gsLoopStack = [],
+--       gsCalledFuncs = mempty,
+--       gsStringMap = mempty,
+--       gsFloatMap = mempty
+--     }
 
 mockGenExpr :: Expression -> ([IRInstruction], IROperand, IRType)
 mockGenExpr (ExprLitBool b) = ([], IRConstBool b, IRBool)

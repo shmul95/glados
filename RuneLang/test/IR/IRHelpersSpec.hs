@@ -3,6 +3,7 @@ module IR.IRHelpersSpec (irHelpersTests) where
 import Control.Monad.State (evalState, runState)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Data.HashMap.Strict as HM
 import Rune.AST.Nodes (Type (..))
 import Rune.IR.IRHelpers
 import Rune.IR.Nodes
@@ -29,6 +30,8 @@ irHelpersTests =
 
 initialState :: GenState
 initialState =
+  -- explanation
+  -- Base GenState for IRHelpers tests, wiring in float interning and an empty function stack
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,
@@ -41,8 +44,24 @@ initialState =
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
       gsStringMap = Map.empty,
-      gsFloatMap = Map.empty
+      gsFloatMap = Map.empty,
+      gsFuncStack = HM.empty
     }
+  -- old code commented out
+  -- GenState
+  --   { gsTempCounter = 0,
+  --     gsLabelCounter = 0,
+  --     gsStringCounter = 0,
+  --     gsFloatCounter = 0,
+  --     gsGlobals = [],
+  --     gsCurrentFunc = Nothing,
+  --     gsSymTable = Map.empty,
+  --     gsStructs = Map.empty,
+  --     gsLoopStack = [],
+  --     gsCalledFuncs = Set.empty,
+  --     gsStringMap = Map.empty,
+  --     gsFloatMap = Map.empty
+  --   }
 
 testAstTypeConversion :: TestTree
 testAstTypeConversion =
