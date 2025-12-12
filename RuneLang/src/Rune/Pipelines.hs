@@ -11,7 +11,7 @@ module Rune.Pipelines
     runPipeline,
     runPipelineAction,
     genIR,
-    optimizeIR,
+    -- optimizeIR,
     checkSemantics,
     safeRead,
     parseLexer,
@@ -35,12 +35,12 @@ import Rune.Backend.X86_64.Codegen (emitAssembly)
 import Rune.IR.Generator (generateIR)
 import Rune.IR.Nodes (IRProgram)
 import Rune.IR.Printer (prettyPrintIR)
-import Rune.IR.Optimizer (runIROptimizer)
+-- import Rune.IR.Optimizer (runIROptimizer)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
 import Rune.Semantics.Type (FuncStack)
-import Lib (fixpoint)
+-- import Lib (fixpoint)
 import Text.Megaparsec (errorBundlePretty)
 
 --
@@ -62,7 +62,7 @@ pipeline =
   parseLexer
     >=> parseAST
     >=> verifAndGenIR
-    >=> optimizeIR
+    -- >=> optimizeIR
 
 verifAndGenIR :: Program -> Either String IRProgram
 verifAndGenIR p = do
@@ -84,8 +84,8 @@ runPipelineAction inFile onSuccess =
 -- private encapsulations for error handling
 --
 
-optimizeIR :: IRProgram -> Either String IRProgram
-optimizeIR = Right . fixpoint runIROptimizer
+-- optimizeIR :: IRProgram -> Either String IRProgram
+-- optimizeIR = Right . fixpoint runIROptimizer
 
 genIR :: Program -> FuncStack -> Either String IRProgram
 genIR p fs = Right $ generateIR p fs
