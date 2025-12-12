@@ -16,7 +16,7 @@ import qualified Data.HashMap.Strict as HM
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
-import Rune.Semantics.OpType (iHTBinary, sameType)
+import Rune.Semantics.OpType (iHTBinary, sameType, isIntegerType, isFloatType)
 
 import Rune.Semantics.Type
   ( VarStack
@@ -130,16 +130,23 @@ assignVarType vs v t =
     Just t' | sameType t t' -> updated
             | otherwise     -> Left $ printf msg v (show t') (show t)
 
+isTypeCompatible :: Type -> Type -> Bool
+isTypeCompatible expected actual
+  | sameType expected actual = True
+  | actual == TypeI32 && isIntegerType expected = True
+  | actual == TypeF32 && isFloatType expected   = True
+  | otherwise = False
+
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
 checkMultipleType _ Nothing e_t         = Right e_t
 checkMultipleType _ (Just TypeAny) e_t  = Right e_t
 checkMultipleType _ (Just t) TypeAny    = Right t
 checkMultipleType _ _ TypeNull          = Right TypeNull
 checkMultipleType v (Just t) e_t
-  | sameType t e_t  = Right t
+  | isTypeCompatible t e_t = Right t
   | otherwise =
-    let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
-    in Left $ printf msg v (show t) (show e_t)
+      let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
+      in Left $ printf msg v (show t) (show e_t)
 
 checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
 checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
@@ -148,8 +155,11 @@ checkEachParam s i (e:es) (t:at) =
       next = checkEachParam s (i + 1) es at
   in case exprType s e of
     Left err -> Just err
-    Right t' | sameType t t'  -> next
-             | otherwise      -> Just (printf wrong_type i (show t) (show t')) <> next 
+    Right t'
+      | isTypeCompatible t t' -> next
+      | otherwise ->
+          Just (printf wrong_type i (show t) (show t')) <> next
+
 checkEachParam _ _ [] [] = Nothing
 checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
 checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)

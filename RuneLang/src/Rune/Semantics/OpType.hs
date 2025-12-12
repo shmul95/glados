@@ -1,6 +1,8 @@
 module Rune.Semantics.OpType 
   ( iHTBinary
   , sameType
+  , isIntegerType
+  , isFloatType
   ) where
 
 import Rune.AST.Nodes (Type(..), BinaryOp(..))
@@ -102,3 +104,18 @@ sameType a b | isInt    a && isInt    b = True
              | sameStruct a b           = True
              | otherwise                = False
 
+isIntegerType :: Type -> Bool
+isIntegerType TypeI8 = True
+isIntegerType TypeI16 = True
+isIntegerType TypeI32 = True
+isIntegerType TypeI64 = True
+isIntegerType TypeU8 = True
+isIntegerType TypeU16 = True
+isIntegerType TypeU32 = True
+isIntegerType TypeU64 = True
+isIntegerType _ = False
+
+isFloatType :: Type -> Bool
+isFloatType TypeF32 = True
+isFloatType TypeF64 = True
+isFloatType _ = False
