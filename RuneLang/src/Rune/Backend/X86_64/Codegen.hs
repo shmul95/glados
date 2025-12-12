@@ -320,35 +320,47 @@ emitBinaryOp sm dest asmOp leftOp rightOp t
        ++ [emit 1 $ asmOp ++ " " ++ regL ++ ", " ++ regR]
        ++ [storeReg sm dest "rax" t]
 
--- explanation
--- Map IR float binary ops to scalar SSE instructions and store results back to the stack
--- REDO less case of
-emitFloatBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
+emitFloatBinaryOp
+  :: Map String Int
+  -> String        -- destination stack slot
+  -> String        -- IR op name ("add","sub","imul")
+  -> IROperand
+  -> IROperand
+  -> IRType
+  -> [String]
 emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
-  let (xmmL, xmmR) =
-        case x86_64FloatArgsRegisters of
-          r0 : r1 : _ -> (r0, r1)
-          _ -> ("xmm0", "xmm1")
-      loadL = loadFloatOperand sm xmmL leftOp t
-      loadR = loadFloatOperand sm xmmR rightOp t
-      opInstr =
-        case (asmOp, t) of
-          ("add", IRF32) -> "addss"
-          ("add", IRF64) -> "addsd"
-          ("sub", IRF32) -> "subss"
-          ("sub", IRF64) -> "subsd"
-          ("imul", IRF32) -> "mulss"
-          ("imul", IRF64) -> "mulsd"
-          _ -> "movss"
-      storeInstr =
-        case t of
-          IRF32 -> emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmL
-          IRF64 -> emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ xmmL
-          _ -> emit 1 $ "; TODO: unsupported float binary result type: " ++ show t
-   in loadL
-        ++ loadR
-        ++ [emit 1 $ opInstr ++ " " ++ xmmL ++ ", " ++ xmmR]
-        ++ [storeInstr]
+  load left xmmL t
+    ++ load right xmmR t
+    ++ [emit 1 (mnemonic t ++ " " ++ xmmL ++ ", " ++ xmmR)]
+    ++ [store t]
+  where
+
+    (xmmL, xmmR) =
+      case x86_64FloatArgsRegisters of
+        r0 : r1 : _ -> (r0, r1)
+        _           -> ("xmm0", "xmm1")   -- safe fallback; never used
+
+    load op reg ty  = loadFloatOperand sm reg op ty
+
+    left  = leftOp
+    right = rightOp
+
+    -- The SSE instruction names
+    mnemonic IRF32 = prefix "ss"
+    mnemonic IRF64 = prefix "sd"
+    mnemonic _     = "movss"
+
+    prefix suf =
+      case asmOp of
+        "add"  -> "add" ++ suf
+        "sub"  -> "sub" ++ suf
+        "imul" -> "mul" ++ suf
+        _      -> "movss"
+
+    -- Store result
+    store IRF32 = emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmL
+    store IRF64 = emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ xmmL
+    store other = emit 1 $ "; TODO: unsupported float binary result type: " ++ show other
 
 emitRmWarning :: [String]
 emitRmWarning =
