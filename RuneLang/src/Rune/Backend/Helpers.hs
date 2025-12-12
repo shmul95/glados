@@ -21,8 +21,6 @@ import Lib (isPrintable)
 emit :: Int -> String -> String
 emit lvl s = replicate (lvl * 4) ' ' ++ s
 
--- explanation
--- Collect externs, global strings, global floats, and functions from IR top levels for backend emission
 collectTopLevels :: [IRTopLevel] -> ([Extern], [GlobalString], [GlobalFloat], [Function])
 collectTopLevels tls =
   let (es, gs, gfs, fs) = foldr collectTopLevel ([], [], [], []) tls
