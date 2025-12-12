@@ -1,9 +1,26 @@
+{-# LANGUAGE CPP #-}
+
+#if defined(TESTING_EXPORT)
+module CLI
+  ( Action (..),
+    runCLI,
+    parseArgs,
+    CompileRule (..),
+    determineCompileRule,
+    findInputFile,
+    findOutputFile,
+    isValidInputFile,
+    isSourceFile,
+  )
+where
+#else
 module CLI
   ( Action (..),
     runCLI,
     parseArgs,
   )
 where
+#endif
 
 import Data.Maybe (fromMaybe)
 import Rune.Pipelines
