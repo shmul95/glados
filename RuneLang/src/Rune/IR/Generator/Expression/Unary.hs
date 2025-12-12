@@ -1,7 +1,23 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.Expression.Unary
+  ( genUnary,
+    genUnaryExpr,
+    genUnaryNegate,
+    genUnaryPrefixInc,
+    genUnaryPrefixDec,
+    genUnaryPostfixInc,
+    genUnaryPostfixDec,
+    genUnaryPropagate
+  )
+where
+#else
 module Rune.IR.Generator.Expression.Unary
   ( genUnary,
   )
 where
+#endif
 
 import Rune.AST.Nodes (Expression, UnaryOp (..))
 import Rune.IR.IRHelpers (newTemp)

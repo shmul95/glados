@@ -9,6 +9,10 @@ import Text.Printf (printf)
 import Rune.AST.Nodes
 import Rune.Semantics.Type (FuncStack)
 
+--
+-- public
+--
+
 findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) = do
   let builtins = HM.fromList
@@ -18,6 +22,10 @@ findFunc (Program _ defs) = do
       msg = "\n\tHasDuplicates: %s has duplicate signatures (%s)"
   fs <- foldM findDefs builtins defs
   maybe (Right fs) Left (findDuplicateMap fs msg)
+
+--
+-- private
+--
 
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 findDefs s (DefFunction name params rType _) =

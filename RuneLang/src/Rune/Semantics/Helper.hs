@@ -23,6 +23,10 @@ import Rune.Semantics.Type
   , Stack
   )
 
+--
+-- public
+--
+
 checkParamType :: Stack -> String -> [Expression] -> Either String String
 checkParamType s@(fs, _) fname es =
   let unknown_func = "\n\tUnknownFunction: %s is not known"
