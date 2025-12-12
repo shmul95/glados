@@ -136,8 +136,6 @@ insertGlobalString name value =
       , gsStringMap = Map.insert value name (gsStringMap s)
       }
 
--- explanation
--- Create or reuse a global float literal, interning by value and tracking IR type for correct emission
 newFloatGlobal :: Double -> IRType -> IRGen String
 newFloatGlobal value typ = do
   mp <- gets gsFloatMap
@@ -157,38 +155,6 @@ createFloatGlobal value typ = do
       , gsFloatMap = Map.insert value name (gsFloatMap s)
       }
   pure name
--- old code commented out
--- -- create a global new string
--- --
--- -- | check if global string already exists
--- --  if so     -> return its name
--- --  otherwise -> create a new global string and return its name
--- newStringGlobal :: String -> IRGen String
--- newStringGlobal value = do
---   mp <- gets gsStringMap
---   maybe (createStringGlobal value) pure (Map.lookup value mp)
---
--- createStringGlobal :: String -> IRGen String
--- createStringGlobal value = do
---   name <- freshStringName
---   insertGlobalString name value
---   pure name
---
--- freshStringName :: IRGen String
--- freshStringName = do
---   counter <- gets gsStringCounter
---   func    <- gets gsCurrentFunc
---   let base = fromMaybe "global" func
---       name = "str_" <> base <> show counter
---   modify $ \s -> s { gsStringCounter = counter + 1 }
---   pure name
---
--- insertGlobalString :: String -> String -> IRGen ()
--- insertGlobalString name value =
---   modify $ \s ->
---     s { gsGlobals   = IRGlobalString name value : gsGlobals s
---       , gsStringMap = Map.insert value name (gsStringMap s)
---       }
 
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do

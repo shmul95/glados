@@ -37,8 +37,6 @@ generateIR (Program name defs) =
 
 initialState :: GenState
 initialState =
-  -- explanation
-  -- Initialize GenState, including counters and maps for string and float literal interning
   GenState
     { gsTempCounter = 0,
       gsLabelCounter = 0,
@@ -53,19 +51,6 @@ initialState =
       gsStringMap = empty,
       gsFloatMap = empty
     }
-  -- old code commented out
-  -- GenState
-  --   { gsTempCounter = 0,
-  --     gsLabelCounter = 0,
-  --     gsStringCounter = 0,
-  --     gsGlobals = [],
-  --     gsCurrentFunc = Nothing,
-  --     gsSymTable = empty,
-  --     gsStructs = empty,
-  --     gsLoopStack = [],
-  --     gsCalledFuncs = Set.empty,
-  --     gsStringMap = empty
-  --   }
 
 getDefinedFuncName :: IRTopLevel -> [String]
 getDefinedFuncName (IRFunctionDef (IRFunction n _ _ _)) = [n]
