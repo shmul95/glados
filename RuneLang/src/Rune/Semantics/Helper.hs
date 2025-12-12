@@ -74,6 +74,7 @@ exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs
 exprType s@(fs, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
+exprType _ (ExprCast _ t)         = Right t
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs
