@@ -1,6 +1,6 @@
 module Core.LibSpecs (libTests) where
 
-import Lib (escapeString, isPrintable)
+import Lib (escapeString, isPrintable, fixpoint)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, assertBool, testCase)
 import Data.Char (chr)
@@ -14,7 +14,8 @@ libTests =
   testGroup
     "Lib Tests"
     [ isPrintableTests,
-      escapeStringTests
+      escapeStringTests,
+      fixpointTests
     ]
 
 --
@@ -63,4 +64,15 @@ escapeStringTests =
         let input = "a\t\n\r\\\"b\0c"
             expected = "a\\t\\n\\r\\\\\\\"b\\0c"
          in assertEqual "Should escape all special characters" expected (escapeString input)
+    ]
+
+fixpointTests :: TestTree
+fixpointTests =
+  testGroup
+    "fixpoint Tests"
+    [ testCase "Fixpoint of incrementing function on integers" $
+        let f :: Int -> Int
+            f x = if x < 5 then x + 1 else x
+            result = fixpoint f 0
+        in assertEqual "Should be 5" 5 result
     ]
