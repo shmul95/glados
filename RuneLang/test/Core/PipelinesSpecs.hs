@@ -12,7 +12,9 @@ import System.IO (hClose, hPutStr, openTempFile)
 import Data.Either (isLeft, isRight)
 
 import Rune.Pipelines
-  ( compilePipeline,
+  ( CompileMode (..),
+    compilePipeline,
+    translateRuneInAsm,
     interpretPipeline,
     pipeline,
     verifAndGenIR,
@@ -36,7 +38,8 @@ pipelinesTests :: TestTree
 pipelinesTests =
   testGroup
     "Pipeline Tests"
-    [ pipelinesValidTests
+    [ compileModeDerivingTests
+    , pipelinesValidTests
     , pipelinesInvalidTests
     , pipelinePrivateTests
     ]
@@ -86,6 +89,34 @@ withTempFile content action = do
 -- private
 --
 
+compileModeDerivingTests :: TestTree
+compileModeDerivingTests =
+  testGroup
+    "Deriving Show/Eq Coverage for CompileMode"
+    [ testCase "Show coverage for all CompileMode constructors" $ do
+        let mode1 = ToObject
+            mode2 = ToExecutable
+            mode3 = ToAssembly
+            mode4 = FullCompile
+        assertEqual "Show ToObject" "ToObject" (show mode1)
+        assertEqual "Show ToExecutable" "ToExecutable" (show mode2)
+        assertEqual "Show ToAssembly" "ToAssembly" (show mode3)
+        assertEqual "Show FullCompile" "FullCompile" (show mode4)
+    , testCase "Eq coverage for CompileMode" $ do
+        let obj1 = ToObject
+            obj2 = ToObject
+            exe1 = ToExecutable
+            asm1 = ToAssembly
+            full1 = FullCompile
+        assertEqual "Equal modes (ToObject)" obj1 obj2
+        assertBool "Unequal modes (ToObject/ToExecutable)" (obj1 /= exe1)
+        assertBool "Unequal modes (ToObject/ToAssembly)" (obj1 /= asm1)
+        assertBool "Unequal modes (ToObject/FullCompile)" (obj1 /= full1)
+        assertBool "Unequal modes (ToExecutable/ToAssembly)" (exe1 /= asm1)
+        assertBool "Unequal modes (ToExecutable/FullCompile)" (exe1 /= full1)
+        assertBool "Unequal modes (ToAssembly/FullCompile)" (asm1 /= full1)
+    ]
+
 pipelinesValidTests :: TestTree
 pipelinesValidTests =
   testGroup
@@ -127,11 +158,29 @@ pipelinePrivateTests =
     , testCase "runPipeline_read_failure" test_runPipeline_read_failure
     , testCase "runPipelineAction_success" test_runPipelineAction_success
     , testCase "runPipelineAction_failure" test_runPipelineAction_failure
+    , testCase "translateRuneInAsm_success" test_translateRuneInAsm_success
     ]
 
 --
 -- public pipelines tests
 --
+
+test_interpretPipeline_success :: IO ()
+test_interpretPipeline_success = do
+    withTempFile validRuneCode $ \inFile -> do
+        res <- catchExitCode (interpretPipeline inFile)
+        assertEqual "interpretPipeline should succeed" ExitSuccess res
+
+test_interpretPipeline_parser_failure :: IO ()
+test_interpretPipeline_parser_failure = do
+    withTempFile invalidRuneCode $ \inFile -> do
+        res <- catchExitCode (interpretPipeline inFile)
+        assertEqual "interpretPipeline (parser failure) should exit with 84" (ExitFailure 84) res
+
+test_interpretPipeline_read_failure :: IO ()
+test_interpretPipeline_read_failure = do
+  res <- catchExitCode (interpretPipeline "non_existent.rune")
+  assertEqual "interpretPipeline (read failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_success :: IO ()
 test_compilePipeline_success = do
@@ -141,43 +190,26 @@ test_compilePipeline_success = do
             (\(outFile, h) -> hClose h >> removeFile outFile)
             (\(outFile, h) -> do
                 hClose h
-                res <- catchExitCode (compilePipeline inFile outFile)
+                res <- catchExitCode (compilePipeline inFile outFile FullCompile)
                 assertEqual "compilePipeline should succeed" ExitSuccess res
                 exists <- doesFileExist outFile
                 assertBool "Output file should exist" exists)
 
-test_interpretPipeline_success :: IO ()
-test_interpretPipeline_success = do
-    withTempFile validRuneCode $ \inFile -> do
-        res <- catchExitCode (interpretPipeline inFile)
-        assertEqual "interpretPipeline should succeed" ExitSuccess res
-
 test_compilePipeline_read_failure :: IO ()
 test_compilePipeline_read_failure = do
-  res <- catchExitCode (compilePipeline "non_existent.rune" "out.asm")
+  res <- catchExitCode (compilePipeline "non_existent.rune" "out.asm" ToObject)
   assertEqual "compilePipeline (read failure) should exit with 84" (ExitFailure 84) res
-
-test_interpretPipeline_read_failure :: IO ()
-test_interpretPipeline_read_failure = do
-  res <- catchExitCode (interpretPipeline "non_existent.rune")
-  assertEqual "interpretPipeline (read failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_lexer_failure :: IO ()
 test_compilePipeline_lexer_failure = do
     withTempFile invalidRuneCode $ \inFile -> do
-        res <- catchExitCode (compilePipeline inFile "out.asm")
+        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject)
         assertEqual "compilePipeline (lexer failure) should exit with 84" (ExitFailure 84) res
-
-test_interpretPipeline_parser_failure :: IO ()
-test_interpretPipeline_parser_failure = do
-    withTempFile invalidRuneCode $ \inFile -> do
-        res <- catchExitCode (interpretPipeline inFile)
-        assertEqual "interpretPipeline (parser failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_semantic_failure :: IO ()
 test_compilePipeline_semantic_failure = do
     withTempFile semErrorRuneCode $ \inFile -> do
-        res <- catchExitCode (compilePipeline inFile "out.asm")
+        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject)
         assertEqual "compilePipeline (semantic failure) should exit with 84" (ExitFailure 84) res
 
 --
@@ -321,3 +353,17 @@ test_runPipelineAction_failure = do
         let onSuccess _ = assertFailure "onSuccess should not be called"
         res <- catchExitCode (runPipelineAction fp onSuccess)
         assertEqual "runPipelineAction_failure should exit with 84" (ExitFailure 84) res
+
+test_translateRuneInAsm_success :: IO ()
+test_translateRuneInAsm_success = do
+    case parseLexer (validFile, validRuneCode) of
+        Right (fp, tokens) -> case parseAST (fp, tokens) of
+            Right ast -> case checkSemantics ast of
+                Right (checkedAST, fs) -> case genIR checkedAST fs of
+                    Right irProg -> do
+                        let asmContent = translateRuneInAsm irProg
+                        assertBool "ASM content should not be empty" (not (null asmContent))
+                    Left err -> assertFailure $ "genIR failed: " ++ err
+                Left _ -> assertFailure "checkSemantics failed"
+            Left _ -> assertFailure "Parser failed"
+        Left _ -> assertFailure "Lexer failed"

@@ -53,12 +53,8 @@ ERROR = 84
 
 def compile(filename: str, output_bin: str = OUT_BIN) -> str:
     file = Path(filename)
-    asm = file.with_suffix(".asm")
-    obj = file.with_suffix(".o")
 
-    subprocess.run(["./rune", "build", str(file), "-o", str(asm)], check=True)
-    subprocess.run(["nasm", "-f", "elf64", str(asm), "-o", str(obj)], check=True)
-    subprocess.run(["gcc", "-no-pie", str(obj), "-o", output_bin], check=True)
+    subprocess.run(["./rune", "build", str(file), "-o", str(output_bin)], check=True)
 
     return output_bin
 
