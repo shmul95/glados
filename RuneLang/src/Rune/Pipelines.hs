@@ -11,7 +11,7 @@ module Rune.Pipelines
     runPipeline,
     runPipelineAction,
     genIR,
-    -- optimizeIR,
+    optimizeIR,
     checkSemantics,
     safeRead,
     parseLexer,
