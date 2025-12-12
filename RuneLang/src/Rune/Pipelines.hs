@@ -40,6 +40,7 @@ import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
 import Rune.Semantics.Type (FuncStack)
+import Lib (fixpoint)
 import Text.Megaparsec (errorBundlePretty)
 
 --
@@ -84,7 +85,7 @@ runPipelineAction inFile onSuccess =
 --
 
 optimizeIR :: IRProgram -> Either String IRProgram
-optimizeIR = Right . (!! 3) . iterate runIROptimizer
+optimizeIR = Right . fixpoint runIROptimizer
 
 genIR :: Program -> FuncStack -> Either String IRProgram
 genIR p fs = Right $ generateIR p fs

@@ -1,4 +1,4 @@
-module Lib (escapeString, isPrintable) where
+module Lib (escapeString, isPrintable, fixpoint) where
 
 --
 -- public
@@ -17,3 +17,9 @@ escapeString = concatMap escapeChar
     escapeChar '\\' = "\\\\"
     escapeChar '"' = "\\\""
     escapeChar c = [c]
+
+fixpoint :: Eq a => (a -> a) -> a -> a
+fixpoint f x
+  | x == x'   = x
+  | otherwise = fixpoint f x'
+  where x' = f x
