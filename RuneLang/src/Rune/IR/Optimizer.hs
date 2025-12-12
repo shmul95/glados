@@ -18,7 +18,6 @@ where
 import Rune.IR.Nodes
 import qualified Data.Map as M
 import Control.Monad.State
-import Data.Foldable (traverse_)
 import Data.Maybe (fromMaybe)
 
 --
@@ -30,7 +29,8 @@ type FuncMap = M.Map String IRFunction
 
 data OptState = OptState
   { osConsts :: ConstMap,
-    osFuncs :: FuncMap
+    osFuncs :: FuncMap,
+    osKeepAssignments :: Bool
   }
 
 type OptM = State OptState
@@ -63,7 +63,8 @@ optimizeTopLevel _ other = other
 optimizeFunction :: FuncMap -> IRFunction -> IRFunction
 optimizeFunction funcs f = f { irFuncBody = newBody }
   where
-    initialState = OptState M.empty funcs
+    hasCF = any isControlFlow (irFuncBody f)
+    initialState = OptState M.empty funcs hasCF
     (newBody, _) = runState (optimizeBlock (irFuncBody f)) initialState
 
 optimizeBlock :: [IRInstruction] -> OptM [IRInstruction]
@@ -75,7 +76,8 @@ optimizeBlock (inst : rest) = do
 optimizeInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
 optimizeInstr inst@(IRASSIGN target op _) rest =
   modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
-  >> emitInstr inst rest
+  >> gets osKeepAssignments
+  >>= \keep -> if keep then emitInstr inst rest else optimizeBlock rest
 optimizeInstr inst@(IRLABEL _) rest =
   modify' (\s -> s { osConsts = M.empty })
   >> emitInstr inst rest
@@ -92,10 +94,9 @@ inlineFunction :: String -> String -> IRFunction -> [IROperand] -> [IRInstructio
 inlineFunction target fun callee args rest =
   let prefix = fun <> "_" <> target <> "_"
       renamedBody = renameInstr prefix <$> irFuncBody callee
-      paramNames = (prefix <>) . fst <$> irFuncParams callee
-      setConst p a = modify' (\s -> s { osConsts = M.insert p a (osConsts s) })
-  in traverse_ (uncurry setConst) (zip paramNames args)
-     >> optimizeBlock (replaceRet target renamedBody <> rest)
+      renamedParams = map (\(n, t) -> (prefix <> n, t)) (irFuncParams callee)
+      assigns = zipWith (\(n, t) arg -> IRASSIGN n arg t) renamedParams args
+  in optimizeBlock (assigns <> replaceRet target renamedBody <> rest)
 
 --
 -- helpers
