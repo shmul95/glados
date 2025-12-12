@@ -258,25 +258,22 @@ saveCallResult sm dest (Just t)
 --  cases:
 --  1- no return value: xor rax, rax to avoid returning garbage value
 --  2- return value: load into the appropriate return register
--- explanation
--- Return float values via an XMM register, integer/pointer values via rax, and IRNull as zeroed rax
+-- REDO ?
 emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
 emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
-emitRet sm endLbl (Just op) =
-  case getOperandType op of
-    Just IRNull ->
-      [ emit 1 "xor rax, rax",
-        emit 1 $ "jmp " ++ endLbl
-      ]
-    Just t | isFloatType t ->
-      case x86_64FloatArgsRegisters of
-        xmmRet : _ ->
-          loadFloatOperand sm xmmRet op t ++ [emit 1 $ "jmp " ++ endLbl]
-        _ ->
-          loadFloatOperand sm "xmm0" op t ++ [emit 1 $ "jmp " ++ endLbl]
-    _ ->
-      loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
- 
+emitRet sm endLbl (Just op) = emitRetHelper $ getOperandType op
+  where
+    getReg = loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
+    getFloatReg t (xmmRet:_) = loadFloatOperand sm xmmRet op t ++ [emit 1 $ "jmp " ++ endLbl]
+    getFloatReg t _          = loadFloatOperand sm "xmm0" op t ++ [emit 1 $ "jmp " ++ endLbl]
+
+    emitRetHelper (Just IRNull)
+      = [ emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl ]
+    emitRetHelper (Just t)
+      | isFloatType t = getFloatReg t x86_64FloatArgsRegisters
+    emitRetHelper _ = getReg
+
+
 -- | emit deref ptr
 --  cases:
 --  1- load pointer address into rax
