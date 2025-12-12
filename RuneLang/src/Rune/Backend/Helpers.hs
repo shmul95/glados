@@ -49,7 +49,7 @@ calculateStackMap :: Function -> (Map.Map String Int, Int)
 calculateStackMap func =
   let varsMap = collectIRVars func
       varsList = Map.toList varsMap
-      (totalUsedSize, offsetsMap) = foldl (accumulateOffset varsMap) (0, Map.empty) varsList
+      (totalUsedSize, offsetsMap) = foldl' (accumulateOffset varsMap) (0, Map.empty) varsList
       totalSize = alignUp totalUsedSize 16
       rbpOffsetsMap = Map.map (makeRbpOffset totalUsedSize) offsetsMap
    in (rbpOffsetsMap, totalSize)
