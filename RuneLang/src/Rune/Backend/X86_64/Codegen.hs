@@ -250,9 +250,15 @@ saveCallResult sm dest (Just t)
   | isFloatType t = saveFloat t x86_64FloatArgsRegisters
   | otherwise     = [ storeReg sm dest "rax" t ]
   where
+    -- explanation
+    -- Save float return values from the first XMM argument register using movss/movsd according to the return type
     saveFloat IRF32 (xmmRet:_) = [ emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmRet ]
-    saveFloat IRF64 (xmmRet:_) = [ emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmRet ]
+    saveFloat IRF64 (xmmRet:_) = [ emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ xmmRet ]
     saveFloat other _          = [ emit 1 $ "; TODO: unsupported float return type: " ++ show other ]
+    -- old code commented out
+    -- saveFloat IRF32 (xmmRet:_) = [ emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmRet ]
+    -- saveFloat IRF64 (xmmRet:_) = [ emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmRet ]
+    -- saveFloat other _          = [ emit 1 $ "; TODO: unsupported float return type: " ++ show other ]
 
 -- | emit a return instruction
 --  cases:
@@ -263,8 +269,11 @@ emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
 emitRet sm endLbl (Just op) = emitRetHelper $ getOperandType op
   where
     getReg = loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
+    -- explanation
+    -- Use the first float argument register from x86_64FloatArgsRegisters for returning float values, falling back to a warning when none are available
     getFloatReg t (xmmRet:_) = loadFloatOperand sm xmmRet op t ++ [emit 1 $ "jmp " ++ endLbl]
-    getFloatReg t _          = loadFloatOperand sm "xmm0" op t ++ [emit 1 $ "jmp " ++ endLbl]
+    getFloatReg t []         = [ emit 1 $ "; WARNING: no float return register available"
+                               ] ++ loadFloatOperand sm "xmm0" op t ++ [emit 1 $ "jmp " ++ endLbl]
 
     emitRetHelper (Just IRNull)
       = [ emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl ]
