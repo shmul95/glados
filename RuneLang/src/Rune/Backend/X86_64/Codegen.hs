@@ -310,18 +310,15 @@ emitConditionalJump sm op jumpInstr lbl =
 
 -- | emit dest = left <asmOp> right
 emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
--- explanation
--- Use SSE for float arithmetic and GPRs for integer/bitwise operations
--- REDO maybe good ?
 emitBinaryOp sm dest asmOp leftOp rightOp t
   | isFloatType t = emitFloatBinaryOp sm dest asmOp leftOp rightOp t
   | otherwise =
       let regL = getRegisterName "rax" t
           regR = getRegisterName "rbx" t
        in loadReg sm "rax" leftOp
-            ++ loadReg sm "rbx" rightOp
-            ++ [emit 1 $ asmOp ++ " " ++ regL ++ ", " ++ regR]
-            ++ [storeReg sm dest "rax" t]
+       ++ loadReg sm "rbx" rightOp
+       ++ [emit 1 $ asmOp ++ " " ++ regL ++ ", " ++ regR]
+       ++ [storeReg sm dest "rax" t]
 
 -- explanation
 -- Map IR float binary ops to scalar SSE instructions and store results back to the stack

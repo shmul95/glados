@@ -151,22 +151,14 @@ loadOperand sm baseReg (IRParam name _) t =
    in [emit 1 $ "mov " ++ reg ++ ", " ++ sizeSpec ++ " " ++ stackAddr sm name]
 loadOperand _ reg _ _ = [emit 1 $ "mov " ++ reg ++ ", 0"]
 
--- explanation
--- Load float operands for comparisons from stack or interned .rodata literals using SSE instructions
 loadFloatOperand :: Map String Int -> String -> IROperand -> IRType -> [String]
-loadFloatOperand sm reg (IRTemp name _) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam name _) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRTemp name _) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam name _) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand _ reg (IRGlobal name IRF32) IRF32 =
-  [emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"]
-loadFloatOperand _ reg (IRGlobal name IRF64) IRF64 =
-  [emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"]
-loadFloatOperand _ reg _ _ = [emit 1 $ "xorps " ++ reg ++ ", " ++ reg]
+loadFloatOperand sm reg (IRTemp   name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRParam  name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRTemp   name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
+loadFloatOperand sm reg (IRParam  name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
+loadFloatOperand _  reg (IRGlobal name IRF32) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"]
+loadFloatOperand _  reg (IRGlobal name IRF64) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"]
+loadFloatOperand _  reg _ _                         = [emit 1 $ "xorps " ++ reg ++ ", " ++ reg]
 
 getSizeSpec :: IRType -> String
 getSizeSpec IRI8 = "byte"
