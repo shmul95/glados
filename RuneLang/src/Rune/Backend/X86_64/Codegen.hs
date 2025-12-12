@@ -258,7 +258,6 @@ saveCallResult sm dest (Just t)
 --  cases:
 --  1- no return value: xor rax, rax to avoid returning garbage value
 --  2- return value: load into the appropriate return register
--- REDO ?
 emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
 emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
 emitRet sm endLbl (Just op) = emitRetHelper $ getOperandType op
