@@ -74,13 +74,16 @@ optimizeBlock (inst : rest) = do
   optimizeInstr inst' rest
 
 optimizeInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
+-- remember assignment for later; remove if safe
 optimizeInstr inst@(IRASSIGN target op _) rest =
   modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
   >> gets osKeepAssignments
   >>= \keep -> if keep then emitInstr inst rest else optimizeBlock rest
+-- reset remembered values at labels
 optimizeInstr inst@(IRLABEL _) rest =
   modify' (\s -> s { osConsts = M.empty })
   >> emitInstr inst rest
+-- inline small/simple function calls
 optimizeInstr (IRCALL target fun args retType) rest =
   gets osFuncs >>= maybe (emitInstr simpleCall rest) tryInline . M.lookup fun
   where
@@ -88,7 +91,9 @@ optimizeInstr (IRCALL target fun args retType) rest =
     tryInline callee
       | isInlineable callee = inlineFunction target fun callee args rest
       | otherwise           = emitInstr simpleCall rest
+-- pass other instructions as is
 optimizeInstr inst rest = emitInstr inst rest
+
 
 inlineFunction :: String -> String -> IRFunction -> [IROperand] -> [IRInstruction] -> OptM [IRInstruction]
 inlineFunction target fun callee args rest =
