@@ -55,9 +55,9 @@ emitRoDataSection [] [] = []
 emitRoDataSection gs fs = "section .rodata" : (map emitStr gs ++ map emitFloat fs)
   where
     emitStr   (name, val)        = name ++ " db " ++ escapeString val ++ ", 0"
-    emitFloat (name, val, IRF32) = name ++ " dd " ++ " " ++ show val
-    emitFloat (name, val, IRF64) = name ++ " dq " ++ " " ++ show val
-    emitFloat (name, val, _)     = name ++ " dd " ++ " " ++ show val
+    emitFloat (name, val, IRF32) = name ++ " dd " show val
+    emitFloat (name, val, IRF64) = name ++ " dq " show val
+    emitFloat (name, val, _)     = name ++ " dd " show val
 
 emitTextSection :: [Function] -> [String]
 emitTextSection [] = []
@@ -112,15 +112,15 @@ emitParameters params stackMap =
   let (instrs, _, _) = foldl step ([], 0, 0) params
    in instrs
   where
-    getStoreInstr sizeSpec irName xmmReg IRF32 = emit 1 $ "movss " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
-    getStoreInstr sizeSpec irName xmmReg IRF64 = emit 1 $ "movsd " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
-    getStoreInstr _ _ _ t                      = emit 1 $ "; TODO: unsupported float param type: " ++ show t
+    getStoreInstr irName xmmReg IRF32 = emit 1 $ "movss " stackAddr stackMap irName ++ ", " ++ xmmReg
+    getStoreInstr irName xmmReg IRF64 = emit 1 $ "movsd " stackAddr stackMap irName ++ ", " ++ xmmReg
+    getStoreInstr _ _ t               = emit 1 $ "; TODO: unsupported float param type: " ++ show t
 
     step (acc, intIdx, floatIdx) (irName, t)
       | isFloatType t && floatIdx < length x86_64FloatArgsRegisters =
           let xmmReg = x86_64FloatArgsRegisters !! floatIdx
               sizeSpec = getSizeSpecifier t
-              storeInstr = getStoreInstr sizeSpec irName xmmReg t
+              storeInstr = getStoreInstr irName xmmReg t
            in (acc ++ [storeInstr], intIdx, floatIdx + 1)
       | not (isFloatType t) && intIdx < length x86_64ArgsRegisters =
           let reg = x86_64ArgsRegisters !! intIdx
