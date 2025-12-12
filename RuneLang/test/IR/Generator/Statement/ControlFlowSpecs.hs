@@ -8,7 +8,7 @@ import Test.Tasty.HUnit (testCase, assertBool, (@?=))
 import Control.Monad.State (runState)
 import Rune.IR.Generator.Statement.ControlFlow
 import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..), IRLabel(..), GenState(..))
-import Rune.AST.Nodes (Expression(..))
+import Rune.AST.Nodes (Expression(..), Statement(..))
 import IR.TestUtils (runGen, emptyState)
 
 --
