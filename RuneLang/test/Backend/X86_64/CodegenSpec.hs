@@ -82,8 +82,9 @@ testFunctionWithGlobalFloats =
         ls = lines asm
      in do
           assertBool "contains section .rodata" ("section .rodata" `elem` ls)
-          assertBool "contains first float literal" (any ("float_global0 dd 42.0" `isInfixOf`) ls)
-          assertBool "contains second float literal" (any ("float_global1 dd 13.37" `isInfixOf`) ls)
+          -- match backend emission order: float_global1, then float_global0
+          assertBool "contains first float literal" (any ("float_global1 dd 13.37" `isInfixOf`) ls)
+          assertBool "contains second float literal" (any ("float_global0 dd 42.0" `isInfixOf`) ls)
 
 testFunctionWithParameters :: TestTree
 testFunctionWithParameters =
