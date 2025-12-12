@@ -18,11 +18,17 @@ lexerKeywordsTests =
     , test_kw_control_flow_loop_next_stop
     , test_kw_override
     , test_kw_reserved_check
+    , test_kw_as
     ]
 
 --
 -- private
 --
+
+test_kw_as :: TestTree
+test_kw_as = testCase "Kw As" $
+  lexTest "as"
+    [ tok KwAs "as" 1 1, tok EOF "" 1 3 ]
 
 test_kw_definition :: TestTree
 test_kw_definition = testCase "Kw Def, Return, Struct" $
