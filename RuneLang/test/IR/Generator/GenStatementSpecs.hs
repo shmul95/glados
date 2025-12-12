@@ -6,7 +6,7 @@ module IR.Generator.GenStatementSpecs (genStatementTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Rune.IR.Generator.GenStatement
-import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..))
+import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..), IRLabel(..))
 import Rune.AST.Nodes (Statement(..), Expression(..), Type(..))
 import IR.TestUtils (runGen)
 
