@@ -17,12 +17,18 @@ lexerKeywordsTests =
     , test_kw_control_flow_if_for
     , test_kw_control_flow_loop_next_stop
     , test_kw_override
+    , test_kw_logical
     , test_kw_reserved_check
     ]
 
 --
 -- private
 --
+
+test_kw_logical :: TestTree
+test_kw_logical = testCase "Kw And, Or (mapped to OpAnd, OpOr)" $
+  lexTest "and or"
+    [ tok OpAnd "and" 1 1, tok OpOr "or" 1 5, tok EOF "" 1 7 ]
 
 test_kw_definition :: TestTree
 test_kw_definition = testCase "Kw Def, Return, Struct" $

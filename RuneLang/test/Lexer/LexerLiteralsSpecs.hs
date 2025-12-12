@@ -15,6 +15,8 @@ lexerLiteralsTests =
     "LexerLiterals Tests"
     [ test_lit_int_positive
     , test_lit_int_negative
+    , test_lit_int_separators
+    , test_lit_int_separators_negative
     , test_lit_float_positive
     , test_lit_float_negative
     , test_lit_float_priority
@@ -42,6 +44,14 @@ test_lit_int_positive = testCase "Positive Integer Literal" $
 test_lit_int_negative :: TestTree
 test_lit_int_negative = testCase "Negative Integer Literal" $
   lexTest "-456" [tok (LitInt (-456)) "-456" 1 1, tok EOF "" 1 5]
+
+test_lit_int_separators :: TestTree
+test_lit_int_separators = testCase "Integer Literal with separators" $
+  lexTest "1_000_000" [tok (LitInt 1000000) "1_000_000" 1 1, tok EOF "" 1 10]
+
+test_lit_int_separators_negative :: TestTree
+test_lit_int_separators_negative = testCase "Negative Integer Literal with separators" $
+  lexTest "-1_234" [tok (LitInt (-1234)) "-1_234" 1 1, tok EOF "" 1 7]
 
 test_lit_float_positive :: TestTree
 test_lit_float_positive = testCase "Positive Float Literal" $

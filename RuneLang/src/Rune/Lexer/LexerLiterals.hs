@@ -37,13 +37,17 @@ mkLiteralConstructor = Token
 intLitParser :: Parser (Int -> Int -> Token)
 intLitParser = try $ do
   sign <- optional $ char '-'
-  digits <- some digitChar
+  headDigit <- digitChar
+  tailDigits <- many (digitChar <|> char '_')
 
   notFollowedBy $ char '.'
-  let val = maybe digits (: digits) sign
+  let rawDigits = headDigit : tailDigits
+      cleanDigits = filter (/= '_') rawDigits
+      val = maybe cleanDigits (: cleanDigits) sign
       num = read val :: Int
+      sourceVal = maybe rawDigits (: rawDigits) sign
 
-  return $ mkLiteralConstructor (LitInt num) val
+  return $ mkLiteralConstructor (LitInt num) sourceVal
 
 floatLitParser :: Parser (Int -> Int -> Token)
 floatLitParser = try $ do
