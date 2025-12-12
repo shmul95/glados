@@ -47,13 +47,8 @@ testGenLitFloat = testGroup "genLitFloat"
       let (instrs, op, typ) = runGen (genLitFloat 3.14)
       in do
         instrs @?= []
-        -- explanation
-        -- genLitFloat now returns an interned global operand named using 'float_<function/global><counter>' with 'global' as prefix at top level
         op @?= IRGlobal "float_global0" IRF32
         typ @?= IRF32
-        -- old code commented out
-        -- op @?= IRGlobal "global_float0" IRF32
-        -- typ @?= IRF32
   ]
 
 testGenLitChar :: TestTree

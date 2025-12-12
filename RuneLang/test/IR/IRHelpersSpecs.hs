@@ -48,8 +48,6 @@ irHelpersTests =
 --
 
 emptyState :: GenState
--- explanation
--- Empty GenState including float interning state and an empty function stack for IRHelpersSpecs
 emptyState = GenState
   { gsTempCounter = 0
   , gsLabelCounter = 0
@@ -65,20 +63,6 @@ emptyState = GenState
   , gsFloatMap = Map.empty
   , gsFuncStack = HM.empty
   }
--- old code commented out
--- emptyState = GenState
---   { gsTempCounter = 0
---   , gsLabelCounter = 0
---   , gsStringCounter = 0
---   , gsGlobals = []
---   , gsCurrentFunc = Nothing
---   , gsSymTable = Map.empty
---   , gsStructs = Map.empty
---   , gsLoopStack = []
---   , gsCalledFuncs = Set.empty
---   , gsStringMap = Map.empty
---   , gsFuncStack = HM.empty
---   }
 
 --
 -- private tests
@@ -254,8 +238,6 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
             _ -> assertFailure "Expected IRGlobal operand"
 
   , testCase "newStringGlobal uses 'global' prefix when outside a function" $
-      -- explanation
-      -- When no current function is set, global strings are named with 'str_global<counter>'
       let (name, state) = runState (newStringGlobal "top") emptyState
       in do
         name @?= "str_global0"
@@ -270,8 +252,6 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
 testFloatGlobalHelpers :: TestTree
 testFloatGlobalHelpers = testGroup "Float Global Helpers"
   [ testCase "newFloatGlobal creates new global when not interned" $
-      -- explanation
-      -- Float globals are interned and named using 'float_<function/global><counter>' with 'global' as top-level prefix
       let (name, state) = runState (newFloatGlobal 3.14 IRF32) emptyState
       in do
         name @?= "float_global0"
@@ -285,8 +265,6 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
           _ -> assertFailure "Expected IRGlobalFloat"
 
   , testCase "newFloatGlobal reuses existing label when value interned" $
-      -- explanation
-      -- Repeated calls with the same float literal return the same interned label without adding new globals
       let initial =
             emptyState
               { gsFloatCounter = 1

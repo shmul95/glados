@@ -75,69 +75,34 @@ testCollectTopLevels :: TestTree
 testCollectTopLevels = testGroup "collectTopLevels"
   [ testCase "Collects externs" $
       let tls = [IRExtern "printf", IRExtern "malloc"]
-          -- explanation
-          -- Adjust pattern to handle the extra GlobalFloat component in collectTopLevels
           (externs, _, _, _) = collectTopLevels tls
       in externs @?= ["printf", "malloc"]
-      -- old code commented out
-      -- let tls = [IRExtern "printf", IRExtern "malloc"]
-      --     (externs, _, _) = collectTopLevels tls
-      -- in externs @?= ["printf", "malloc"]
 
   , testCase "Collects global strings" $
       let tls = [IRGlobalString "str1" "hello", IRGlobalString "str2" "world"]
-          -- explanation
-          -- Include placeholder for GlobalFloat when pattern-matching collectTopLevels
           (_, strings, _, _) = collectTopLevels tls
       in length strings @?= 2
-      -- old code commented out
-      -- let tls = [IRGlobalString "str1" "hello", IRGlobalString "str2" "world"]
-      --     (_, strings, _) = collectTopLevels tls
-      -- in length strings @?= 2
 
   , testCase "Collects functions" $
       let func = IRFunction "test" [] (Just IRNull) []
           tls = [IRFunctionDef func]
-          -- explanation
-          -- Pattern-match fourth element for collected functions after GlobalFloat list
           (_, _, _, funcs) = collectTopLevels tls
       in length funcs @?= 1
-      -- old code commented out
-      -- let func = IRFunction "test" [] (Just IRNull) []
-      --     tls = [IRFunctionDef func]
-      --     (_, _, funcs) = collectTopLevels tls
-      -- in length funcs @?= 1
 
   , testCase "Filters duplicates in externs" $
       let tls = [IRExtern "printf", IRExtern "printf"]
-          -- explanation
-          -- Ignore string/float/function components when checking extern de-duplication
           (externs, _, _, _) = collectTopLevels tls
       in externs @?= ["printf"]
-      -- old code commented out
-      -- let tls = [IRExtern "printf", IRExtern "printf"]
-      --     (externs, _, _) = collectTopLevels tls
-      -- in externs @?= ["printf"]
 
   , testCase "Handles mixed top levels" $
       let func = IRFunction "f" [] (Just IRNull) []
           tls = [IRExtern "e", IRGlobalString "s" "v", IRFunctionDef func]
-          -- explanation
-          -- Match all four components from collectTopLevels, but only assert on externs/strings/functions
           (externs, strings, floats, funcs) = collectTopLevels tls
       in do
         externs @?= ["e"]
         strings @?= [("s", "v")]
         length funcs @?= 1
         floats @?= []
-      -- old code commented out
-      -- let func = IRFunction "f" [] (Just IRNull) []
-      --     tls = [IRExtern "e", IRGlobalString "s" "v", IRFunctionDef func]
-      --     (externs, strings, funcs) = collectTopLevels tls
-      -- in do
-      --   externs @?= ["e"]
-      --   strings @?= [("s", "v")]
-      --   length funcs @?= 1
   ]
 
 testCollectIRVars :: TestTree
@@ -211,40 +176,23 @@ testAlignUp = testGroup "alignUp"
 testCollectTopLevel :: TestTree
 testCollectTopLevel = testGroup "collectTopLevel"
   [ testCase "Adds extern" $
-      -- explanation
-      -- Extend collectTopLevel accumulator to carry GlobalFloat entries as well
       let result = collectTopLevel (IRExtern "printf") ([], [], [], [])
       in result @?= (["printf"], [], [], [])
-      -- old code commented out
-      -- let result = collectTopLevel (IRExtern "printf") ([], [], [])
-      -- in result @?= (["printf"], [], [])
 
   , testCase "Adds global string" $
-      -- explanation
-      -- Ensure GlobalString is added while other components remain unchanged
       let result = collectTopLevel (IRGlobalString "s" "val") ([], [], [], [])
       in result @?= ([], [("s", "val")], [], [])
-      -- old code commented out
-      -- let result = collectTopLevel (IRGlobalString "s" "val") ([], [], [])
-      -- in result @?= ([], [("s", "val")], [])
 
   , testCase "Adds function" $
       let func = IRFunction "f" [] (Just IRNull) []
-          -- explanation
-          -- Functions are accumulated in the fourth component of the collectTopLevel accumulator
           result = collectTopLevel (IRFunctionDef func) ([], [], [], [])
       in case result of
         ([], [], [], [_]) -> return ()
         _ -> assertBool "Expected one function" False
 
   , testCase "Ignores struct def" $
-      -- explanation
-      -- Struct definitions should not affect any of the collected top-level lists
       let result = collectTopLevel (IRStructDef "S" []) ([], [], [], [])
       in result @?= ([], [], [], [])
-      -- old code commented out
-      -- let result = collectTopLevel (IRStructDef "S" []) ([], [], [])
-      -- in result @?= ([], [], [])
   ]
 
 testCollectVars :: TestTree

@@ -138,8 +138,6 @@ testGenState =
               gsLoopStack initialState @?= loopStack
               evalState dummyOp initialState @?= 10,
       testCase "Deriving Show/Eq" $
-        -- explanation
-        -- Use record construction so GenState Deriving Show/Eq test stays in sync with new fields
         let state1 =
               GenState
                 { gsTempCounter = 0,
@@ -173,10 +171,6 @@ testGenState =
                   gsFuncStack = mempty
                 }
          in state1 @?= state2
-        -- old code commented out
-        -- let state1 = GenState 0 0 0 [] Nothing empty empty [] Set.empty empty mempty
-        --     state2 = GenState 0 0 0 [] Nothing empty empty [] Set.empty empty mempty
-        --  in state1 @?= state2
     ]
 
 testIRInstruction :: TestTree
