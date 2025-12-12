@@ -171,16 +171,12 @@ emitAssign sm dest (IRGlobal name IRF32) IRF32 =
     (reg:_) -> [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"
                , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
                ]
-emitAssign sm dest (IRConstChar c) _ =
-  [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
-emitAssign sm dest (IRConstBool b) _ =
-  [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ if b then "1" else "0"]
-emitAssign sm dest IRConstNull t =
-  [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"]
-emitAssign sm dest (IRGlobal name _) t =
-  [emit 1 $ "mov rax, " ++ name, storeReg sm dest "rax" t]
-emitAssign sm dest (IRTemp name _) t = moveStackToStack sm dest name t
-emitAssign sm dest (IRParam name _) t = moveStackToStack sm dest name t
+emitAssign sm dest (IRConstChar c)   _ = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
+emitAssign sm dest (IRConstBool b)   _ = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ if b then "1" else "0"]
+emitAssign sm dest  IRConstNull      t = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"]
+emitAssign sm dest (IRGlobal name _) t = [emit 1 $ "mov rax, " ++ name, storeReg sm dest "rax" t]
+emitAssign sm dest (IRTemp name _)   t = moveStackToStack sm dest name t
+emitAssign sm dest (IRParam name _)  t = moveStackToStack sm dest name t
 emitAssign sm dest op t =
   [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " ++ show op
   , emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", 0"
