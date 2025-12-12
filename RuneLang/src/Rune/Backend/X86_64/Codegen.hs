@@ -31,9 +31,7 @@ emitAssembly (IRProgram _ topLevels) =
         emitExterns externs
           ++ emitRoDataSection globalStrings globalFloats
           ++ emitTextSection functions
-          ++ [ "; this section is to remove the gcc GNU related warning"
-             , "section .note.GNU-stack noalloc noexec nowrite"
-             ]
+          ++ emitRmWarning
 
 --
 -- top level
@@ -55,13 +53,10 @@ emitRoDataSection :: [GlobalString] -> [GlobalFloat] -> [String]
 emitRoDataSection [] [] = []
 emitRoDataSection gs fs = "section .rodata" : (map emitStr gs ++ map emitFloat fs)
   where
-    emitStr (name, val) = name ++ " db " ++ escapeString val ++ ", 0"
-    emitFloat (name, val, typ) =
-      let dir = case typ of
-            IRF32 -> "dd"
-            IRF64 -> "dq"
-            _ -> "dd"
-       in name ++ ": " ++ dir ++ " " ++ show val
+    emitStr   (name, val)        = name ++ " db " ++ escapeString val ++ ", 0"
+    emitFloat (name, val, IRF32) = name ++ " dd " ++ " " ++ show val
+    emitFloat (name, val, IRF64) = name ++ " dq " ++ " " ++ show val
+    emitFloat (name, val, _)     = name ++ " dd " ++ " " ++ show val
 
 emitTextSection :: [Function] -> [String]
 emitTextSection [] = []
@@ -112,20 +107,19 @@ emitFunctionEpilogue endLabel =
 
 -- | emit function parameters
 emitParameters :: [(String, IRType)] -> Map String Int -> [String]
--- REDO this function (its attrocious)
 emitParameters params stackMap =
   let (instrs, _, _) = foldl step ([], 0, 0) params
    in instrs
   where
+    getStoreInstr sizeSpec irName xmmReg IRF32 = emit 1 $ "movss " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
+    getStoreInstr sizeSpec irName xmmReg IRF64 = emit 1 $ "movsd " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
+    getStoreInstr _ _ _ t                      = emit 1 $ "; TODO: unsupported float param type: " ++ show t
+
     step (acc, intIdx, floatIdx) (irName, t)
       | isFloatType t && floatIdx < length x86_64FloatArgsRegisters =
           let xmmReg = x86_64FloatArgsRegisters !! floatIdx
               sizeSpec = getSizeSpecifier t
-              storeInstr =
-                case t of
-                  IRF32 -> emit 1 $ "movss " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
-                  IRF64 -> emit 1 $ "movsd " ++ sizeSpec ++ " " ++ stackAddr stackMap irName ++ ", " ++ xmmReg
-                  _ -> emit 1 $ "; TODO: unsupported float param type: " ++ show t
+              storeInstr = getStoreInstr sizeSpec irName xmmReg t
            in (acc ++ [storeInstr], intIdx, floatIdx + 1)
       | not (isFloatType t) && intIdx < length x86_64ArgsRegisters =
           let reg = x86_64ArgsRegisters !! intIdx
@@ -171,14 +165,10 @@ emitAssign sm dest (IRConstInt n) t
   | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
 emitAssign sm dest (IRGlobal name IRF32) IRF32 =
   case x86_64FloatArgsRegisters of
-    reg : _ ->
-      [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"
-      , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
-      ]
-    _ ->
-      [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]"
-      , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
-      ]
+    []      -> [ emit 1 $ "; WARNING: no more float register" ]
+    (reg:_) -> [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"
+               , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
+               ]
 emitAssign sm dest (IRConstChar c) _ =
   [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
 emitAssign sm dest (IRConstBool b) _ =
@@ -195,94 +185,87 @@ emitAssign sm dest op t =
   ]
 
 -- | emit call dest = funcName(args)
--- REDO (theres if case and many many layer)
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCall sm dest funcName args mbType =
-  let argSetup = setupCallArgs sm args
-      printfFixup =
-        if funcName == "printf"
-           && any (\op -> maybe False isFloatType (getOperandType op)) args
-          then
-            case x86_64FloatArgsRegisters of
-              reg0 : _ ->
-                [ emit 1 $ "cvtss2sd " ++ reg0 ++ ", " ++ reg0
-                , emit 1 $ "mov eax, 1"
-                ]
-              _ ->
-                [ emit 1 "cvtss2sd xmm0, xmm0"
-                , emit 1 $ "mov eax, 1"
-                ]
-          else []
-
-      callInstr = [emit 1 $ "call " ++ funcName]
-      retSave = saveCallResult sm dest mbType
+  let argSetup    = setupCallArgs sm args
+      hasFloatArg = any (maybe False isFloatType . getOperandType) args
+      printfFixup = printfFixupHelp hasFloatArg x86_64FloatArgsRegisters
+      callInstr   = [emit 1 $ "call " ++ funcName]
+      retSave     = saveCallResult sm dest mbType
    in argSetup ++ printfFixup ++ callInstr ++ retSave
+  where
+    printfFixupHelp hasFloatArg (floatReg:_)
+      | funcName == "printf" && hasFloatArg =
+        [ emit 1 $ "cvtss2sd " ++ floatReg ++ ", " ++ floatReg
+        , emit 1   "mov eax, 1"
+        ]
+      | otherwise = []
+    printfFixupHelp _ _
+      = [ emit 1 $ "; WARNING: no more float register" ]
 
--- explanation
--- Assign call arguments to integer or float registers based on operand IRType
--- REDO wtf
+-- setupCallArgs :: Map String Int -> [IROperand] -> [String]
+-- setupCallArgs sm args =
+--   let (instrs, _, _) = foldl step ([], 0, 0) (getOperandType args)
+--    in instrs
+--   where
+--     step :: ([String], Int, Int) -> IROperand -> ([String], Int, Int)
+--     step (acc, intIdx, floatIdx) op =
+--       let mt = getOperandType op
+--        in stepType (acc, intIdx, floatIdx) op mt
+--
+--     stepType (acc, intIdx, floatIdx) op Nothing = (acc, intIdx, floatIdx)
+--     stepType (acc, intIdx, floatIdx) op (Just t)
+--       | isFloatType t , floatIdx < length x86_64FloatArgsRegisters =
+--           let xmm = x86_64FloatArgsRegisters !! floatIdx
+--           in (acc ++ loadFloatOperand sm xmm op t , intIdx , floatIdx + 1)
+--       | not (isFloatType t) , intIdx < length x86_64ArgsRegisters =
+--           let reg = x86_64ArgsRegisters !! intIdx
+--           in (acc ++ loadRegWithExt sm (reg, op) , intIdx + 1 , floatIdx)
+--       | otherwise = (acc, intIdx, floatIdx)
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
 setupCallArgs sm args =
   let (instrs, _, _) = foldl step ([], 0, 0) args
    in instrs
   where
+    step :: ([String], Int, Int) -> IROperand -> ([String], Int, Int)
     step (acc, intIdx, floatIdx) op =
-      case getOperandType op of
-        Just t | isFloatType t && floatIdx < length x86_64FloatArgsRegisters ->
-          let xmmReg = x86_64FloatArgsRegisters !! floatIdx
-              loadInstrs = loadFloatOperand sm xmmReg op t
-           in (acc ++ loadInstrs, intIdx, floatIdx + 1)
-        Just t | not (isFloatType t) && intIdx < length x86_64ArgsRegisters ->
+      let mt = getOperandType op
+       in stepType (acc, intIdx, floatIdx) op mt
+
+    stepType (acc, intIdx, floatIdx) _ Nothing
+      = (acc, intIdx, floatIdx)
+    stepType (acc, intIdx, floatIdx) op (Just t)
+      | isFloatType t , floatIdx < length x86_64FloatArgsRegisters =
+          let xmm = x86_64FloatArgsRegisters !! floatIdx
+          in (acc ++ loadFloatOperand sm xmm op t , intIdx , floatIdx + 1)
+      | not (isFloatType t) , intIdx < length x86_64ArgsRegisters =
           let reg = x86_64ArgsRegisters !! intIdx
-              loadInstrs = loadRegWithExt sm (reg, op)
-           in (acc ++ loadInstrs, intIdx + 1, floatIdx)
-        _ ->
-          (acc ++ loadRegWithExt sm ("rax", op), intIdx, floatIdx)
+          in (acc ++ loadRegWithExt sm (reg, op) , intIdx + 1 , floatIdx)
+      | otherwise = (acc, intIdx, floatIdx)
 
 saveCallResult :: Map String Int -> String -> Maybe IRType -> [String]
-saveCallResult _ "" _ = []
--- explanation
--- Store float return values from xmm0 and integer/pointer returns from rax
--- REDO weeeeeesh
+saveCallResult _ "" _           = []
+saveCallResult sm dest Nothing  = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
 saveCallResult sm dest (Just t)
-  | isFloatType t =
-      case t of
-        IRF32 ->
-          case x86_64FloatArgsRegisters of
-            retXmm : _ ->
-              [emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ retXmm]
-            _ ->
-              [emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"]
-        IRF64 ->
-          case x86_64FloatArgsRegisters of
-            retXmm : _ ->
-              [emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ retXmm]
-            _ ->
-              [emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", xmm0"]
-        _ -> [emit 1 $ "; TODO: unsupported float return type: " ++ show t]
-  | otherwise = [storeReg sm dest "rax" t]
-saveCallResult sm dest Nothing = [emit 1 $ "mov qword " ++ stackAddr sm dest ++ ", rax"]
+  | isFloatType t = saveFloat t x86_64FloatArgsRegisters
+  | otherwise     = [ storeReg sm dest "rax" t ]
+  where
+    saveFloat IRF32 (xmmRet:_) = [ emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmRet ]
+    saveFloat IRF64 (xmmRet:_) = [ emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ xmmRet ]
+    saveFloat other _          = [ emit 1 $ "; TODO: unsupported float return type: " ++ show other ]
 
 -- | emit a return instruction
 --  cases:
 --  1- no return value: xor rax, rax to avoid returning garbage value
 --  2- return value: load into rax
 emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
--- explanation
--- Return float values via xmm0 and integer/pointer values via rax
--- REDO maybe
-emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
-emitRet sm endLbl (Just op) =
-  case getOperandType op of
-    Just t | isFloatType t ->
-      case x86_64FloatArgsRegisters of
-        retXmm : _ ->
-          loadFloatOperand sm retXmm op t ++ [emit 1 $ "jmp " ++ endLbl]
-        _ ->
-          loadFloatOperand sm "xmm0" op t ++ [emit 1 $ "jmp " ++ endLbl]
-    _ ->
-      loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
-
+emitRet _ endLbl Nothing    = [emit 1 "xor rax, rax", emit 1 $ "jmp " ++ endLbl]
+emitRet sm endLbl (Just op) = findRet (getOperandType op) x86_64FloatArgsRegisters
+  where
+    findRet (Just t) (xmmRet:_) = loadFloatOperand sm xmmRet op t ++ [emit 1 $ "jmp " ++ endLbl]
+    findRet Nothing  _          = loadReg sm "rax" op ++ [emit 1 $ "jmp " ++ endLbl]
+    findRet _ []                = [ emit 1 $ "; WARNING: no more float registers" ]
+ 
 -- | emit deref ptr
 --  cases:
 --  1- load pointer address into rax
@@ -363,6 +346,11 @@ emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
         ++ [emit 1 $ opInstr ++ " " ++ xmmL ++ ", " ++ xmmR]
         ++ [storeInstr]
 
+emitRmWarning :: [String]
+emitRmWarning =
+  [ "; this section is to remove the gcc GNU related warning" 
+  , "section .note.GNU-stack noalloc noexec nowrite"
+  ]
 --
 -- helpers
 --
