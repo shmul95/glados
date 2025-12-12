@@ -22,6 +22,7 @@ parseExpressionTests =
     , postfixTests
     , structInitTests
     , parenthesesTests
+    , castTests
     ]
 
 --
@@ -112,10 +113,6 @@ postfixTests = testGroup "Postfix Tests"
         (ExprCall "f" [ExprLitInt 1, ExprLitInt 2])
   
   , testCase "Method Call (x.f())" $
-      -- x.f() parses as (x.f)() -> ExprCall "f" [x]
-      -- Wait, parseCallPostfix implementation:
-      -- pure $ \e -> case e of
-      --   ExprAccess target field -> ExprCall field (target : args)
       assertParse "x.f()"
         [tok (T.Identifier "x"), tok T.Dot, tok (T.Identifier "f"), tok T.LParen, tok T.RParen]
         (ExprCall "f" [ExprVar "x"])
@@ -143,4 +140,32 @@ parenthesesTests = testGroup "Parentheses Tests"
       assertParse "(1 + 2)"
         [tok T.LParen, tok (T.LitInt 1), tok T.OpPlus, tok (T.LitInt 2), tok T.RParen]
         (ExprBinary Add (ExprLitInt 1) (ExprLitInt 2))
+  ]
+
+castTests :: TestTree
+castTests = testGroup "Type Cast Tests"
+  [ testCase "Variable cast to i32" $
+      assertParse "n as i32"
+        [tok (T.Identifier "n"), tok T.KwAs, tok T.TypeI32]
+        (ExprCast (ExprVar "n") TypeI32)
+  
+  , testCase "Variable cast to f32" $
+      assertParse "n as f32"
+        [tok (T.Identifier "n"), tok T.KwAs, tok T.TypeF32]
+        (ExprCast (ExprVar "n") TypeF32)
+  
+  , testCase "Literal cast to f64" $
+      assertParse "42 as f64"
+        [tok (T.LitInt 42), tok T.KwAs, tok T.TypeF64]
+        (ExprCast (ExprLitInt 42) TypeF64)
+  
+  , testCase "Expression cast to i64" $
+      assertParse "(1 + 2) as i64"
+        [tok T.LParen, tok (T.LitInt 1), tok T.OpPlus, tok (T.LitInt 2), tok T.RParen, tok T.KwAs, tok T.TypeI64]
+        (ExprCast (ExprBinary Add (ExprLitInt 1) (ExprLitInt 2)) TypeI64)
+  
+  , testCase "Cast with binary operation" $
+      assertParse "n as f32 + 1.0"
+        [tok (T.Identifier "n"), tok T.KwAs, tok T.TypeF32, tok T.OpPlus, tok (T.LitFloat 1.0)]
+        (ExprBinary Add (ExprCast (ExprVar "n") TypeF32) (ExprLitFloat 1.0))
   ]

@@ -313,6 +313,8 @@ expressionTests = testGroup "Expression Tests"
       assertBool "Show" (not (null (show ExprLitNull)))
   , testCase "Show ExprVar" $ 
       assertBool "Show" (not (null (show exprVar)))
+  , testCase "Show ExprCast" $ 
+      assertBool "Show" (not (null (show (ExprCast exprLitInt TypeF64))))
   , testCase "Eq ExprBinary" $ 
       assertBool "Unequal op" (ExprBinary Add exprLitInt exprLitInt /= ExprBinary Sub exprLitInt exprLitInt)
   , testCase "Eq ExprUnary" $ 
@@ -325,6 +327,8 @@ expressionTests = testGroup "Expression Tests"
       assertBool "Unequal target" (ExprAccess exprVar "f" /= ExprAccess (ExprLitInt 0) "f")
   , testCase "Eq ExprVar" $ 
       assertBool "Unequal var" (ExprVar "a" /= ExprVar "b")
+  , testCase "Eq ExprCast" $ 
+      assertBool "Unequal type" (ExprCast exprLitInt TypeI32 /= ExprCast exprLitInt TypeF64)
   , testCase "Eq ExprLitInt" $ 
       assertBool "Unequal val" (ExprLitInt 1 /= ExprLitInt 2)
   , testCase "Eq ExprLitFloat" $ 
