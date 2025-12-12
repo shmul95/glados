@@ -34,8 +34,6 @@ structExprTests = testGroup "Rune.IR.Generator.Expression.Struct"
 testGenAccess :: TestTree
 testGenAccess = testGroup "genAccess"
   [ testCase "Generates field access for struct" $
-      -- explanation
-      -- genAccess should generate an IRGET_FIELD when given a struct value and a valid field, using a pointer temp if needed
       let genExpr (ExprVar "p") = return ([], IRTemp "p" (IRStruct "Point"), IRStruct "Point")
           genExpr _             = return ([], IRConstNull, IRNull)
           initialState =
@@ -52,8 +50,6 @@ testGenAccess = testGroup "genAccess"
           _          -> assertFailure "Expected IRTemp result for field access"
 
   , testCase "Looks up field type" $
-      -- explanation
-      -- genAccess should also work when the target is already a pointer to a struct, without emitting an extra IRADDR
       let genExpr (ExprVar "p") = return ([], IRTemp "p" (IRPtr (IRStruct "Point")), IRPtr (IRStruct "Point"))
           genExpr _             = return ([], IRConstNull, IRNull)
           initialState =
@@ -106,8 +102,6 @@ testResolveStructPtr = testGroup "resolveStructPtr"
         op @?= IRTemp "p" (IRPtr (IRStruct "Vec"))
 
   , testCase "Errors on non-struct type" $
-      -- explanation
-      -- resolveStructPtr should fail with an informative error when used on a non-struct type
       do
         result <- try @SomeException (evaluate (resolveStructPtr (IRTemp "n" IRI32) IRI32))
         case result of
@@ -118,8 +112,6 @@ testResolveStructPtr = testGroup "resolveStructPtr"
 testLookupFieldType :: TestTree
 testLookupFieldType = testGroup "lookupFieldType"
   [ testCase "Returns field type when struct and field exist" $
-      -- explanation
-      -- lookupFieldType should consult gsStructs and return the concrete IRType for a known field
       let initial =
             emptyState
               { gsStructs = Map.fromList [("Point", [("x", IRI32), ("y", IRI32)])]
@@ -128,8 +120,6 @@ testLookupFieldType = testGroup "lookupFieldType"
       in t @?= IRI32
 
   , testCase "Errors when struct is missing" $
-      -- explanation
-      -- lookupFieldType must raise an error if the struct name is not in gsStructs
       do
         let initial = emptyState
         result <- try @SomeException (evaluate (fst (runState (lookupFieldType "Missing" "x") initial)))
@@ -138,8 +128,6 @@ testLookupFieldType = testGroup "lookupFieldType"
           Right _ -> assertFailure "Expected error for missing struct in lookupFieldType"
 
   , testCase "Errors when field is missing" $
-      -- explanation
-      -- lookupFieldType must raise an error if the struct exists but the field name does not
       do
         let initial =
               emptyState
@@ -154,8 +142,6 @@ testLookupFieldType = testGroup "lookupFieldType"
 testGenInitField :: TestTree
 testGenInitField = testGroup "genInitField"
   [ testCase "Generates address and set-field instructions for struct init" $
-      -- explanation
-      -- genInitField should compute the struct address into a temp pointer and emit an IRSET_FIELD with the value operand
       let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
           genExpr _              = return ([], IRConstNull, IRNull)
           (instrs, _) =

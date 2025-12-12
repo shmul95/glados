@@ -165,24 +165,16 @@ emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
 emitAssign sm dest (IRConstInt n) t
   | needsRegisterLoad n t = [emit 1 $ "mov rax, " ++ show n, storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
--- explanation: always use at least xmm0 for f32 globals instead of
---              emitting a spurious \"no more float register\" warning
 emitAssign sm dest (IRGlobal name IRF32) IRF32 =
   case x86_64FloatArgsRegisters of
-    -- old code commented out:
-    -- []      -> [ emit 1 $ \"; WARNING: no more float register\" ]
     []      -> [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]"
                , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
                ]
     (reg:_) -> [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"
                , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
                ]
--- explanation: load f64 globals by value (dq) instead of as pointers
---              and avoid emitting a \"no more float register\" warning
 emitAssign sm dest (IRGlobal name IRF64) IRF64 =
   case x86_64FloatArgsRegisters of
-    -- old code commented out:
-    -- []      -> [ emit 1 $ \"; WARNING: no more float register\" ]
     []      -> [ emit 1 $ "movsd xmm0, qword [rel " ++ name ++ "]"
                , emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", xmm0"
                ]
@@ -204,10 +196,6 @@ emitAssign sm dest op t =
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCall sm dest funcName args mbType =
   let argSetup    = setupCallArgs sm args
-      -- explanation: detect the first float argument type so we can
-      --              distinguish between f32 (needs cvtss2sd) and
-      --              f64 (already a double) when calling printf
-      -- hasFloatArg = any (maybe False isFloatType . getOperandType) args
       firstFloatType =
         foldr
           (\op acc -> case (acc, getOperandType op) of
@@ -230,11 +218,6 @@ emitCall sm dest funcName args mbType =
         [ emit 1 "mov eax, 1" ]
     printfFixupHelp _ _
       | funcName == "printf" = []
-    -- explanation: do not emit a bogus \"no more float register\" warning
-    --              for non-printf calls; simply omit any fixup
-    -- old code commented out:
-    -- printfFixupHelp _ _
-    --   = [ emit 1 $ \"; WARNING: no more float register\" ]
     printfFixupHelp _ _ = []
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]

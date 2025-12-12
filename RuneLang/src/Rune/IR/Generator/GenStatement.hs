@@ -27,8 +27,6 @@ import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
     IROperand (..),
-    -- explanation: import full IRType constructors so we can refer to IRF64
-    -- IRType (IRNull),
     IRType (..),
   )
 
@@ -57,26 +55,8 @@ genStatement (StmtExpr expr) = genExprStmt expr
 genBlock :: [Statement] -> IRGen [IRInstruction]
 genBlock = fmap concat . mapM genStatement
 
--- genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
--- explanation: special-case f64 variables initialized from float literals
---              so we emit IRF64-backed globals (dq) instead of reusing f32
--- genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
--- genVarDecl name maybeType expr = do
---   (instrs, op, inferredType) <- genExpression expr
---
---   let finalType = genVarType maybeType inferredType
---
---   case op of
---     IRTemp _ _ -> do
---       registerVar name op finalType
---       pure instrs
---     _ -> do
---       let assignInstr = IRASSIGN name op finalType
---       registerVar name (IRTemp name finalType) finalType
---       pure (instrs ++ [assignInstr])
 genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
 genVarDecl name (Just TypeF64) (ExprLitFloat f) = do
-  -- explanation: for `x: f64 = 4.0;` create an f64 global and assign from it
   glName <- newFloatGlobal f IRF64
   let finalType = IRF64
       op        = IRGlobal glName IRF64

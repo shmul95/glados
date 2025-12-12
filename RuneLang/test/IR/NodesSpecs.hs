@@ -132,8 +132,6 @@ testGenState =
               gsTempCounter initialState @?= 5
               gsLabelCounter initialState @?= 3
               gsStringCounter initialState @?= 1
-              -- explanation
-              -- Validate the float-related counters and maps on GenState to exercise newly added fields
               gsFloatCounter initialState @?= 2
               gsFloatMap initialState @?= empty
               gsGlobals initialState @?= [IRGlobalDef "s0" (IRGlobalStringVal "str")]
@@ -222,15 +220,11 @@ testIRGlobalValue =
   testGroup
     "IRGlobalValue"
     [ testCase "IRGlobalStringVal constructor and Show/Eq" $
-        -- explanation
-        -- Cover the string global value constructor and ensure Show/Eq behave as derived
         let gv = IRGlobalStringVal "hello"
         in do
           gv @?= IRGlobalStringVal "hello"
           show gv @?= "IRGlobalStringVal \"hello\""
     , testCase "IRGlobalFloatVal constructor and Show/Eq" $
-        -- explanation
-        -- Exercise the float global value constructor used for interned float literals
         let gv = IRGlobalFloatVal 3.14 IRF32
         in do
           gv @?= IRGlobalFloatVal 3.14 IRF32
@@ -270,8 +264,6 @@ testIRTopLevel =
     "IRTopLevel"
     [ testCase "IRGlobalString" $ IRGlobalDef "str0" (IRGlobalStringVal "hello world") @?= IRGlobalDef "str0" (IRGlobalStringVal "hello world"),
       testCase "IRGlobalFloat" $
-        -- explanation
-        -- Ensure IRTopLevel carries IRGlobalFloatVal correctly for float globals
         let tl = IRGlobalDef "float0" (IRGlobalFloatVal 1.5 IRF64)
         in tl @?= IRGlobalDef "float0" (IRGlobalFloatVal 1.5 IRF64),
       testCase "IRFunctionDef" $

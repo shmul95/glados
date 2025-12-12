@@ -10,8 +10,6 @@ module Rune.IR.IRHelpers
     nextLabelIndex,
     makeLabel,
     newStringGlobal,
-    -- explanation: expose newFloatGlobal so codegen can request f32 or f64-specific globals
-    -- newFloatGlobal,
     newFloatGlobal,
     genFormatString,
     endsWithRet,
@@ -202,15 +200,6 @@ insertGlobalString name value =
     s { gsGlobals   = IRGlobalDef name (IRGlobalStringVal value) : gsGlobals s
       , gsStringMap = Map.insert value name (gsStringMap s)
       }
-
--- explanation: intern float globals by (value, type) so f32 and f64 literals
---              can each have their own correct representation in .rodata
--- newFloatGlobal :: Double -> IRType -> IRGen String
--- newFloatGlobal value typ = do
---   mp <- gets gsFloatMap
---   case Map.lookup value mp of
---     Just name -> pure name
---     Nothing -> createFloatGlobal value typ
 newFloatGlobal :: Double -> IRType -> IRGen String
 newFloatGlobal value typ = do
   mp <- gets gsFloatMap

@@ -130,8 +130,6 @@ testGenExprStmt = testGroup "genExprStmt"
       assertBool "Should handle any expression" True
   ]
 
--- explanation
--- Add control-flow tests to exercise genIfNoElse/genIfElse (via genStatement) and genStop/genNext (via StmtStop/StmtNext)
 testGenIfControlFlow :: TestTree
 testGenIfControlFlow = testGroup "genStatement if-control-flow"
   [ testCase "Generates IR for if without else" $
@@ -196,25 +194,8 @@ testGenLoopControlFlow = testGroup "genStatement loop-control-flow"
       in result @?= []
   ]
   where
-    -- explanation
-    -- Match jumps targeting the underlying loop_header/loop_end labels used by genLoop to prove genStop/genNext hook into the right labels
     isJumpToLoopEnd (IRJUMP (IRLabel ".L.loop_end0")) = True
     isJumpToLoopEnd _ = False
 
     isJumpToLoopHeader (IRJUMP (IRLabel ".L.loop_header0")) = True
     isJumpToLoopHeader _ = False
-
--- old code commented out
---   where
---     isJumpToEnd (IRJUMP (IRLabel ".L.loop_end0")) = True
---     isJumpToEnd _ = False
---
---     isJumpToHeader (IRJUMP (IRLabel ".L.loop0")) = True
---     isJumpToHeader _ = False
-
--- old code commented out
--- testGenIfControlFlow :: TestTree
--- testGenIfControlFlow = testGroup "genStatement if-control-flow" []
---
--- testGenLoopControlFlow :: TestTree
--- testGenLoopControlFlow = testGroup "genStatement loop-control-flow" []

@@ -23,12 +23,6 @@ import Rune.IR.Nodes
 genLitInt :: Int -> IRGen ([IRInstruction], IROperand, IRType)
 genLitInt n = return ([], IRConstInt n, IRI32)
 
--- explanation: float literals default to f32 globals; f64 contexts
---              can request f64-specific globals explicitly in GenStatement
--- genLitFloat :: Double -> IRGen ([IRInstruction], IROperand, IRType)
--- genLitFloat f = do
---   name <- newFloatGlobal f IRF32
---   return ([], IRGlobal name IRF32, IRF32)
 genLitFloat :: Double -> IRGen ([IRInstruction], IROperand, IRType)
 genLitFloat f = do
   name <- newFloatGlobal f IRF32
