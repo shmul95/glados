@@ -1,5 +1,6 @@
 module Rune.Semantics.Helper
   ( checkParamType
+  , checkParamTypeWithReturnContext
   , mangleName
   , exprType
   , assignVarType
@@ -23,34 +24,75 @@ import Rune.Semantics.Type
   , Stack
   )
 
+data Mangling = NoMangle | DoMangle
+
 --
 -- public
 --
 
 checkParamType :: Stack -> String -> [Expression] -> Either String String
-checkParamType s@(fs, _) fname es =
-  let unknown_func = "\n\tUnknownFunction: %s is not known"
-      no_match = "\n\tNoMatchingSignature: %s doesn't have any signature like this %s"
-  in case HM.lookup fname fs of
-    Nothing         -> Left $ printf unknown_func fname
-    Just []         -> Left $ printf unknown_func fname
-    Just [sig]      -> checkSingle sig
-    Just (sig:sigs) -> case checkSingle sig of
-                         Left _  -> checkAll (printf no_match fname (show (sig:sigs))) sigs
-                         Right r -> Right r
+checkParamType = checkParamTypeWithReturnContext Nothing
+
+checkParamTypeWithReturnContext :: Maybe Type -> Stack -> String -> [Expression] -> Either String String
+checkParamTypeWithReturnContext returnContext s@(fs, _) fname es =
+  case HM.lookup fname fs of
+    Nothing     -> unknown
+    Just []     -> unknown
+    Just [sig]  -> checkSingle sig
+    Just sigs   -> select sigs
   where
-    -- if there is 1 signature so no override
+    unknown :: Either String String
+    unknown =
+      Left $ printf "\n\tUnknownFunction: %s is not known" fname
+
+    noMatch :: [(Type, [Type])] -> Either String String
+    noMatch sigs =
+      Left $
+        printf
+          "\n\tNoMatchingSignature: %s doesn't have any signature like this %s"
+          fname
+          (show sigs)
+
+    checkSingle :: (Type, [Type]) -> Either String String
     checkSingle (_, at) =
       case checkEachParam s 0 es at of
         Nothing  -> Right fname
         Just err -> Left err
 
-    -- if multiple signature so mangle name
-    checkAll err_msg [] = Left err_msg
-    checkAll err_msg ((ret, at):rest) =
+    select :: [(Type, [Type])] -> Either String String
+    select sigs =
+      case returnContext of
+        Just expectedRet ->
+          case filter ((== expectedRet) . fst) sigs of
+            [] -> checkAll sigs
+            rs -> checkPreferred rs `orElse` checkAll sigs
+        Nothing -> checkAll sigs
+
+    checkAll :: [(Type, [Type])] -> Either String String
+    checkAll sigs =
+      case findValid DoMangle sigs of
+        Just name -> Right name
+        Nothing   -> noMatch sigs
+
+    checkPreferred :: [(Type, [Type])] -> Either String String
+    checkPreferred sigs =
+      case findValid DoMangle sigs of
+        Just name -> Right name
+        Nothing   -> Left "No matching return type"
+
+    findValid :: Mangling -> [(Type, [Type])] -> Maybe String
+    findValid _ [] = Nothing
+    findValid m ((ret, at):rest) =
       case checkEachParam s 0 es at of
-        Nothing  -> Right $ mangleName fname ret at
-        Just _   -> checkAll err_msg rest
+        Nothing -> Just $ case m of
+              NoMangle -> fname
+              DoMangle -> mangleName fname ret at
+        Just _ -> findValid m rest
+
+    orElse :: Either String r -> Either String r -> Either String r
+    orElse (Right r) _ = Right r
+    orElse (Left _) f = f
+
 
 mangleName :: String -> Type -> [Type] -> String
 mangleName fname ret args =
