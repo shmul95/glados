@@ -6,7 +6,7 @@ module Backend.HelpersSpecs (backendHelpersTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Rune.Backend.Helpers
-import Rune.IR.Nodes (IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRLabel(..))
+import Rune.IR.Nodes (IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRLabel(..), IRGlobalValue(..))
 import qualified Data.Map.Strict as Map
 
 --
@@ -75,34 +75,33 @@ testCollectTopLevels :: TestTree
 testCollectTopLevels = testGroup "collectTopLevels"
   [ testCase "Collects externs" $
       let tls = [IRExtern "printf", IRExtern "malloc"]
-          (externs, _, _, _) = collectTopLevels tls
+          (externs, _, _) = collectTopLevels tls
       in externs @?= ["printf", "malloc"]
 
   , testCase "Collects global strings" $
-      let tls = [IRGlobalString "str1" "hello", IRGlobalString "str2" "world"]
-          (_, strings, _, _) = collectTopLevels tls
-      in length strings @?= 2
+      let tls = [IRGlobalDef "str1" (IRGlobalStringVal "hello"), IRGlobalDef "str2" (IRGlobalStringVal "world")]
+          (_, globals, _) = collectTopLevels tls
+      in length globals @?= 2
 
   , testCase "Collects functions" $
       let func = IRFunction "test" [] (Just IRNull) []
           tls = [IRFunctionDef func]
-          (_, _, _, funcs) = collectTopLevels tls
+          (_, _, funcs) = collectTopLevels tls
       in length funcs @?= 1
 
   , testCase "Filters duplicates in externs" $
       let tls = [IRExtern "printf", IRExtern "printf"]
-          (externs, _, _, _) = collectTopLevels tls
+          (externs, _, _) = collectTopLevels tls
       in externs @?= ["printf"]
 
   , testCase "Handles mixed top levels" $
       let func = IRFunction "f" [] (Just IRNull) []
-          tls = [IRExtern "e", IRGlobalString "s" "v", IRFunctionDef func]
-          (externs, strings, floats, funcs) = collectTopLevels tls
+          tls = [IRExtern "e", IRGlobalDef "s" (IRGlobalStringVal "v"), IRFunctionDef func]
+          (externs, globals, funcs) = collectTopLevels tls
       in do
         externs @?= ["e"]
-        strings @?= [("s", "v")]
+        globals @?= [("s", IRGlobalStringVal "v")]
         length funcs @?= 1
-        floats @?= []
   ]
 
 testCollectIRVars :: TestTree
@@ -176,23 +175,23 @@ testAlignUp = testGroup "alignUp"
 testCollectTopLevel :: TestTree
 testCollectTopLevel = testGroup "collectTopLevel"
   [ testCase "Adds extern" $
-      let result = collectTopLevel (IRExtern "printf") ([], [], [], [])
-      in result @?= (["printf"], [], [], [])
+      let result = collectTopLevel (IRExtern "printf") ([], [], [])
+      in result @?= (["printf"], [], [])
 
   , testCase "Adds global string" $
-      let result = collectTopLevel (IRGlobalString "s" "val") ([], [], [], [])
-      in result @?= ([], [("s", "val")], [], [])
+      let result = collectTopLevel (IRGlobalDef "s" (IRGlobalStringVal "val")) ([], [], [])
+      in result @?= ([], [("s", IRGlobalStringVal "val")], [])
 
   , testCase "Adds function" $
       let func = IRFunction "f" [] (Just IRNull) []
-          result = collectTopLevel (IRFunctionDef func) ([], [], [], [])
+          result = collectTopLevel (IRFunctionDef func) ([], [], [])
       in case result of
-        ([], [], [], [_]) -> return ()
+        ([], [], [_]) -> return ()
         _ -> assertBool "Expected one function" False
 
   , testCase "Ignores struct def" $
-      let result = collectTopLevel (IRStructDef "S" []) ([], [], [], [])
-      in result @?= ([], [], [], [])
+      let result = collectTopLevel (IRStructDef "S" []) ([], [], [])
+      in result @?= ([], [], [])
   ]
 
 testCollectVars :: TestTree

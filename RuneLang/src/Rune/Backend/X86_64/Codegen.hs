@@ -7,7 +7,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 
 import Rune.Backend.Helpers (calculateStackMap, collectTopLevels, emit, escapeString)
-import Rune.Backend.Types (Extern, Function, GlobalString, GlobalFloat)
+import Rune.Backend.Types (Extern, Function, Global)
 import Rune.Backend.X86_64.Compare (emitCompare, loadFloatOperand, isFloatType)
 import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.Registers (getMovType, getRegisterName, getSizeSpecifier, x86_64ArgsRegisters, x86_64FloatArgsRegisters)
@@ -18,6 +18,7 @@ import Rune.IR.Nodes
     IROperand (..),
     IRProgram (IRProgram),
     IRType (..),
+    IRGlobalValue (..),
   )
 import Rune.IR.IRHelpers (getOperandType)
 
@@ -27,10 +28,10 @@ import Rune.IR.IRHelpers (getOperandType)
 
 emitAssembly :: IRProgram -> String
 emitAssembly (IRProgram _ topLevels) =
-  let (externs, globalStrings, globalFloats, functions) = collectTopLevels topLevels
+  let (externs, globals, functions) = collectTopLevels topLevels
    in unlines $
         emitExterns externs
-          ++ emitRoDataSection globalStrings globalFloats
+          ++ emitRoDataSection globals
           ++ emitTextSection functions
           ++ emitRmWarning
 
@@ -50,14 +51,14 @@ emitExterns xs = map ("extern " ++) xs
 -- | emit global strings and float literals in read-only data
 -- <label>: db "<value>", 0   ; strings
 -- <label>: dd/dq <value>     ; floats
-emitRoDataSection :: [GlobalString] -> [GlobalFloat] -> [String]
-emitRoDataSection [] [] = []
-emitRoDataSection gs fs = "section .rodata" : (map emitStr gs ++ map emitFloat fs)
+emitRoDataSection :: [Global] -> [String]
+emitRoDataSection [] = []
+emitRoDataSection gs = "section .rodata" : map emitGlobal gs
   where
-    emitStr   (name, val)        = name ++ " db " ++ escapeString val ++ ", 0"
-    emitFloat (name, val, IRF32) = name ++ " dd " show val
-    emitFloat (name, val, IRF64) = name ++ " dq " show val
-    emitFloat (name, val, _)     = name ++ " dd " show val
+    emitGlobal (name, IRGlobalStringVal val) = name ++ " db " ++ escapeString val ++ ", 0"
+    emitGlobal (name, IRGlobalFloatVal val IRF32) = name ++ " dd " ++ " " ++ show val
+    emitGlobal (name, IRGlobalFloatVal val IRF64) = name ++ " dq " ++ " " ++ show val
+    emitGlobal (name, IRGlobalFloatVal val _)     = name ++ " dd " ++ " " ++ show val
 
 emitTextSection :: [Function] -> [String]
 emitTextSection [] = []

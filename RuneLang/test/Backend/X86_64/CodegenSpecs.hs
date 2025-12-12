@@ -6,7 +6,7 @@ module Backend.X86_64.CodegenSpecs (codegenTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertBool)
 import Rune.Backend.X86_64.Codegen
-import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..))
+import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRGlobalValue(..))
 
 --
 -- public
@@ -32,7 +32,7 @@ testEmitAssembly = testGroup "emitAssembly"
       in assertBool "Should contain extern" $ "extern printf" `elem` lines result
 
   , testCase "Generates assembly with global string" $
-      let prog = IRProgram [] [IRGlobalString "str1" "hello"]
+      let prog = IRProgram [] [IRGlobalDef "str1" (IRGlobalStringVal "hello")]
           result = emitAssembly prog
       in assertBool "Should contain rodata section" $ "section .rodata" `elem` lines result
 
@@ -46,7 +46,7 @@ testEmitAssembly = testGroup "emitAssembly"
 
   , testCase "Generates complete assembly" $
       let func = IRFunction "main" [] (Just IRI32) [IRRET (Just (IRConstInt 0))]
-          prog = IRProgram [] [IRExtern "exit", IRGlobalString "msg" "Hello", IRFunctionDef func]
+          prog = IRProgram [] [IRExtern "exit", IRGlobalDef "msg" (IRGlobalStringVal "Hello"), IRFunctionDef func]
           result = emitAssembly prog
       in do
         assertBool "Should have all sections" $

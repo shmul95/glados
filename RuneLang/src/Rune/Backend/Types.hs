@@ -2,8 +2,7 @@ module Rune.Backend.Types
   ( Asm,
     Extern,
     Function,
-    GlobalString,
-    GlobalFloat,
+    Global,
     Struct,
     AsmState (..),
   )
@@ -11,7 +10,7 @@ where
 
 import Control.Monad.State.Strict (State)
 import Data.Map.Strict (Map)
-import Rune.IR.Nodes (IRFunction, IRType (..))
+import Rune.IR.Nodes (IRFunction, IRGlobalValue, IRType (..))
 
 --
 -- public
@@ -23,9 +22,7 @@ type Extern = String
 
 type Function = IRFunction
 
-type GlobalString = (String, String)
-
-type GlobalFloat = (String, Double, IRType)
+type Global = (String, IRGlobalValue)
 
 type Struct = [(String, IRType)]
 

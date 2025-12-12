@@ -57,7 +57,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Rune.AST.Nodes (Type (..))
-import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..))
+import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..), IRGlobalValue (..))
 import Rune.Semantics.Type (FuncStack)
 import Rune.Semantics.Helper (selectSignature)
 
@@ -197,7 +197,7 @@ freshStringName = do
 insertGlobalString :: String -> String -> IRGen ()
 insertGlobalString name value =
   modify $ \s ->
-    s { gsGlobals   = IRGlobalString name value : gsGlobals s
+    s { gsGlobals   = IRGlobalDef name (IRGlobalStringVal value) : gsGlobals s
       , gsStringMap = Map.insert value name (gsStringMap s)
       }
 
@@ -217,7 +217,7 @@ createFloatGlobal value typ = do
       name = "float_" ++ base ++ show counter
   modify $ \s ->
     s { gsFloatCounter = counter + 1
-      , gsGlobals = IRGlobalFloat name value typ : gsGlobals s
+      , gsGlobals = IRGlobalDef name (IRGlobalFloatVal value typ) : gsGlobals s
       , gsFloatMap = Map.insert value name (gsFloatMap s)
       }
   pure name

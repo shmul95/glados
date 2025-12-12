@@ -1,6 +1,7 @@
 module Rune.IR.Nodes
   ( IRProgram (..),
     IRTopLevel (..),
+    IRGlobalValue (..),
     IRFunction (..),
     IRInstruction (..),
     IROperand (..),
@@ -143,9 +144,13 @@ data IRFunction = IRFunction
   }
   deriving (Show, Eq)
 
+data IRGlobalValue
+  = IRGlobalStringVal String
+  | IRGlobalFloatVal Double IRType
+  deriving (Show, Eq)
+
 data IRTopLevel
-  = IRGlobalString String String
-  | IRGlobalFloat String Double IRType
+  = IRGlobalDef String IRGlobalValue
   | IRFunctionDef IRFunction
   | IRStructDef String [(String, IRType)]
   | IRExtern String

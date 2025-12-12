@@ -115,7 +115,7 @@ testGenState =
                   gsLabelCounter = 3,
                   gsStringCounter = 1,
                   gsFloatCounter = 0,
-                  gsGlobals = [IRGlobalString "s0" "str"],
+                  gsGlobals = [IRGlobalDef "s0" (IRGlobalStringVal "str")],
                   gsCurrentFunc = Just "main",
                   gsSymTable = symTable,
                   gsStructs = structTable,
@@ -131,7 +131,7 @@ testGenState =
               gsTempCounter initialState @?= 5
               gsLabelCounter initialState @?= 3
               gsStringCounter initialState @?= 1
-              gsGlobals initialState @?= [IRGlobalString "s0" "str"]
+              gsGlobals initialState @?= [IRGlobalDef "s0" (IRGlobalStringVal "str")]
               gsCurrentFunc initialState @?= Just "main"
               gsSymTable initialState @?= symTable
               gsStructs initialState @?= structTable
@@ -243,7 +243,7 @@ testIRTopLevel :: TestTree
 testIRTopLevel =
   testGroup
     "IRTopLevel"
-    [ testCase "IRGlobalString" $ IRGlobalString "str0" "hello world" @?= IRGlobalString "str0" "hello world",
+    [ testCase "IRGlobalString" $ IRGlobalDef "str0" (IRGlobalStringVal "hello world") @?= IRGlobalDef "str0" (IRGlobalStringVal "hello world"),
       testCase "IRFunctionDef" $
         let func =
               IRFunction
@@ -255,7 +255,7 @@ testIRTopLevel =
          in IRFunctionDef func @?= IRFunctionDef func,
       testCase "IRStructDef" $ IRStructDef "Vec2" [("x", IRF32)] @?= IRStructDef "Vec2" [("x", IRF32)],
       testCase "IRExtern" $ IRExtern "my_libc_func" @?= IRExtern "my_libc_func", -- Added IRExtern
-      testCase "Deriving Show/Eq" $ show (IRGlobalString "s1" "") @?= "IRGlobalString \"s1\" \"\""
+      testCase "Deriving Show/Eq" $ show (IRGlobalDef "s1" (IRGlobalStringVal "")) @?= "IRGlobalDef \"s1\" (IRGlobalStringVal \"\")"
     ]
 
 testIRProgram :: TestTree
@@ -264,7 +264,7 @@ testIRProgram =
     "IRProgram (Record Accessors)"
     [ testCase "Accessors" $
         let defs =
-              [ IRGlobalString "msg" "hello",
+              [ IRGlobalDef "msg" (IRGlobalStringVal "hello"),
                 IRFunctionDef
                   IRFunction
                     { irFuncName = "entry",

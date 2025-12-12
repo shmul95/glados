@@ -40,9 +40,9 @@ printProgram (IRProgram name defs) =
 printTopLevel :: IRTopLevel -> String
 printTopLevel (IRExtern name) =
   "EXTERN " ++ name
-printTopLevel (IRGlobalString name value) =
+printTopLevel (IRGlobalDef name (IRGlobalStringVal value)) =
   "GLOBAL " ++ name ++ ": string = \"" ++ escapeString value ++ "\\0\""
-printTopLevel (IRGlobalFloat name value typ) =
+printTopLevel (IRGlobalDef name (IRGlobalFloatVal value typ)) =
   "GLOBAL " ++ name ++ ": " ++ printType typ ++ " = " ++ show value
 printTopLevel (IRFunctionDef func) =
   printFunction func

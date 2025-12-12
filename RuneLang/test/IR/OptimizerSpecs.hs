@@ -6,7 +6,7 @@ module IR.OptimizerSpecs (optimizerTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 import Rune.IR.Optimizer (runIROptimizer)
-import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), IROperand(..))
+import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), IROperand(..), IRGlobalValue(..))
 
 --
 -- public
@@ -33,7 +33,7 @@ testRunIROptimizer = testGroup "runIROptimizer"
       in runIROptimizer prog @?= prog
   
   , testCase "Returns program with global string unchanged" $
-      let prog = IRProgram "test" [IRGlobalString "str" "hello"]
+      let prog = IRProgram "test" [IRGlobalDef "str" (IRGlobalStringVal "hello")]
       in runIROptimizer prog @?= prog
   
   , testCase "Returns program with struct unchanged" $
@@ -53,7 +53,7 @@ testRunIROptimizer = testGroup "runIROptimizer"
           func2 = IRFunction "f2" [] (Just IRNull) [IRRET Nothing]
           prog = IRProgram "complex"
             [ IRExtern "ext"
-            , IRGlobalString "g" "str"
+            , IRGlobalDef "g" (IRGlobalStringVal "str")
             , IRStructDef "S" [("a", IRI32), ("b", IRF32)]
             , IRFunctionDef func1
             , IRFunctionDef func2

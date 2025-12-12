@@ -14,7 +14,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 import Control.Exception (evaluate, try, SomeException(..))
 import Rune.IR.IRHelpers
-import Rune.IR.Nodes (GenState(..), IRType(..), IROperand(..), IRInstruction(..), IRLabel(..), IRTopLevel(..))
+import Rune.IR.Nodes (GenState(..), IRType(..), IROperand(..), IRInstruction(..), IRLabel(..), IRTopLevel(..), IRGlobalValue(..))
 import Rune.AST.Nodes (Type(..))
 import Data.List (isInfixOf)
 
@@ -213,10 +213,10 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
         Map.lookup "hello" (gsStringMap state) @?= Just "str_main0"
         length (gsGlobals state) @?= 1
         case gsGlobals state of
-          (IRGlobalString n v : _) -> do
+          (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
             n @?= "str_main0"
             v @?= "hello"
-          _ -> assertFailure "Expected IRGlobalString"
+          _ -> assertFailure "Expected IRGlobalDef with string value"
 
   , testCase "newStringGlobal returns existing name if exists" $
       let state0 = emptyState { gsStringMap = Map.singleton "hello" "str_existing" }
@@ -243,10 +243,10 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
         name @?= "str_global0"
         Map.lookup "top" (gsStringMap state) @?= Just "str_global0"
         case gsGlobals state of
-          (IRGlobalString n v : _) -> do
+          (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
             n @?= "str_global0"
             v @?= "top"
-          _ -> assertFailure "Expected IRGlobalString for top-level string"
+          _ -> assertFailure "Expected IRGlobalDef with string value for top-level string"
   ]
 
 testFloatGlobalHelpers :: TestTree
@@ -258,18 +258,18 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
         gsFloatCounter state @?= 1
         Map.lookup 3.14 (gsFloatMap state) @?= Just "float_global0"
         case gsGlobals state of
-          (IRGlobalFloat n v t : _) -> do
+          (IRGlobalDef n (IRGlobalFloatVal v t) : _) -> do
             n @?= "float_global0"
             v @?= 3.14
             t @?= IRF32
-          _ -> assertFailure "Expected IRGlobalFloat"
+          _ -> assertFailure "Expected IRGlobalDef with float value"
 
   , testCase "newFloatGlobal reuses existing label when value interned" $
       let initial =
             emptyState
               { gsFloatCounter = 1
               , gsFloatMap = Map.singleton 2.71 "float_global0"
-              , gsGlobals = [IRGlobalFloat "float_global0" 2.71 IRF32]
+              , gsGlobals = [IRGlobalDef "float_global0" (IRGlobalFloatVal 2.71 IRF32)]
               }
           (name, state) = runState (newFloatGlobal 2.71 IRF32) initial
       in do
