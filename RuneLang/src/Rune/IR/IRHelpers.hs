@@ -125,7 +125,7 @@ freshStringName = do
   counter <- gets gsStringCounter
   func    <- gets gsCurrentFunc
   let base = fromMaybe "global" func
-      name = "str_" <> base <> show counter
+      name = "str_" ++ base ++ show counter
   modify $ \s -> s { gsStringCounter = counter + 1 }
   pure name
 
@@ -150,7 +150,7 @@ createFloatGlobal value typ = do
   counter <- gets gsFloatCounter
   func    <- gets gsCurrentFunc
   let base = fromMaybe "global" func
-      name = base ++ "_float" ++ show counter
+      name = "float_" ++ base ++ show counter
   modify $ \s ->
     s { gsFloatCounter = counter + 1
       , gsGlobals = IRGlobalFloat name value typ : gsGlobals s
