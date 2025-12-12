@@ -5,9 +5,10 @@ where
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+
 import Rune.Backend.Helpers (calculateStackMap, collectTopLevels, emit, escapeString)
 import Rune.Backend.Types (Extern, Function, GlobalString, GlobalFloat)
-import Rune.Backend.X86_64.Compare (emitCompare)
+import Rune.Backend.X86_64.Compare (emitCompare, loadFloatOperand, isFloatType)
 import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.Registers (getMovType, getRegisterName, getSizeSpecifier, x86_64ArgsRegisters, x86_64FloatArgsRegisters)
 import Rune.IR.Nodes
@@ -203,25 +204,6 @@ emitCall sm dest funcName args mbType =
     printfFixupHelp _ _
       = [ emit 1 $ "; WARNING: no more float register" ]
 
--- setupCallArgs :: Map String Int -> [IROperand] -> [String]
--- setupCallArgs sm args =
---   let (instrs, _, _) = foldl step ([], 0, 0) (getOperandType args)
---    in instrs
---   where
---     step :: ([String], Int, Int) -> IROperand -> ([String], Int, Int)
---     step (acc, intIdx, floatIdx) op =
---       let mt = getOperandType op
---        in stepType (acc, intIdx, floatIdx) op mt
---
---     stepType (acc, intIdx, floatIdx) op Nothing = (acc, intIdx, floatIdx)
---     stepType (acc, intIdx, floatIdx) op (Just t)
---       | isFloatType t , floatIdx < length x86_64FloatArgsRegisters =
---           let xmm = x86_64FloatArgsRegisters !! floatIdx
---           in (acc ++ loadFloatOperand sm xmm op t , intIdx , floatIdx + 1)
---       | not (isFloatType t) , intIdx < length x86_64ArgsRegisters =
---           let reg = x86_64ArgsRegisters !! intIdx
---           in (acc ++ loadRegWithExt sm (reg, op) , intIdx + 1 , floatIdx)
---       | otherwise = (acc, intIdx, floatIdx)
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
 setupCallArgs sm args =
   let (instrs, _, _) = foldl step ([], 0, 0) args
@@ -466,16 +448,3 @@ extendVar sm reg op t =
       sizeSpec = getSizeSpecifier t
    in [emit 1 $ "mov " ++ targetReg ++ ", " ++ sizeSpec ++ " " ++ varStackAddr sm op]
 
-loadFloatOperand :: Map String Int -> String -> IROperand -> IRType -> [String]
-loadFloatOperand sm reg (IRTemp   name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam  name _    ) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRTemp   name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand sm reg (IRParam  name _    ) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword " ++ stackAddr sm name]
-loadFloatOperand _  reg (IRGlobal name IRF32) IRF32 = [emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"]
-loadFloatOperand _  reg (IRGlobal name IRF64) IRF64 = [emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"]
-loadFloatOperand _  reg _ _                         = [emit 1 $ "; WARNING: unsupported float operand, zeroing " ++ reg, emit 1 $ "xorps " ++ reg ++ ", " ++ reg]
-
-isFloatType :: IRType -> Bool
-isFloatType IRF32 = True
-isFloatType IRF64 = True
-isFloatType _ = False
