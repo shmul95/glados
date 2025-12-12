@@ -122,6 +122,7 @@ testGenState =
                   gsLoopStack = loopStack,
                   gsCalledFuncs = Set.empty,
                   gsStringMap = empty,
+                  gsFloatMap = empty,
                   gsFuncStack = mempty
                 }
             dummyOp :: IRGen Int
