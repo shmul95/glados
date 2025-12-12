@@ -2,18 +2,28 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-#if defined(TESTING_EXPORT)
 module Rune.IR.Optimizer
   ( runIROptimizer,
-    optimizeFunction
-  )
-where
-#else
-module Rune.IR.Optimizer
-  ( runIROptimizer
-  )
-where
+    optimizeFunction,
+#if defined(TESTING_EXPORT)
+    emitInstr,
+    optimizeTopLevel,
+    optimizeBlock,
+    optimizeInstr,
+    inlineFunction,
+    isInlineable,
+    isControlFlow,
+    simplifyInstr,
+    simplifyOp,
+    renameInstr,
+    rOp,
+    replaceRet,
+    operandType,
+    OptState(..),
+    OptM,
 #endif
+  )
+where
 
 import Rune.IR.Nodes
 import qualified Data.Map as M
