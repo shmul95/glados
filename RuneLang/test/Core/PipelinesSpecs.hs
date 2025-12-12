@@ -170,6 +170,23 @@ pipelinePrivateTests =
 -- public pipelines tests
 --
 
+test_interpretPipeline_success :: IO ()
+test_interpretPipeline_success = do
+    withTempFile validRuneCode $ \inFile -> do
+        res <- catchExitCode (interpretPipeline inFile)
+        assertEqual "interpretPipeline should succeed" ExitSuccess res
+
+test_interpretPipeline_parser_failure :: IO ()
+test_interpretPipeline_parser_failure = do
+    withTempFile invalidRuneCode $ \inFile -> do
+        res <- catchExitCode (interpretPipeline inFile)
+        assertEqual "interpretPipeline (parser failure) should exit with 84" (ExitFailure 84) res
+
+test_interpretPipeline_read_failure :: IO ()
+test_interpretPipeline_read_failure = do
+  res <- catchExitCode (interpretPipeline "non_existent.rune")
+  assertEqual "interpretPipeline (read failure) should exit with 84" (ExitFailure 84) res
+
 test_compilePipeline_success :: IO ()
 test_compilePipeline_success = do
     withTempFile validRuneCode $ \inFile -> do
@@ -183,38 +200,21 @@ test_compilePipeline_success = do
                 exists <- doesFileExist outFile
                 assertBool "Output file should exist" exists)
 
-test_interpretPipeline_success :: IO ()
-test_interpretPipeline_success = do
-    withTempFile validRuneCode $ \inFile -> do
-        res <- catchExitCode (interpretPipeline inFile)
-        assertEqual "interpretPipeline should succeed" ExitSuccess res
-
 test_compilePipeline_read_failure :: IO ()
 test_compilePipeline_read_failure = do
-  res <- catchExitCode (compilePipeline "non_existent.rune" "out.asm" ToAssembly)
+  res <- catchExitCode (compilePipeline "non_existent.rune" "out.asm" ToObject)
   assertEqual "compilePipeline (read failure) should exit with 84" (ExitFailure 84) res
-
-test_interpretPipeline_read_failure :: IO ()
-test_interpretPipeline_read_failure = do
-  res <- catchExitCode (interpretPipeline "non_existent.rune")
-  assertEqual "interpretPipeline (read failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_lexer_failure :: IO ()
 test_compilePipeline_lexer_failure = do
     withTempFile invalidRuneCode $ \inFile -> do
-        res <- catchExitCode (compilePipeline inFile "out.asm" ToAssembly)
+        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject)
         assertEqual "compilePipeline (lexer failure) should exit with 84" (ExitFailure 84) res
-
-test_interpretPipeline_parser_failure :: IO ()
-test_interpretPipeline_parser_failure = do
-    withTempFile invalidRuneCode $ \inFile -> do
-        res <- catchExitCode (interpretPipeline inFile)
-        assertEqual "interpretPipeline (parser failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_semantic_failure :: IO ()
 test_compilePipeline_semantic_failure = do
     withTempFile semErrorRuneCode $ \inFile -> do
-        res <- catchExitCode (compilePipeline inFile "out.asm" ToAssembly)
+        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject)
         assertEqual "compilePipeline (semantic failure) should exit with 84" (ExitFailure 84) res
 
 --
