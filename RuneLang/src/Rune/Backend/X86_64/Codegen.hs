@@ -167,9 +167,19 @@ emitAssign sm dest (IRConstInt n) t
   | otherwise = [emit 1 $ "mov " ++ getSizeSpecifier t ++ " " ++ stackAddr sm dest ++ ", " ++ show n]
 emitAssign sm dest (IRGlobal name IRF32) IRF32 =
   case x86_64FloatArgsRegisters of
-    []      -> [ emit 1 $ "; WARNING: no more float register" ]
+    []      -> [ emit 1 $ "movss xmm0, dword [rel " ++ name ++ "]"
+               , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", xmm0"
+               ]
     (reg:_) -> [ emit 1 $ "movss " ++ reg ++ ", dword [rel " ++ name ++ "]"
                , emit 1 $ "movss dword " ++ stackAddr sm dest ++ ", " ++ reg
+               ]
+emitAssign sm dest (IRGlobal name IRF64) IRF64 =
+  case x86_64FloatArgsRegisters of
+    []      -> [ emit 1 $ "movsd xmm0, qword [rel " ++ name ++ "]"
+               , emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", xmm0"
+               ]
+    (reg:_) -> [ emit 1 $ "movsd " ++ reg ++ ", qword [rel " ++ name ++ "]"
+               , emit 1 $ "movsd qword " ++ stackAddr sm dest ++ ", " ++ reg
                ]
 emitAssign sm dest (IRConstChar c)   _ = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ show (fromEnum c)]
 emitAssign sm dest (IRConstBool b)   _ = [emit 1 $ "mov byte " ++ stackAddr sm dest ++ ", " ++ if b then "1" else "0"]
@@ -186,20 +196,29 @@ emitAssign sm dest op t =
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCall sm dest funcName args mbType =
   let argSetup    = setupCallArgs sm args
-      hasFloatArg = any (maybe False isFloatType . getOperandType) args
-      printfFixup = printfFixupHelp hasFloatArg x86_64FloatArgsRegisters
+      firstFloatType =
+        foldr
+          (\op acc -> case (acc, getOperandType op) of
+                        (Nothing, Just t) | isFloatType t -> Just t
+                        _                                 -> acc)
+          Nothing
+          args
+      printfFixup = printfFixupHelp firstFloatType x86_64FloatArgsRegisters
       callInstr   = [emit 1 $ "call " ++ funcName]
       retSave     = saveCallResult sm dest mbType
    in argSetup ++ printfFixup ++ callInstr ++ retSave
   where
-    printfFixupHelp hasFloatArg (floatReg:_)
-      | funcName == "printf" && hasFloatArg =
+    printfFixupHelp (Just IRF32) (floatReg:_)
+      | funcName == "printf" =
         [ emit 1 $ "cvtss2sd " ++ floatReg ++ ", " ++ floatReg
         , emit 1   "mov eax, 1"
         ]
-      | otherwise = []
+    printfFixupHelp (Just IRF64) (_:_) 
+      | funcName == "printf" =
+        [ emit 1 "mov eax, 1" ]
     printfFixupHelp _ _
-      = [ emit 1 $ "; WARNING: no more float register" ]
+      | funcName == "printf" = []
+    printfFixupHelp _ _ = []
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
 setupCallArgs sm args =
@@ -444,4 +463,3 @@ extendVar sm reg op t =
   let targetReg = getRegisterName reg t
       sizeSpec = getSizeSpecifier t
    in [emit 1 $ "mov " ++ targetReg ++ ", " ++ sizeSpec ++ " " ++ varStackAddr sm op]
-

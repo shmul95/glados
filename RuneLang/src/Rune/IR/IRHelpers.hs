@@ -200,11 +200,10 @@ insertGlobalString name value =
     s { gsGlobals   = IRGlobalDef name (IRGlobalStringVal value) : gsGlobals s
       , gsStringMap = Map.insert value name (gsStringMap s)
       }
-
 newFloatGlobal :: Double -> IRType -> IRGen String
 newFloatGlobal value typ = do
   mp <- gets gsFloatMap
-  case Map.lookup value mp of
+  case Map.lookup (value, typ) mp of
     Just name -> pure name
     Nothing -> createFloatGlobal value typ
 
@@ -218,7 +217,7 @@ createFloatGlobal value typ = do
   modify $ \s ->
     s { gsFloatCounter = counter + 1
       , gsGlobals = IRGlobalDef name (IRGlobalFloatVal value typ) : gsGlobals s
-      , gsFloatMap = Map.insert value name (gsFloatMap s)
+      , gsFloatMap = Map.insert (value, typ) name (gsFloatMap s)
       }
   pure name
 

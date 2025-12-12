@@ -256,7 +256,7 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
       in do
         name @?= "float_global0"
         gsFloatCounter state @?= 1
-        Map.lookup 3.14 (gsFloatMap state) @?= Just "float_global0"
+        Map.lookup (3.14, IRF32) (gsFloatMap state) @?= Just "float_global0"
         case gsGlobals state of
           (IRGlobalDef n (IRGlobalFloatVal v t) : _) -> do
             n @?= "float_global0"
@@ -268,7 +268,7 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
       let initial =
             emptyState
               { gsFloatCounter = 1
-              , gsFloatMap = Map.singleton 2.71 "float_global0"
+              , gsFloatMap = Map.singleton (2.71, IRF32) "float_global0"
               , gsGlobals = [IRGlobalDef "float_global0" (IRGlobalFloatVal 2.71 IRF32)]
               }
           (name, state) = runState (newFloatGlobal 2.71 IRF32) initial

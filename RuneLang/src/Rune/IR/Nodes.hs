@@ -35,7 +35,7 @@ data GenState = GenState
     gsLoopStack :: [(IRLabel, IRLabel)],
     gsCalledFuncs :: Set String,
     gsStringMap :: Map String String,
-    gsFloatMap :: Map Double String,
+    gsFloatMap :: Map (Double, IRType) String,
     gsFuncStack :: FuncStack
   }
   deriving (Show, Eq)
@@ -62,7 +62,7 @@ data IRType
   | IRNull
   | IRPtr IRType
   | IRStruct String
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 data IRBinaryOp
   = IRADD
