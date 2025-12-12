@@ -73,9 +73,9 @@ testGenLitFloat =
       (result, finalState) = runIRGen (genExpression expr)
       -- explanation
       -- Float literals are interned as <func>_float<counter>, using "global" as base when no function is active
-      expectedOperand = IRGlobal "global_float0" IRF32
+      expectedOperand = IRGlobal "float_global0" IRF32
       expectedType = IRF32
-      expectedGlobals = [IRGlobalFloat "global_float0" 3.14 IRF32]
+      expectedGlobals = [IRGlobalFloat "float_global0" 3.14 IRF32]
    in do
         result @?= ([], expectedOperand, expectedType)
         gsGlobals finalState @?= expectedGlobals
