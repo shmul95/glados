@@ -10,7 +10,6 @@ module Rune.Pipelines
     verifAndGenIR,
     runPipeline,
     runPipelineAction,
-    optimizeIR,
     genIR,
     checkSemantics,
     safeRead,
@@ -84,7 +83,7 @@ runPipelineAction inFile onSuccess =
 --
 
 optimizeIR :: IRProgram -> Either String IRProgram
-optimizeIR p = Right $ runIROptimizer p
+optimizeIR = Right . (!! 3) . iterate runIROptimizer
 
 genIR :: Program -> FuncStack -> Either String IRProgram
 genIR p fs = Right $ generateIR p fs
