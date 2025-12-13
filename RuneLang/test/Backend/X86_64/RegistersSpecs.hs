@@ -21,6 +21,7 @@ registersTests = testGroup "Rune.Backend.X86_64.Registers"
   , testGetRegisterName
   , testGetSizeSpecifier
   , testGetMovType
+  , testGetIntegerCompareRegisters
   ]
 
 --
@@ -162,4 +163,26 @@ testGetMovType = testGroup "getMovType"
 
   , testCase "Pointer mov" $
       getMovType (IRPtr IRI32) @?= "mov rax, qword"
+  ]
+
+testGetIntegerCompareRegisters :: TestTree
+testGetIntegerCompareRegisters = testGroup "getIntegerCompareRegisters"
+  [ testCase "IRI8 registers" $
+      getIntegerCompareRegisters IRI8 @?= ("rax", "rbx")
+  , testCase "IRI16 registers" $
+      getIntegerCompareRegisters IRI16 @?= ("rax", "rbx")
+  , testCase "IRU8 registers" $
+      getIntegerCompareRegisters IRU8 @?= ("rax", "rbx")
+  , testCase "IRU16 registers" $
+      getIntegerCompareRegisters IRU16 @?= ("rax", "rbx")
+  , testCase "IRChar registers" $
+      getIntegerCompareRegisters IRChar @?= ("rax", "rbx")
+  , testCase "IRBool registers" $
+      getIntegerCompareRegisters IRBool @?= ("rax", "rbx")
+  , testCase "IRI32 registers" $
+      getIntegerCompareRegisters IRI32 @?= ("eax", "ebx")
+  , testCase "IRI64 registers" $
+      getIntegerCompareRegisters IRI64 @?= ("rax", "rbx")
+  , testCase "Default registers" $
+      getIntegerCompareRegisters (IRPtr IRI32) @?= ("rax", "rbx")
   ]
