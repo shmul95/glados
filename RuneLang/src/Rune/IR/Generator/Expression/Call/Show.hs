@@ -8,7 +8,11 @@ module Rune.IR.Generator.Expression.Call.Show
     genShowPrintfCall,
     getShowFunc,
     getFormatSpecifier,
-    prepareAddr
+    prepareAddr,
+    ensureShowBoolFunc,
+    mkShowOverride,
+    overrideExists,
+    mkShowBoolFunc
   )
 where
 #else

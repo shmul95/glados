@@ -10,6 +10,7 @@ module Rune.Backend.X86_64.Registers
     getRegisterName,
     getSizeSpecifier,
     getMovType,
+    getIntegerCompareRegisters,
   )
 where
 #else
@@ -21,12 +22,13 @@ module Rune.Backend.X86_64.Registers
     getRegisterName,
     getSizeSpecifier,
     getMovType,
+    getIntegerCompareRegisters,
   )
 where
 #endif
 
 import Rune.IR.IRHelpers (sizeOfIRType)
-import Rune.IR.Nodes (IRType (IRPtr))
+import Rune.IR.Nodes (IRType (..))
 
 --
 -- public
@@ -106,7 +108,7 @@ getMovType typ =
         2 -> "movzx rax, word"
         4 -> "mov eax, dword"
         8 -> "mov rax, qword"
-        _ -> error $ "Unsupported size for DEREF: " ++ show size
+        _ -> error $ "Unsupported size for DEREF: " <> show size
 
 -- | get size specifier for x86_64 instructions (byte, word, dword, qword)
 -- Pointers are always qword (8 bytes) regardless of what they point to
@@ -159,3 +161,12 @@ getRegisterName baseReg t =
         ("r9", 4) -> "r9d"
         ("r9", 8) -> "r9"
         _ -> baseReg
+
+getIntegerCompareRegisters :: IRType -> (String, String)
+getIntegerCompareRegisters IRI8 = ("rax", "rbx")
+getIntegerCompareRegisters IRI16 = ("rax", "rbx")
+getIntegerCompareRegisters IRU8 = ("rax", "rbx")
+getIntegerCompareRegisters IRU16 = ("rax", "rbx")
+getIntegerCompareRegisters IRChar = ("rax", "rbx")
+getIntegerCompareRegisters IRBool = ("rax", "rbx")
+getIntegerCompareRegisters t = (getRegisterName "rax" t, getRegisterName "rbx" t)

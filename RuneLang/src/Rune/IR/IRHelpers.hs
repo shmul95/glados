@@ -26,6 +26,7 @@ module Rune.IR.IRHelpers
     intWidth,
     isSigned,
     isIntType,
+    isFloatType,
     promoteTypes
   )
 where
@@ -90,7 +91,7 @@ astTypeToIRType TypeBool = IRBool
 astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
-astTypeToIRType _ = error "Unsupported type conversion from AST to IR"
+astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR, got TypeAny"
 
 irTypeToASTType :: IRType -> Type
 irTypeToASTType IRI8 = TypeI8
@@ -331,6 +332,11 @@ isSigned IRI16  = True
 isSigned IRI32  = True
 isSigned IRI64  = True
 isSigned _      = False
+
+isFloatType :: IRType -> Bool
+isFloatType IRF32 = True
+isFloatType IRF64 = True
+isFloatType _     = False
 
 signedTypeOfWidth :: Int -> IRType
 signedTypeOfWidth 8  = IRI8
