@@ -23,6 +23,8 @@ module Rune.Backend.X86_64.Compare
   ( emitCompare,
     getCompareSetOp,
     CompareOp (..),
+    isFloatType,
+    loadFloatOperand,
   )
 where
 #endif

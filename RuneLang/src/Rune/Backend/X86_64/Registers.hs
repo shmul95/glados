@@ -17,6 +17,7 @@ where
 module Rune.Backend.X86_64.Registers
   ( x86_64Registers,
     x86_64ArgsRegisters,
+    x86_64FloatArgsRegisters,
     x86_64CallerSavedRegisters,
     x86_64CalleeSavedRegisters,
     getRegisterName,
