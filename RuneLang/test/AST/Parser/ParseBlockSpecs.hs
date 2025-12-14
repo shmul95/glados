@@ -43,6 +43,7 @@ parseBlockTests =
     , parseStopTests
     , parseNextTests
     , parseStatementTests
+    , contextErrorTests
     ]
 
 --
@@ -249,4 +250,45 @@ parseNextTests = testGroup "parseNext Tests"
       assertFail "next; (outside loop)" parseNext [tok T.KwNext, tok T.Semicolon] 0 "'next' statement can only be used inside a loop"
   , testCase "Fails on missing semicolon" $
       assertFail "next without ;" parseNext [tok T.KwNext] 1 "Expected Semicolon"
+  ]
+
+contextErrorTests :: TestTree
+contextErrorTests = testGroup "Context Error Tests"
+  [ testCase "parseStatement T.KwIf context" $
+      assertFail "parseStatement KwIf" parseStatement [tok T.KwIf, tok T.KwIf] 0 "If statement"
+  , testCase "parseStatement T.KwFor context" $
+      assertFail "parseStatement KwFor" parseStatement [tok T.KwFor, tok T.KwFor] 0 "For loop"
+  , testCase "parseStatement T.KwLoop context" $
+      assertFail "parseStatement KwLoop" parseStatement [tok T.KwLoop, tok T.KwLoop] 0 "Loop statement"
+  , testCase "parseStatement T.KwStop context" $
+      assertFail "parseStatement KwStop" parseStatement [tok T.KwStop, tok T.KwStop] 1 "Stop statement"
+  , testCase "parseStatement T.KwNext context" $
+      assertFail "parseStatement KwNext" parseStatement [tok T.KwNext, tok T.KwNext] 1 "Next statement"
+
+  , testCase "parseReturn 'return value' context" $
+      assertFail "parseReturn return value" parseReturn [tok T.KwReturn, tok (T.Identifier "x"), tok T.OpPlus] 0 "Expected Semicolon"
+
+  , testCase "parseIf 'if block' context" $
+      assertFail "parseIf if block" parseIf [tok T.KwIf, tok (T.LitBool True), tok T.KwIf] 0 "if block"
+
+  , testCase "parseIf 'else block' context" $
+      let tokens = [ tok T.KwIf , tok (T.LitBool True) , tok T.LBrace , tok T.RBrace , tok T.KwElse , tok T.LBrace , tok T.RBrace ]
+      in assertP "parseIf else block" parseIf tokens 0 (StmtIf (ExprLitBool True) [] (Just []))
+
+  , testCase "parseForRangeRest 'start index' context" $
+      assertFail "parseForRangeRest start index" (parseForRangeRest "i" Nothing) [tok T.OpAssign, tok T.KwTo] 0 "start index"
+  , testCase "parseForRangeRest 'end index' context" $
+      assertFail "parseForRangeRest end index" (parseForRangeRest "i" Nothing) [tok T.OpAssign, tok (T.LitInt 0), tok T.KwTo, tok T.LBrace] 0 "end index"
+  , testCase "parseForRangeRest 'for block' context" $
+      assertFail "parseForRangeRest for block" (parseForRangeRest "i" Nothing) [tok T.OpAssign, tok (T.LitInt 0), tok T.KwTo, tok (T.LitInt 10), tok T.KwTo] 0 "for block"
+  , testCase "parseForRangeRestNoInit 'end index' context" $
+      assertFail "parseForRangeRestNoInit end index" (parseForRangeRestNoInit "i" Nothing) [tok T.KwTo, tok T.LBrace] 0 "end index"
+  , testCase "parseForRangeRestNoInit 'for block' context" $
+      assertFail "parseForRangeRestNoInit for block" (parseForRangeRestNoInit "i" Nothing) [tok T.KwTo, tok (T.LitInt 10), tok T.KwTo] 0 "for block"
+  , testCase "parseForEachRest 'iterable expression' context" $
+      assertFail "parseForEachRest iterable expression" (parseForEachRest "x" Nothing) [tok T.KwIn, tok T.LBrace] 0 "iterable expression"
+  , testCase "parseForEachRest 'for-each block' context" $
+      assertFail "parseForEachRest for-each block" (parseForEachRest "x" Nothing) [tok T.KwIn, tok (T.Identifier "list"), tok T.KwIn] 0 "for-each block"
+  , testCase "parseLoop 'loop block' context" $
+      assertFail "parseLoop loop block" parseLoop [tok T.KwLoop, tok T.KwLoop] 0 "loop block"
   ]
