@@ -10,7 +10,7 @@ import Rune.Backend.Types (Extern, Function, Global)
 import Rune.Backend.X86_64.Compare (emitCompare, loadFloatOperand, isFloatType)
 import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.LoadStore (getTestReg, loadReg, loadRegWithExt, moveStackToStack, needsRegisterLoad, operandAddr, stackAddr, storeReg)
-import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp)
+import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp)
 import Rune.Backend.X86_64.Registers (getMovType, getSizeSpecifier, x86_64ArgsRegisters, x86_64FloatArgsRegisters)
 import Rune.IR.Nodes
   ( IRFunction (IRFunction),
@@ -152,6 +152,7 @@ emitInstruction sm _ (IRADD_OP dest l r t) = emitBinaryOp sm dest "add" l r t
 emitInstruction sm _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
 emitInstruction sm _ (IRMUL_OP dest l r t) = emitBinaryOp sm dest "imul" l r t
 emitInstruction sm _ (IRDIV_OP dest l r t) = emitDivOp sm dest l r t
+emitInstruction sm _ (IRMOD_OP dest l r t) = emitModOp sm dest l r t
 emitInstruction sm _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
 emitInstruction sm _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
 emitInstruction sm _ (IRCMP_EQ dest l r) = emitCompare sm dest Cmp.CmpEQ l r

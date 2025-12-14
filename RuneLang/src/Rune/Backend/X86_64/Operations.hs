@@ -1,12 +1,14 @@
 {-# LANGUAGE CPP #-}
 module Rune.Backend.X86_64.Operations
   ( emitBinaryOp,
-    emitDivOp
+    emitDivOp,
+    emitModOp
 #if defined(TESTING_EXPORT)
   ,
     emitFloatBinaryOp,
     emitFloatDivOp,
     emitIntDivOp,
+    emitIntModOp,
     emitSmallMul
 #endif
   )
@@ -41,6 +43,12 @@ emitDivOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [St
 emitDivOp sm dest leftOp rightOp t
   | isFloatType t = emitFloatDivOp sm dest leftOp rightOp t
   | otherwise = emitIntDivOp sm dest leftOp rightOp t
+
+-- | emit dest = left % right
+emitModOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitModOp sm dest leftOp rightOp t
+  | isFloatType t = [emit 1 $ "; TODO: floating point modulo not supported"]
+  | otherwise = emitIntModOp sm dest leftOp rightOp t
 
 --
 -- private
@@ -123,6 +131,42 @@ emitSmallMul sm dest leftOp rightOp t =
         <> [emit 1 $ extInstr <> " " <> regB <> ", " <> srcB]
         <> [emit 1 $ "imul " <> regA <> ", " <> regB]
         <> [storeReg sm dest "rax" t]
+
+emitIntModOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitIntModOp sm dest leftOp rightOp t =
+  case t of
+    IRI8  -> emitSmallMod sm dest leftOp rightOp "movsx" "eax" "ecx" "al" "cl" "cdq" "idiv" t
+    IRU8  -> emitSmallMod sm dest leftOp rightOp "movzx" "eax" "ecx" "al" "cl" "xor edx, edx" "div" t
+    IRI16 -> emitSmallMod sm dest leftOp rightOp "movsx" "eax" "ecx" "ax" "cx" "cdq" "idiv" t
+    IRU16 -> emitSmallMod sm dest leftOp rightOp "movzx" "eax" "ecx" "ax" "cx" "xor edx, edx" "div" t
+    IRI32 -> emit32Mod sm dest leftOp rightOp "cdq" "idiv"
+    IRU32 -> emit32Mod sm dest leftOp rightOp "xor edx, edx" "div"
+    IRI64 -> emit64Mod sm dest leftOp rightOp "cqo" "idiv"
+    IRU64 -> emit64Mod sm dest leftOp rightOp "xor rdx, rdx" "div"
+    _     -> [emit 1 $ "; TODO: unsupported integer modulo type: " <> show t]
+  where
+    emitSmallMod sm' dest' leftOp' rightOp' extInstr regA regB srcA srcB signExt divInstr typ =
+      loadReg sm' "rax" leftOp'
+        <> [emit 1 $ extInstr <> " " <> regA <> ", " <> srcA]
+        <> loadReg sm' "rcx" rightOp'
+        <> [emit 1 $ extInstr <> " " <> regB <> ", " <> srcB]
+        <> [emit 1 signExt]
+        <> [emit 1 $ divInstr <> " " <> regB]
+        <> [storeReg sm' dest' "rdx" typ]
+    
+    emit32Mod sm' dest' leftOp' rightOp' signExt divInstr =
+      loadReg sm' "rax" leftOp'
+        <> [emit 1 signExt]
+        <> loadReg sm' "rbx" rightOp'
+        <> [emit 1 $ divInstr <> " ebx"]
+        <> [storeReg sm' dest' "rdx" t]
+    
+    emit64Mod sm' dest' leftOp' rightOp' signExt divInstr =
+      loadReg sm' "rax" leftOp'
+        <> [emit 1 signExt]
+        <> loadReg sm' "rbx" rightOp'
+        <> [emit 1 $ divInstr <> " rbx"]
+        <> [storeReg sm' dest' "rdx" t]
 
 emitFloatBinaryOp
   :: Map String Int
