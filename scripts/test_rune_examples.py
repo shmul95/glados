@@ -32,7 +32,7 @@ EXPECTED_STDOUT = {
     "RuneLang/examples/loops.ru": "The final value is: 12\n",
     "RuneLang/examples/return_0.ru": "",
     "RuneLang/examples/strings.ru": "Hello, Rune!\n",
-    "RuneLang/examples/maths.ru": "[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n",
+    "RuneLang/examples/maths.ru": "[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n[+] PASSED\n",
 }
 
 EXPECTED_RETURN = {
