@@ -73,7 +73,7 @@ collectTopLevel _ acc = acc
 collectIRVars :: Function -> Map.Map String IRType
 collectIRVars (IRFunction _ params _ body) = 
   let initialMap = Map.fromList params
-   in foldl collectVars initialMap body
+   in foldl' collectVars initialMap body
 
 collectVars :: Map.Map String IRType -> IRInstruction -> Map.Map String IRType
 collectVars acc (IRASSIGN n _ t) = Map.insert n t acc
