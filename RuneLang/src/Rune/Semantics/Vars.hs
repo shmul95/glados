@@ -1,6 +1,18 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TupleSections #-}
 
+#if defined(TESTING_EXPORT)
+module Rune.Semantics.Vars (
+  verifVars,
+  mangleFuncStack,
+  verifDefs,
+  verifScope,
+  verifExpr,
+  verifExprWithContext
+) where
+#else
 module Rune.Semantics.Vars (verifVars) where
+#endif
 
 import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
@@ -23,12 +35,20 @@ import Rune.Semantics.Helper
   , checkMultipleType
   )
 
+--
+-- public
+--
+
 verifVars :: Program -> Either String (Program, FuncStack)
 verifVars prog@(Program n defs) = do
   fs        <- findFunc prog
   defs'     <- mapM (verifDefs fs) defs
   let fs' = mangleFuncStack fs
   pure $ (Program n defs', fs')
+
+--
+-- private
+--
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
