@@ -1,58 +1,6 @@
-/*
-* def add(a: any, b: any) -> any
-* {
-*     a + b
-* }
-*/
-
-def add(a: i8, b: i8) -> i8
+def mod(a: any, b: any) -> any
 {
-    a + b
-}
-
-override def add(a: i16, b: i16) -> i16
-{
-    a + b
-}
-
-override def add(a: i32, b: i32) -> i32
-{
-    a + b
-}
-
-override def add(a: i64, b: i64) -> i64
-{
-    a + b
-}
-
-override def add(a: f32, b: f32) -> f32
-{
-    a + b
-}
-
-override def add(a: f64, b: f64) -> f64
-{
-    a + b
-}
-
-override def add(a: u8, b: u8) -> u8
-{
-    a + b
-}
-
-override def add(a: u16, b: u16) -> u16
-{
-    a + b
-}
-
-override def add(a: u32, b: u32) -> u32
-{
-    a + b
-}
-
-override def add(a: u64, b: u64) -> u64
-{
-    a + b
+    a % b
 }
 
 def assert(condition: bool, message: string) -> null
@@ -69,16 +17,16 @@ def assert(condition: bool, message: string) -> null
 
 def test_addition() -> null
 {
-    result_i8:  i8  = add(10, 20);
-    result_i16: i16 = add(300, 400);
-    result_i32: i32 = add(1000, 2000);
-    result_i64: i64 = add(100000, 200000);
-    result_f32: f32 = add(1.5, 2.5);
-    result_f64: f64 = add(2.5, 3.5);
-    result_u8:  u8  = add(10, 20);
-    result_u16: u16 = add(300, 400);
-    result_u32: u32 = add(1000, 2000);
-    result_u64: u64 = add(100000, 200000);
+    result_i8:  i8  = 10 + 20;
+    result_i16: i16 = 300 + 400;
+    result_i32: i32 = 1000 + 2000;
+    result_i64: i64 = 100000 + 200000;
+    result_f32: f32 = 1.5 + 2.5;
+    result_f64: f64 = 2.5 + 3.5;
+    result_u8:  u8  = 10 + 20;
+    result_u16: u16 = 300 + 400;
+    result_u32: u32 = 1000 + 2000;
+    result_u64: u64 = 100000 + 200000;
 
     assert(result_i8  == 30,     "i8 addition failed");
     assert(result_i16 == 700,    "i16 addition failed");
@@ -169,14 +117,14 @@ def test_division() -> null
 
 def test_modulo() -> null
 {
-    result_i8:  i8  = 20 % 6;
-    result_i16: i16 = 400 % 300;
-    result_i32: i32 = 2000 % 1000;
-    result_i64: i64 = 200000 % 100000;
-    result_u8:  u8  = 20 % 6;
-    result_u16: u16 = 400 % 300;
-    result_u32: u32 = 2000 % 1000;
-    result_u64: u64 = 200000 % 100000;
+    result_i8:  i8  = mod(20, 6);
+    result_i16: i16 = mod(400, 300);
+    result_i32: i32 = mod(2000, 1000);
+    result_i64: i64 = mod(200000, 100000);
+    result_u8:  u8  = mod(20, 6);
+    result_u16: u16 = mod(400, 300);
+    result_u32: u32 = mod(2000, 1000);
+    result_u64: u64 = mod(200000, 100000);
 
     assert(result_i8  == 2,      "i8 modulo failed");
     assert(result_i16 == 100,    "i16 modulo failed");

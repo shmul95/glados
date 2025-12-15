@@ -41,6 +41,7 @@ irHelpersTests =
     , testIsSigned
     , testSignedTypeOfWidth
     , testUnsignedTypeOfWidth
+    , testIsFloatType
     ]
 
 --
@@ -436,3 +437,18 @@ testSelectReturnType = testGroup "selectReturnType"
               else assertFailure $ "Exception message did not contain critical part: " ++ criticalMsg ++ ". Full message: " ++ show e
           Right _ -> assertFailure "Expected a semantic error for no matching signature, but no exception was thrown"
     ]
+
+testIsFloatType :: TestTree
+testIsFloatType = testGroup "isFloatType"
+  [ testCase "Identifies float types" $ do
+      isFloatType IRF32 @?= True
+      isFloatType IRF64 @?= True
+  , testCase "Rejects non-float types" $ do
+      isFloatType IRI32 @?= False
+      isFloatType IRU32 @?= False
+      isFloatType IRBool @?= False
+      isFloatType IRChar @?= False
+      isFloatType IRNull @?= False
+      isFloatType (IRPtr IRI32) @?= False
+      isFloatType (IRStruct "S") @?= False
+  ]

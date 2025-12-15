@@ -28,6 +28,7 @@ import Semantics.VarsSpecs (varsSemanticsTests)
 import Semantics.OpTypeSpecs (opTypeSemanticsTests)
 import Semantics.HelperSpecs (helperSemanticsTests)
 import Semantics.FuncSpecs (funcSemanticsTests)
+import Semantics.GenericSpecs (genericSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
 import IR.IRHelpersSpecs (irHelpersTests)
@@ -119,6 +120,7 @@ semanticsSpecs =
     , opTypeSemanticsTests
     , helperSemanticsTests
     , funcSemanticsTests
+    , genericSemanticsTests
     ]
 
 irSpecs :: TestTree
