@@ -1,6 +1,6 @@
 def main() -> i32
 {
-
+    a: i32 = 5;
 
     if a < 10 {
         show("a is less than 10\n");
