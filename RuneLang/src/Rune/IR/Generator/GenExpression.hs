@@ -1,4 +1,14 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.GenExpression
+  ( genExpression,
+    genVar
+  )
+where
+#else
 module Rune.IR.Generator.GenExpression (genExpression) where
+#endif
 
 import Control.Monad.State (gets)
 import qualified Data.Map.Strict as Map

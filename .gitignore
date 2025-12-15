@@ -35,4 +35,4 @@ lisp
 *.log
 *.asm
 *.bin
-.lazygit
+*.cabal

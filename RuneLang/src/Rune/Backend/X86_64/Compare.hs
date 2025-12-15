@@ -1,9 +1,31 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Backend.X86_64.Compare
+  ( emitCompare,
+    getCompareSetOp,
+    CompareOp (..),
+    isSignedType,
+    isUnsignedType,
+    isFloatType,
+    getFloatRegs,
+    stackAddr,
+    loadOperand,
+    loadFloatOperand,
+    getSizeSpec,
+    emitCompareInstructions,
+    emitIntegerCompare,
+    emitFloatCompare
+  )
+where
+#else
 module Rune.Backend.X86_64.Compare
   ( emitCompare,
     getCompareSetOp,
     CompareOp (..),
   )
 where
+#endif
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map

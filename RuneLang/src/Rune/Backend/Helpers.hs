@@ -1,3 +1,21 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Backend.Helpers
+  ( emit,
+    escapeString,
+    collectIRVars,
+    collectTopLevels,
+    calculateStackMap,
+    alignUp,
+    collectTopLevel,
+    collectVars,
+    accumulateOffset,
+    encodeCharacter,
+    makeRbpOffset
+  )
+where
+#else
 module Rune.Backend.Helpers
   ( emit,
     escapeString,
@@ -6,6 +24,7 @@ module Rune.Backend.Helpers
     calculateStackMap,
   )
 where
+#endif
 
 import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
@@ -22,7 +41,7 @@ emit :: Int -> String -> String
 emit lvl s = replicate (lvl * 4) ' ' ++ s
 
 collectTopLevels :: [IRTopLevel] -> ([Extern], [GlobalString], [Function])
-collectTopLevels tls =
+collectTopLevels tls = 
   let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
    in (nub es, reverse gs, reverse fs)
 
@@ -52,9 +71,9 @@ collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
 collectTopLevel _ acc = acc
 
 collectIRVars :: Function -> Map.Map String IRType
-collectIRVars (IRFunction _ params _ body) =
+collectIRVars (IRFunction _ params _ body) = 
   let initialMap = Map.fromList params
-   in foldl' collectVars initialMap body
+   in foldl collectVars initialMap body
 
 collectVars :: Map.Map String IRType -> IRInstruction -> Map.Map String IRType
 collectVars acc (IRASSIGN n _ t) = Map.insert n t acc
@@ -76,11 +95,14 @@ collectVars acc (IRCMP_GTE n _ _) = Map.insert n IRBool acc
 collectVars acc (IRAND_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IROR_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRCALL n _ _ (Just t)) = Map.insert n t acc
+collectVars acc (IRCALL n _ _ Nothing) | not (null n) = Map.insert n IRI64 acc
 collectVars acc (IRADDR n _ t) = Map.insert n t acc
+collectVars acc (IRINC _) = acc
+collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
 
 accumulateOffset :: Map.Map String IRType -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
-accumulateOffset _ (currentOffset, accMap) (name, irType) =
+accumulateOffset _ (currentOffset, accMap) (name, irType) = 
   let size = sizeOfIRType irType
       align = min 8 (if size == 0 then 1 else size)
       alignedOffset = alignUp currentOffset align
@@ -94,7 +116,7 @@ encodeCharacter s@(c : cs)
   | c == '\r' = "13" : encodeCharacter cs
   | c == '\t' = "9" : encodeCharacter cs
   | c == '\0' = "0" : encodeCharacter cs
-  | otherwise =
+  | otherwise = 
       let (printables, rest) = span isPrintable s
        in ("\"" ++ printables ++ "\"") : encodeCharacter rest
 
