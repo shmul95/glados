@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -cpp #-}
 
 #if defined(TESTING_EXPORT)
-module Rune.IR.Printer 
+module Rune.IR.Printer
   ( prettyPrintIR
   , printProgram
   , printTopLevel
@@ -11,7 +11,7 @@ module Rune.IR.Printer
   , printType
   ) where
 #else
-module Rune.IR.Printer 
+module Rune.IR.Printer
   ( prettyPrintIR
   ) where
 #endif
