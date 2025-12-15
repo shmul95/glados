@@ -1,11 +1,13 @@
 module Rune.Lexer.LexerLiterals (literal) where
 
 import Control.Monad (void)
+import qualified Data.Char as C
 import Rune.Lexer.LexerParser (Parser)
 import Rune.Lexer.Tokens (Token (..), TokenKind (..))
 import Text.Megaparsec
   ( MonadParsec (notFollowedBy, try),
     choice,
+    count,
     many,
     noneOf,
     optional,
@@ -16,6 +18,8 @@ import Text.Megaparsec.Char
   ( alphaNumChar,
     char,
     digitChar,
+    hexDigitChar,
+    octDigitChar,
     string,
   )
 
@@ -121,5 +125,48 @@ escapeChar =
       char 'r' >> return '\r',
       char '\\' >> return '\\',
       char '"' >> return '"',
-      char '\'' >> return '\''
+      char '\'' >> return '\'',
+      try octalEscape,
+      try hexEscape,
+      try unicodeEscape
     ]
+
+octalEscape :: Parser Char
+octalEscape = do
+  digits <- some octDigitChar
+  let value = foldl (\acc d -> acc * 8 + C.digitToInt d) 0 digits
+  if value > 255
+    then fail "Octal escape sequence out of range (max \\377)"
+    else return $ C.chr value
+
+hexEscape :: Parser Char
+hexEscape = do
+  void $ char 'x'
+  digits <- some hexDigitChar
+  let value = foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
+  if value > 255
+    then fail "Hexadecimal escape sequence out of range (max \\xff)"
+    else return $ C.chr value
+
+unicodeEscape :: Parser Char
+unicodeEscape = do
+  void $ char 'u'
+  value <- choice [bracedUnicode, unbracedUnicode]
+  if value > 0x10FFFF
+    then fail "Unicode escape sequence out of range"
+    else return $ C.chr value
+  where
+    bracedUnicode = do
+      void $ char '{'
+      digits <- some hexDigitChar
+      void $ char '}'
+      return $ foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
+
+    unbracedUnicode = do
+      digits <- choice
+        [ try (count 4 hexDigitChar),
+          try (count 6 hexDigitChar)
+        ]
+      return $ foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
+
+
