@@ -48,12 +48,12 @@ data CompileRule
 usage :: String
 usage =
   unlines
-    [ "Usage: glados <command> [file] [options]",
+    [ "Usage: rune <command> [file] [options]",
       "",
       "Commands:",
       "  help           Show this help message",
       "  build [file]   Compile the given source file",
-      "  run   [file]   Interpret the given source file",
+      "  run   [file]   Show the IR of the given source file",
       "",
       "Options:",
       "  -o, --output <file>   Specify the output file for compilation",
@@ -62,7 +62,7 @@ usage =
     ]
 
 parseArgs :: [String] -> Either String Action
-parseArgs [] = Left "No command provided. Use 'glados help'."
+parseArgs [] = Left "No command provided. Use 'rune help'."
 parseArgs (cmd : rest) = parseCommand cmd rest
 
 runCLI :: Action -> IO ()
@@ -91,7 +91,7 @@ parseCommand "-r" rest = parseRun rest
 parseCommand "build" rest = parseBuild rest
 parseCommand "--build" rest = parseBuild rest
 parseCommand "-b" rest = parseBuild rest
-parseCommand cmd _ = Left $ "Invalid command: " ++ cmd ++ ". Use 'glados help'."
+parseCommand cmd _ = Left $ "Invalid command: " ++ cmd ++ ". Use 'rune help'."
 
 parseRun :: [String] -> Either String Action
 parseRun [file] = Right (Interpret file)
