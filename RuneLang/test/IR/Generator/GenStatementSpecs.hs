@@ -134,18 +134,18 @@ testGenExprStmt = testGroup "genExprStmt"
 testGenIfControlFlow :: TestTree
 testGenIfControlFlow = testGroup "genStatement if-control-flow"
   [ testCase "Generates IR for if without else" $
-      let cond = ExprLitBool True
-          body = [StmtReturn Nothing]
-          result = runGen (genStatement (StmtIf cond body Nothing))
+      let cond = ExprLitBool dummyPos True
+          body = [StmtReturn dummyPos Nothing]
+          result = runGen (genStatement (StmtIf dummyPos cond body Nothing))
       in case result of
         (IRJUMP_FALSE _ _ : _ ) -> return ()
         _ -> assertBool "Expected IRJUMP_FALSE followed by then block and label" False
 
   , testCase "Generates IR for if with else and jump to end when then-branch lacks return" $
-      let cond = ExprLitBool True
-          thenBody = [StmtExpr (ExprLitInt 1)]
-          elseBody = [StmtExpr (ExprLitInt 2)]
-          result = runGen (genStatement (StmtIf cond thenBody (Just elseBody)))
+      let cond = ExprLitBool dummyPos True
+          thenBody = [StmtExpr dummyPos (ExprLitInt dummyPos 1)]
+          elseBody = [StmtExpr dummyPos (ExprLitInt dummyPos 2)]
+          result = runGen (genStatement (StmtIf dummyPos cond thenBody (Just elseBody)))
           hasElseLabel   = any isElseLabel result
           hasEndLabel    = any isEndLabel result
           hasJumpToEnd   = any isJumpToEnd result
@@ -155,10 +155,10 @@ testGenIfControlFlow = testGroup "genStatement if-control-flow"
         assertBool "Should contain jump to end from then-branch" hasJumpToEnd
 
   , testCase "Omits jump to end when then-branch ends with IRRET" $
-      let cond = ExprLitBool True
-          thenBody = [StmtReturn (Just (ExprLitInt 1))]
-          elseBody = [StmtExpr (ExprLitInt 2)]
-          result = runGen (genStatement (StmtIf cond thenBody (Just elseBody)))
+      let cond = ExprLitBool dummyPos True
+          thenBody = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+          elseBody = [StmtExpr dummyPos (ExprLitInt dummyPos 2)]
+          result = runGen (genStatement (StmtIf dummyPos cond thenBody (Just elseBody)))
           hasJumpToEnd = any isJumpToEnd result
       in assertBool "Should not emit jump to end when then-branch ends with IRRET" (not hasJumpToEnd)
   ]
@@ -175,23 +175,23 @@ testGenIfControlFlow = testGroup "genStatement if-control-flow"
 testGenLoopControlFlow :: TestTree
 testGenLoopControlFlow = testGroup "genStatement loop-control-flow"
   [ testCase "StmtStop inside loop jumps to loop end label" $
-      let loopBody = [StmtStop]
-          result = runGen (genStatement (StmtLoop loopBody))
+      let loopBody = [StmtStop dummyPos]
+          result = runGen (genStatement (StmtLoop dummyPos loopBody))
           hasJumpToEnd = any isJumpToLoopEnd result
       in assertBool "Should emit jump to loop end label for StmtStop" hasJumpToEnd
 
   , testCase "StmtNext inside loop jumps to loop header label" $
-      let loopBody = [StmtNext]
-          result = runGen (genStatement (StmtLoop loopBody))
+      let loopBody = [StmtNext dummyPos]
+          result = runGen (genStatement (StmtLoop dummyPos loopBody))
           hasJumpToHeader = any isJumpToLoopHeader result
       in assertBool "Should emit jump to loop header label for StmtNext" hasJumpToHeader
 
   , testCase "StmtStop outside loop produces no instructions" $
-      let result = runGen (genStatement StmtStop)
+      let result = runGen (genStatement (StmtStop dummyPos))
       in result @?= []
 
   , testCase "StmtNext outside loop produces no instructions" $
-      let result = runGen (genStatement StmtNext)
+      let result = runGen (genStatement (StmtNext dummyPos))
       in result @?= []
   ]
   where

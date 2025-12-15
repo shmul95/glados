@@ -20,6 +20,7 @@ astNodesTests =
       testProgramAccessors,
       testTopLevelDefAccessors,
       testStatementAccessors,
+      testConditionalAndLoopAccessors,
       testExpressionAccessors
     ]
 
@@ -154,28 +155,32 @@ testStatementAccessors =
   testGroup
     "Statement Accessors"
     [ testCase "StmtVarDecl accessors" $
-        let stmt = StmtVarDecl {varName = "x", varType = Just TypeI32, varValue = dummyExpr}
+        let stmt = StmtVarDecl {stmtPos = dummyPos, varName = "x", varType = Just TypeI32, varValue = dummyExpr}
          in do
               varName stmt @?= "x"
               varType stmt @?= Just TypeI32
-              varValue stmt @?= dummyExpr,
-      testCase "StmtAssignment accessors" $
-        let stmt = StmtAssignment {assignLValue = ExprVar dummyPos "x", assignRValue = dummyExpr}
+              varValue stmt @?= dummyExpr
+    , testCase "StmtAssignment accessors" $
+        let stmt = StmtAssignment {stmtPos = dummyPos, assignLValue = ExprVar dummyPos "x", assignRValue = dummyExpr}
          in do
               assignLValue stmt @?= ExprVar dummyPos "x"
-              assignRValue stmt @?= dummyExpr,
-
-      testCase "StmtReturn accessors" $
+              assignRValue stmt @?= dummyExpr
+    , testCase "StmtReturn accessors" $
         case StmtReturn dummyPos (Just dummyExpr) of
-          StmtReturn _ val -> val @?= Just dummyExpr,
+          StmtReturn _ val -> val @?= Just dummyExpr
+    ]
 
-      testCase "StmtIf accessors" $
+testConditionalAndLoopAccessors :: TestTree
+testConditionalAndLoopAccessors =
+  testGroup
+    "Conditional and Loop Accessors"
+    [ testCase "StmtIf accessors" $
         let stmt = StmtIf {stmtPos = dummyPos, ifCond = ExprLitBool dummyPos True, ifThen = dummyBlock, ifElse = Just dummyBlock}
          in do
               ifCond stmt @?= ExprLitBool dummyPos True
               ifThen stmt @?= dummyBlock
-              ifElse stmt @?= Just dummyBlock,
-      testCase "StmtFor accessors" $
+              ifElse stmt @?= Just dummyBlock
+    , testCase "StmtFor accessors" $
         let stmt =
               StmtFor
                 { stmtPos = dummyPos,
@@ -215,21 +220,21 @@ testExpressionAccessors =
   testGroup
     "Expression Accessors"
     [ testCase "ExprCall accessors" $
-        let expr = ExprCall {callName = "foo", callArgs = [dummyExpr]}
+        let expr = ExprCall {exprPos = dummyPos, callName = "foo", callArgs = [dummyExpr]}
          in do
               callName expr @?= "foo"
-              callArgs expr @?= [dummyExpr],
-      testCase "ExprStructInit accessors" $
-        let expr = ExprStructInit {initStructName = "Point", initFields = [("x", dummyExpr)]}
+              callArgs expr @?= [dummyExpr]
+    , testCase "ExprStructInit accessors" $
+        let expr = ExprStructInit {exprPos = dummyPos, initStructName = "Point", initFields = [("x", dummyExpr)]}
          in do
               initStructName expr @?= "Point"
-              initFields expr @?= [("x", dummyExpr)],
-      testCase "ExprAccess accessors" $
+              initFields expr @?= [("x", dummyExpr)]
+    , testCase "ExprAccess accessors" $
         let expr = ExprAccess dummyPos (ExprVar dummyPos "p") "x"
          in do
               accessTarget expr @?= ExprVar dummyPos "p"
-              accessField expr @?= "x",
-      testCase "ExprBinary/Unary/Literals constructors" $
+              accessField expr @?= "x"
+    , testCase "ExprBinary/Unary/Literals constructors" $
         let exprs =
               [ ExprBinary dummyPos Add dummyExpr dummyExpr,
                 ExprUnary dummyPos Negate dummyExpr,

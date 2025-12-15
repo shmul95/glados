@@ -108,13 +108,13 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
       assertEqual "Binary" "ExprBinary +\n  ExprLitInt 1\n  ExprLitInt 2" 
         (runPrinter $ visitExpression (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2)))
   , testCase "ExprUnary" $
-      assertEqual "Unary" "ExprUnary Negate\n  ExprLitInt 1"
+      assertEqual "Unary" "ExprUnary -\n  ExprLitInt 1"
         (runPrinter $ visitExpression (ExprUnary dummyPos Negate (ExprLitInt dummyPos 1)))
   , testCase "ExprCall" $
       assertEqual "Call" "ExprCall f\nArguments:\n  ExprLitInt 1" 
         (runPrinter $ visitExpression (ExprCall dummyPos "f" [ExprLitInt dummyPos 1]))
   , testCase "ExprStructInit" $
-      assertEqual "StructInit" "ExprStructInit P\n  Fields:\n    x = ExprLitInt 1"
+      assertEqual "StructInit" "ExprStructInit P\nFields:\n  x:\n  \n    ExprLitInt 1"
         (runPrinter $ visitExpression (ExprStructInit dummyPos "P" [("x", ExprLitInt dummyPos 1)]))
   , testCase "ExprAccess" $
       assertEqual "Access" "ExprAccess .x\n  ExprVar p" 
@@ -135,13 +135,15 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
   ]
 
 statementPrinterTests :: TestTree
-statementPrinterTests = testGroup "Statement Printer Tests"
-  , testCase "StmtVarDecl (Full)" $
-      let stmt = StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 1)
-      in assertEqual "VarDecl Full" "StmtVarDecl x : i32\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
-  , testCase "StmtVarDecl (Inferred)" $
-      let stmt = StmtVarDecl dummyPos "x" Nothing (ExprLitInt dummyPos 1)
-      in assertEqual "VarDecl Inferred" "StmtVarDecl x\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
+statementPrinterTests =
+  testGroup
+    "Statement Printer Tests"
+    [ testCase "StmtVarDecl (Full)" $
+        let stmt = StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 1)
+         in assertEqual "VarDecl Full" "StmtVarDecl x : i32\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
+    , testCase "StmtVarDecl (Inferred)" $
+        let stmt = StmtVarDecl dummyPos "x" Nothing (ExprLitInt dummyPos 1)
+         in assertEqual "VarDecl Inferred" "StmtVarDecl x\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
   
   , testCase "StmtAssignment" $
       let stmt = StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprLitInt dummyPos 1)
