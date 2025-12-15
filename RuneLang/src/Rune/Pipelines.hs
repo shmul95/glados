@@ -79,8 +79,9 @@ compilePipeline inFile outFile ToObject = case takeExtension inFile of
             compileAsmToObject asmContent outFile
            )
   ".asm" -> do
-    asmContent <- readFile inFile
-    compileAsmToObject asmContent outFile
+    safeRead inFile >>= \case
+      Left err -> logError err
+      Right asmContent -> compileAsmToObject asmContent outFile
   ext -> logError $ "Unsupported file extension: " ++ ext
 compilePipeline inFile outFile ToExecutable = compileObjectIntoExecutable inFile outFile
 
