@@ -146,7 +146,7 @@ testPrintTopLevel = testGroup "printtoplevel"
   [ testCase "irextern" $
       printTopLevel (IRExtern "puts") @?= "EXTERN puts"
   , testCase "irglobalstring (with escaped chars)" $
-      printTopLevel (IRGlobalString "g_msg" "hello\nworld\"") @?= "GLOBAL g_msg: string = \"hello\\nworld\\\"\\0\""
+      printTopLevel (IRGlobalDef "g_msg" (IRGlobalStringVal "hello\nworld\"")) @?= "GLOBAL g_msg: string = \"hello\\nworld\\\"\\0\""
   , testCase "irstructdef" $
       let fields = [("x", IRI32), ("y", IRF32)]
       in printTopLevel (IRStructDef "point" fields) @?= "STRUCT point { x: i32, y: f32 }"
@@ -163,7 +163,7 @@ testPrintProgram :: TestTree
 testPrintProgram = testGroup "printprogram/prettyprintir"
   [ testCase "simple program" $
       let extern = IRExtern "printf"
-          global = IRGlobalString "g_str" "test"
+          global = IRGlobalDef "g_str" (IRGlobalStringVal "test")
           func = IRFunction "main" [] (Just IRI32) [IRRET Nothing]
           program = IRProgram "TestModule" [extern, global, IRFunctionDef func]
           expected = intercalate "\n"

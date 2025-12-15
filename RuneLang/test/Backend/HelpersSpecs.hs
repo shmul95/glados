@@ -4,9 +4,9 @@
 module Backend.HelpersSpecs (backendHelpersTests) where
 
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=), assertBool)
+import Test.Tasty.HUnit (testCase, (@?=), assertBool, Assertion)
 import Rune.Backend.Helpers
-import Rune.IR.Nodes (IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRLabel(..))
+import Rune.IR.Nodes (IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRLabel(..), IRGlobalValue(..))
 import qualified Data.Map.Strict as Map
 
 --
@@ -79,9 +79,9 @@ testCollectTopLevels = testGroup "collectTopLevels"
       in externs @?= ["printf", "malloc"]
 
   , testCase "Collects global strings" $
-      let tls = [IRGlobalString "str1" "hello", IRGlobalString "str2" "world"]
-          (_, strings, _) = collectTopLevels tls
-      in length strings @?= 2
+      let tls = [IRGlobalDef "str1" (IRGlobalStringVal "hello"), IRGlobalDef "str2" (IRGlobalStringVal "world")]
+          (_, globals, _) = collectTopLevels tls
+      in length globals @?= 2
 
   , testCase "Collects functions" $
       let func = IRFunction "test" [] (Just IRNull) []
@@ -96,11 +96,11 @@ testCollectTopLevels = testGroup "collectTopLevels"
 
   , testCase "Handles mixed top levels" $
       let func = IRFunction "f" [] (Just IRNull) []
-          tls = [IRExtern "e", IRGlobalString "s" "v", IRFunctionDef func]
-          (externs, strings, funcs) = collectTopLevels tls
+          tls = [IRExtern "e", IRGlobalDef "s" (IRGlobalStringVal "v"), IRFunctionDef func]
+          (externs, globals, funcs) = collectTopLevels tls
       in do
         externs @?= ["e"]
-        strings @?= [("s", "v")]
+        globals @?= [("s", IRGlobalStringVal "v")]
         length funcs @?= 1
   ]
 
@@ -179,8 +179,8 @@ testCollectTopLevel = testGroup "collectTopLevel"
       in result @?= (["printf"], [], [])
 
   , testCase "Adds global string" $
-      let result = collectTopLevel (IRGlobalString "s" "val") ([], [], [])
-      in result @?= ([], [("s", "val")], [])
+      let result = collectTopLevel (IRGlobalDef "s" (IRGlobalStringVal "val")) ([], [], [])
+      in result @?= ([], [("s", IRGlobalStringVal "val")], [])
 
   , testCase "Adds function" $
       let func = IRFunction "f" [] (Just IRNull) []
@@ -196,26 +196,64 @@ testCollectTopLevel = testGroup "collectTopLevel"
 
 testCollectVars :: TestTree
 testCollectVars = testGroup "collectVars"
-  [ testCase "Collects IRASSIGN" $
-      let result = collectVars Map.empty (IRASSIGN "x" (IRConstInt 1) IRI32)
-      in Map.member "x" result @?= True
+  [ testCase "IRASSIGN: insert var with type" $ 
+      check "x" (IRASSIGN "x" op1 IRI32) IRI32
+  , testCase "IRALLOC: insert var with type" $ 
+      check "ptr" (IRALLOC "ptr" IRI32) IRI32
+  , testCase "IRLOAD: insert var with type" $ 
+      check "val" (IRLOAD "val" op1 IRI32) IRI32
+  , testCase "IRDEREF: insert var with type" $ 
+      check "d" (IRDEREF "d" op1 IRI32) IRI32
+  , testCase "IRGET_FIELD: insert var with type" $ 
+      check "f" (IRGET_FIELD "f" op1 "Struct" "field" IRI32) IRI32
+  , testCase "IRADDR: insert var with type" $ 
+      check "addr" (IRADDR "addr" "global" (IRPtr IRI32)) (IRPtr IRI32)
 
-  , testCase "Collects IRALLOC" $
-      let result = collectVars Map.empty (IRALLOC "buf" IRI32)
-      in Map.lookup "buf" result @?= Just IRI32
+  , testCase "IRADD_OP" $ check "res" (IRADD_OP "res" op1 op2 IRI32) IRI32
+  , testCase "IRSUB_OP" $ check "res" (IRSUB_OP "res" op1 op2 IRI32) IRI32
+  , testCase "IRMUL_OP" $ check "res" (IRMUL_OP "res" op1 op2 IRI32) IRI32
+  , testCase "IRDIV_OP" $ check "res" (IRDIV_OP "res" op1 op2 IRI32) IRI32
+  , testCase "IRMOD_OP" $ check "res" (IRMOD_OP "res" op1 op2 IRI32) IRI32
+  , testCase "IRAND_OP" $ check "res" (IRAND_OP "res" op1 op2 IRI32) IRI32
+  , testCase "IROR_OP"  $ check "res" (IROR_OP "res" op1 op2 IRI32) IRI32
 
-  , testCase "Collects comparison results as IRBool" $
-      let result = collectVars Map.empty (IRCMP_EQ "cmp" (IRConstInt 1) (IRConstInt 2))
-      in Map.lookup "cmp" result @?= Just IRBool
+  , testCase "IRCMP_EQ -> Bool"  $ check "c" (IRCMP_EQ "c" op1 op2) IRBool
+  , testCase "IRCMP_NEQ -> Bool" $ check "c" (IRCMP_NEQ "c" op1 op2) IRBool
+  , testCase "IRCMP_LT -> Bool"  $ check "c" (IRCMP_LT "c" op1 op2) IRBool
+  , testCase "IRCMP_LTE -> Bool" $ check "c" (IRCMP_LTE "c" op1 op2) IRBool
+  , testCase "IRCMP_GT -> Bool"  $ check "c" (IRCMP_GT "c" op1 op2) IRBool
+  , testCase "IRCMP_GTE -> Bool" $ check "c" (IRCMP_GTE "c" op1 op2) IRBool
 
-  , testCase "Ignores IRRET" $
-      let result = collectVars Map.empty (IRRET Nothing)
-      in Map.size result @?= 0
+  , testCase "IRCALL (Just Type): use returned type" $
+      check "ret" (IRCALL "ret" "func" [] (Just IRF64)) IRF64
 
-  , testCase "Ignores IRLABEL" $
-      let result = collectVars Map.empty (IRLABEL (IRLabel "label"))
-      in Map.size result @?= 0
+  , testCase "IRCALL (Nothing) with Name: defaults to IRI64" $
+      check "ret" (IRCALL "ret" "func" [] Nothing) IRI64
+
+  , testCase "IRCALL (Nothing) without Name: ignored" $
+      checkEmpty (IRCALL "" "func" [] Nothing)
+
+  , testCase "IRINC ignored" $ checkEmpty (IRINC op1)
+  , testCase "IRDEC ignored" $ checkEmpty (IRDEC op1)
+  , testCase "IRSTORE ignored" $ checkEmpty (IRSTORE op1 op2)
+  , testCase "IRSET_FIELD ignored" $ checkEmpty (IRSET_FIELD op1 "S" "f" op2)
+  , testCase "IRRET ignored" $ checkEmpty (IRRET Nothing)
+  , testCase "IRJUMP ignored" $ checkEmpty (IRJUMP (IRLabel "L"))
+  , testCase "IRLABEL ignored" $ checkEmpty (IRLABEL (IRLabel "L"))
   ]
+  where
+    op1 = IRConstInt 1
+    op2 = IRConstInt 2
+
+    check :: String -> IRInstruction -> IRType -> Assertion
+    check name instr expectedType =
+      let result = collectVars Map.empty instr
+      in Map.lookup name result @?= Just expectedType
+
+    checkEmpty :: IRInstruction -> Assertion
+    checkEmpty instr =
+      let result = collectVars Map.empty instr
+      in Map.null result @?= True
 
 testAccumulateOffset :: TestTree
 testAccumulateOffset = testGroup "accumulateOffset"

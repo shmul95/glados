@@ -1,5 +1,6 @@
 module Rune.Semantics.Helper
   ( checkParamType
+  , checkParamTypeWithReturnContext
   , mangleName
   , exprType
   , assignVarType
@@ -15,7 +16,7 @@ import qualified Data.HashMap.Strict as HM
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
-import Rune.Semantics.OpType (iHTBinary, sameType)
+import Rune.Semantics.OpType (iHTBinary, sameType, isIntegerType, isFloatType)
 
 import Rune.Semantics.Type
   ( VarStack
@@ -23,38 +24,80 @@ import Rune.Semantics.Type
   , Stack
   )
 
+data Mangling = NoMangle | DoMangle
+
 --
 -- public
 --
 
 checkParamType :: Stack -> String -> [Expression] -> Either String String
-checkParamType s@(fs, _) fname es =
-  let unknown_func = "\n\tUnknownFunction: %s is not known"
-      no_match = "\n\tNoMatchingSignature: %s doesn't have any signature like this %s"
-  in case HM.lookup fname fs of
-    Nothing         -> Left $ printf unknown_func fname
-    Just []         -> Left $ printf unknown_func fname
-    Just [sig]      -> checkSingle sig
-    Just (sig:sigs) -> case checkSingle sig of
-                         Left _  -> checkAll (printf no_match fname (show (sig:sigs))) sigs
-                         Right r -> Right r
+checkParamType = checkParamTypeWithReturnContext Nothing
+
+checkParamTypeWithReturnContext :: Maybe Type -> Stack -> String -> [Expression] -> Either String String
+checkParamTypeWithReturnContext returnContext s@(fs, _) fname es =
+  case HM.lookup fname fs of
+    Nothing     -> unknown
+    Just []     -> unknown
+    Just [sig]  -> checkSingle sig
+    Just sigs   -> select sigs
   where
-    -- if there is 1 signature so no override
+    unknown :: Either String String
+    unknown =
+      Left $ printf "\n\tUnknownFunction: %s is not known" fname
+
+    noMatch :: [(Type, [Type])] -> Either String String
+    noMatch sigs =
+      Left $
+        printf
+          "\n\tNoMatchingSignature: %s doesn't have any signature like this %s"
+          fname
+          (show sigs)
+
+    checkSingle :: (Type, [Type]) -> Either String String
     checkSingle (_, at) =
       case checkEachParam s 0 es at of
         Nothing  -> Right fname
         Just err -> Left err
 
-    -- if multiple signature so mangle name
-    checkAll err_msg [] = Left err_msg
-    checkAll err_msg ((ret, at):rest) =
+    select :: [(Type, [Type])] -> Either String String
+    select sigs =
+      case returnContext of
+        Just expectedRet ->
+          case filter ((== expectedRet) . fst) sigs of
+            [] -> checkAll sigs
+            rs -> checkPreferred rs `orElse` checkAll sigs
+        Nothing -> checkAll sigs
+
+    checkAll :: [(Type, [Type])] -> Either String String
+    checkAll sigs =
+      case findValid DoMangle sigs of
+        Just name -> Right name
+        Nothing   -> noMatch sigs
+
+    checkPreferred :: [(Type, [Type])] -> Either String String
+    checkPreferred sigs =
+      case findValid DoMangle sigs of
+        Just name -> Right name
+        Nothing   -> Left "No matching return type"
+
+    findValid :: Mangling -> [(Type, [Type])] -> Maybe String
+    findValid _ [] = Nothing
+    findValid m ((ret, at):rest) =
       case checkEachParam s 0 es at of
-        Nothing  -> Right $ mangleName fname ret at
-        Just _   -> checkAll err_msg rest
+        Nothing -> Just $ case m of
+              NoMangle -> fname
+              DoMangle -> mangleName fname ret at
+        Just _ -> findValid m rest
+
+    orElse :: Either String r -> Either String r -> Either String r
+    orElse (Right r) _ = Right r
+    orElse (Left _) f = f
+
 
 mangleName :: String -> Type -> [Type] -> String
-mangleName fname ret args =
-    intercalate "_" (show ret : fname : map show args)
+mangleName fname ret args
+  | TypeAny `elem` args || ret == TypeAny = fname
+  | otherwise = intercalate "_" (show ret : fname : map show args)
 
 exprType :: Stack -> Expression -> Either String Type
 exprType _ (ExprLitInt _)         = Right TypeI32
@@ -87,16 +130,25 @@ assignVarType vs v t =
     Just t' | sameType t t' -> updated
             | otherwise     -> Left $ printf msg v (show t') (show t)
 
+isTypeCompatible :: Type -> Type -> Bool
+isTypeCompatible expected actual
+  | sameType expected actual = True
+  | actual == TypeI32 && isIntegerType expected = True
+  | actual == TypeF32 && isFloatType expected   = True
+  | isIntegerType expected && isIntegerType actual = True
+  | isFloatType expected && isFloatType actual = True
+  | otherwise = False
+
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
 checkMultipleType _ Nothing e_t         = Right e_t
 checkMultipleType _ (Just TypeAny) e_t  = Right e_t
 checkMultipleType _ (Just t) TypeAny    = Right t
 checkMultipleType _ _ TypeNull          = Right TypeNull
 checkMultipleType v (Just t) e_t
-  | sameType t e_t  = Right t
+  | isTypeCompatible t e_t = Right t
   | otherwise =
-    let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
-    in Left $ printf msg v (show t) (show e_t)
+      let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
+      in Left $ printf msg v (show t) (show e_t)
 
 checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
 checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
@@ -105,8 +157,11 @@ checkEachParam s i (e:es) (t:at) =
       next = checkEachParam s (i + 1) es at
   in case exprType s e of
     Left err -> Just err
-    Right t' | sameType t t'  -> next
-             | otherwise      -> Just (printf wrong_type i (show t) (show t')) <> next 
+    Right t'
+      | isTypeCompatible t t' -> next
+      | otherwise ->
+          Just (printf wrong_type i (show t) (show t')) <> next
+
 checkEachParam _ _ [] [] = Nothing
 checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
 checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)

@@ -13,7 +13,7 @@
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = with pkgs; [
           stack ghc hlint
-          nasm gcc gnumake
+          nasm gdb gcc gnumake
         ];
       };
     };

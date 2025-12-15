@@ -18,6 +18,8 @@ import Rune.AST.Nodes (Program (..))
 import Rune.IR.Generator.GenTopLevel (genTopLevel)
 import Rune.IR.Nodes (GenState (..), IRFunction (..), IRProgram (..), IRTopLevel (..))
 import Rune.Semantics.Type (FuncStack)
+
+-- NOTE: uncomment for debugging
 -- import Rune.AST.Printer (prettyPrint)
 -- import Debug.Trace (trace)
 
@@ -27,7 +29,7 @@ import Rune.Semantics.Type (FuncStack)
 
 generateIR :: Program -> FuncStack -> IRProgram
 generateIR (Program name defs) fs =
-  -- if you want to see the AST, uncomment the line below
+  -- NOTE: uncomment for debugging
   -- trace ("AST: " <> prettyPrint (Program name defs)) $
   let (irDefs, finalState) = runState (mapM genTopLevel defs) (initialState fs)
 
@@ -57,6 +59,7 @@ initialState fs =
     { gsTempCounter = 0,
       gsLabelCounter = 0,
       gsStringCounter = 0,
+      gsFloatCounter = 0,
       gsGlobals = [],
       gsCurrentFunc = Nothing,
       gsSymTable = empty,
@@ -64,6 +67,7 @@ initialState fs =
       gsLoopStack = [],
       gsCalledFuncs = Set.empty,
       gsStringMap = empty,
+      gsFloatMap = empty,
       gsFuncStack = fs
     }
 

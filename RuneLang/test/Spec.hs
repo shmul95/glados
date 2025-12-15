@@ -28,6 +28,7 @@ import Semantics.VarsSpecs (varsSemanticsTests)
 import Semantics.OpTypeSpecs (opTypeSemanticsTests)
 import Semantics.HelperSpecs (helperSemanticsTests)
 import Semantics.FuncSpecs (funcSemanticsTests)
+import Semantics.GenericSpecs (genericSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
 import IR.IRHelpersSpecs (irHelpersTests)
@@ -51,6 +52,8 @@ import Backend.TypesSpecs (backendTypesTests)
 import Backend.X86_64.RegistersSpecs (registersTests)
 import Backend.X86_64.CompareSpecs (compareTests)
 import Backend.X86_64.CodegenSpecs (codegenTests)
+import Backend.X86_64.LoadStoreSpecs (loadStoreTests)
+import Backend.X86_64.OperationsSpecs (operationsTests)
 
 --
 -- public
@@ -117,6 +120,7 @@ semanticsSpecs =
     , opTypeSemanticsTests
     , helperSemanticsTests
     , funcSemanticsTests
+    , genericSemanticsTests
     ]
 
 irSpecs :: TestTree
@@ -150,4 +154,6 @@ backendSpecs =
     , registersTests
     , compareTests
     , codegenTests
+    , loadStoreTests
+    , operationsTests
     ]

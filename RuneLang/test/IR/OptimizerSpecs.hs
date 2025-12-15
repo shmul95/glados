@@ -54,8 +54,12 @@ testOptimizeTopLevel = testGroup "optimizeTopLevel"
           res = optimizeTopLevel M.empty (IRFunctionDef func)
       in res @?= IRFunctionDef optFunc
       
-  , testCase "Ignores other top levels" $
-      let glob = IRGlobalString "s" "val"
+  , testCase "Ignores other top levels (float)" $
+      let glob = IRGlobalDef "pi" (IRGlobalFloatVal 3.14 IRF64)
+      in optimizeTopLevel M.empty glob @?= glob
+
+  , testCase "Ignores other top levels (string)" $
+      let glob = IRGlobalDef "s" (IRGlobalStringVal "val")
       in optimizeTopLevel M.empty glob @?= glob
   ]
 
