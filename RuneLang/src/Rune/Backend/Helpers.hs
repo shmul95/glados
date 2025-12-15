@@ -32,6 +32,7 @@ import Rune.Backend.Types (Extern, Function, GlobalString)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 import Lib (isPrintable)
+import Data.Char (ord)
 
 --
 -- public
@@ -102,7 +103,7 @@ collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
 
 accumulateOffset :: Map.Map String IRType -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
-accumulateOffset _ (currentOffset, accMap) (name, irType) = 
+accumulateOffset _ (currentOffset, accMap) (name, irType) =
   let size = sizeOfIRType irType
       align = min 8 (if size == 0 then 1 else size)
       alignedOffset = alignUp currentOffset align
@@ -111,14 +112,15 @@ accumulateOffset _ (currentOffset, accMap) (name, irType) =
 
 encodeCharacter :: String -> [String]
 encodeCharacter "" = []
-encodeCharacter s@(c : cs)
+encodeCharacter (c : cs)
   | c == '\n' = "10" : encodeCharacter cs
   | c == '\r' = "13" : encodeCharacter cs
   | c == '\t' = "9" : encodeCharacter cs
   | c == '\0' = "0" : encodeCharacter cs
-  | otherwise = 
-      let (printables, rest) = span isPrintable s
+  | isPrintable c =
+      let (printables, rest) = span isPrintable (c : cs)
        in ("\"" ++ printables ++ "\"") : encodeCharacter rest
+  | otherwise = show (ord c) : encodeCharacter cs
 
 -- | convert offset from function stack frame to RBP-relative offset
 makeRbpOffset :: Int -> Int -> Int
