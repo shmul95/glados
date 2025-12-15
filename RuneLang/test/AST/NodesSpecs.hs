@@ -74,8 +74,8 @@ testUnaryOps =
   testGroup
     "UnaryOp"
     [ testCase "Constructors and Show" $
-        let ops = [Negate, PropagateError, PrefixInc, PrefixDec, PostfixInc, PostfixDec]
-         in length ops @?= 6
+        let ops = [Negate, Not, PropagateError, PrefixInc, PrefixDec, PostfixInc, PostfixDec]
+         in length ops @?= 7
     ]
 
 testParameterAndField :: TestTree

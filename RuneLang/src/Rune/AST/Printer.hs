@@ -311,6 +311,7 @@ showBinaryOp Or = "||"
 
 showUnaryOp :: UnaryOp -> String
 showUnaryOp Negate = "-"
+showUnaryOp Not = "!"
 showUnaryOp PropagateError = "?"
 showUnaryOp PrefixInc = "++(prefix)"
 showUnaryOp PrefixDec = "--(prefix)"

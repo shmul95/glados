@@ -42,8 +42,8 @@ test_op_comparison = testCase "Op Lt (<), Gt (>)" $
   lexTest "< >" [tok OpLt "<" 1 1, tok OpGt ">" 1 3, tok EOF "" 1 4]
 
 test_op_logical :: TestTree
-test_op_logical = testCase "Op And (&&) and Op Or (||)" $
-  lexTest "&& ||" [tok OpAnd "&&" 1 1, tok OpOr "||" 1 4, tok EOF "" 1 6]
+test_op_logical = testCase "Op And (&&), Op Or (||), Op Not (!)" $
+  lexTest "&& || !" [tok OpAnd "&&" 1 1, tok OpOr "||" 1 4, tok OpNot "!" 1 7, tok EOF "" 1 8]
 
 test_op_assign_compound :: TestTree
 test_op_assign_compound = testCase "Compound Assignments (+=-=*=/=%=)" $

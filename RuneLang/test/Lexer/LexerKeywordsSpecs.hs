@@ -26,9 +26,9 @@ lexerKeywordsTests =
 --
 
 test_kw_logical :: TestTree
-test_kw_logical = testCase "Kw And, Or (mapped to OpAnd, OpOr)" $
-  lexTest "and or"
-    [ tok OpAnd "and" 1 1, tok OpOr "or" 1 5, tok EOF "" 1 7 ]
+test_kw_logical = testCase "Kw And, Or, Not (mapped to OpAnd, OpOr, OpNot)" $
+  lexTest "and or not"
+    [ tok OpAnd "and" 1 1, tok OpOr "or" 1 5, tok OpNot "not" 1 8, tok EOF "" 1 11 ]
 
 test_kw_definition :: TestTree
 test_kw_definition = testCase "Kw Def, Return, Struct" $

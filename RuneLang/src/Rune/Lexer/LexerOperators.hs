@@ -23,6 +23,7 @@ operatorMap =
     (OpArrow, "->"),
     (OpEq, "=="),
     (OpNeq, "!="),
+    (OpNot, "!"),
     (OpLte, "<="),
     (OpGte, ">="),
     (OpAnd, "&&"),
