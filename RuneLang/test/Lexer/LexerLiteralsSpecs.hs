@@ -31,6 +31,15 @@ lexerLiteralsTests =
     , test_lit_char_unclosed_failure
     , test_lit_char_too_many_chars_failure
     , test_lit_int_followed_by_dot_failure
+    , test_lit_string_octal_escape_esc
+    , test_lit_string_hex_escape_esc
+    , test_lit_string_unicode_escape_braced
+    , test_lit_string_unicode_escape_unbraced
+    , test_lit_string_ansi_red_octal
+    , test_lit_string_ansi_green_hex
+    , test_lit_string_ansi_blue_unicode
+    , test_lit_char_octal_escape
+    , test_lit_char_hex_escape
     ]
 
 --
@@ -115,3 +124,73 @@ test_lit_char_too_many_chars_failure = testCase "Char literal with too many char
 test_lit_int_followed_by_dot_failure :: TestTree
 test_lit_int_followed_by_dot_failure = testCase "Int followed by dot (no decimal) failure" $
   lexFailTest "123."
+
+test_lit_string_octal_escape_esc :: TestTree
+test_lit_string_octal_escape_esc = testCase "String with octal escape \\033 (ESC)" $
+  let escChar = '\ESC'
+      expectedValue = [escChar]
+      input = "\"\\033\""
+      expectedTokenValue = "\"" ++ expectedValue ++ "\""
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 7]
+
+test_lit_string_hex_escape_esc :: TestTree
+test_lit_string_hex_escape_esc = testCase "String with hex escape \\x1b (ESC)" $
+  let escChar = '\ESC'
+      expectedValue = [escChar]
+      input = "\"\\x1b\""
+      expectedTokenValue = "\"" ++ expectedValue ++ "\""
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 6]
+
+test_lit_string_unicode_escape_braced :: TestTree
+test_lit_string_unicode_escape_braced = testCase "String with unicode escape \\u{1b} (ESC)" $
+  let escChar = '\ESC'
+      expectedValue = [escChar]
+      input = "\"\\u{1b}\""
+      expectedTokenValue = "\"" ++ expectedValue ++ "\""
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 9]
+
+test_lit_string_unicode_escape_unbraced :: TestTree
+test_lit_string_unicode_escape_unbraced = testCase "String with unicode escape \\u001b (ESC)" $
+  let escChar = '\ESC'
+      expectedValue = [escChar]
+      input = "\"\\u001b\""
+      expectedTokenValue = "\"" ++ expectedValue ++ "\""
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 9]
+
+test_lit_string_ansi_red_octal :: TestTree
+test_lit_string_ansi_red_octal = testCase "ANSI red color with octal escape" $
+  let escChar = '\ESC'
+      expectedValue = [escChar] ++ "[31mRed" ++ [escChar] ++ "[0m"
+      input = "\"\\033[31mRed\\033[0m\""
+      expectedTokenValue = "\"" ++ expectedValue ++ "\""
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 21]
+
+test_lit_string_ansi_green_hex :: TestTree
+test_lit_string_ansi_green_hex = testCase "ANSI green color with hex escape" $
+  let escChar = '\ESC'
+      expectedValue = [escChar] ++ "[32mGreen" ++ [escChar] ++ "[0m"
+      input = "\"\\x1b[32mGreen\\x1b[0m\""
+      expectedTokenValue = "\"" ++ expectedValue ++ "\""
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 23]
+
+test_lit_string_ansi_blue_unicode :: TestTree
+test_lit_string_ansi_blue_unicode = testCase "ANSI blue color with unicode escape" $
+  let escChar = '\ESC'
+      expectedValue = [escChar] ++ "[34mBlue" ++ [escChar] ++ "[0m"
+      input = "\"\\u{1b}[34mBlue\\u{1b}[0m\""
+      expectedTokenValue = "\"" ++ expectedValue ++ "\""
+  in lexTest input [tok (LitString expectedValue) expectedTokenValue 1 1, tok EOF "" 1 27]
+
+test_lit_char_octal_escape :: TestTree
+test_lit_char_octal_escape = testCase "Char with octal escape \\033" $
+  let escChar = '\ESC'
+      input = "'\\033'"
+      expectedTokenValue = "'" ++ [escChar] ++ "'"
+  in lexTest input [tok (LitChar escChar) expectedTokenValue 1 1, tok EOF "" 1 7]
+
+test_lit_char_hex_escape :: TestTree
+test_lit_char_hex_escape = testCase "Char with hex escape \\x1b" $
+  let escChar = '\ESC'
+      input = "'\\x1b'"
+      expectedTokenValue = "'" ++ [escChar] ++ "'"
+  in lexTest input [tok (LitChar escChar) expectedTokenValue 1 1, tok EOF "" 1 6]
