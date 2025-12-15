@@ -1,4 +1,15 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.Expression.Binary
+  ( genBinary,
+    getResultType,
+    mkInstr
+  )
+where
+#else
 module Rune.IR.Generator.Expression.Binary (genBinary) where
+#endif
 
 import Rune.AST.Nodes (BinaryOp (..), Expression)
 import Rune.IR.IRHelpers (newTemp)

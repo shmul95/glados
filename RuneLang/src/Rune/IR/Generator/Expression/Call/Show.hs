@@ -1,4 +1,23 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.Expression.Call.Show
+  ( genShowCall,
+    genShowBoolCall,
+    genShowCharCall,
+    genShowPrintfCall,
+    getShowFunc,
+    getFormatSpecifier,
+    prepareAddr,
+    ensureShowBoolFunc,
+    mkShowOverride,
+    overrideExists,
+    mkShowBoolFunc
+  )
+where
+#else
 module Rune.IR.Generator.Expression.Call.Show (genShowCall) where
+#endif
 
 import Control.Monad (unless)
 import Control.Monad.State (gets, modify)

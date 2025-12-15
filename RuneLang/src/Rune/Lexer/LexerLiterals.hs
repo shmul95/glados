@@ -1,11 +1,13 @@
 module Rune.Lexer.LexerLiterals (literal) where
 
 import Control.Monad (void)
+import qualified Data.Char as C
 import Rune.Lexer.LexerParser (Parser)
 import Rune.Lexer.Tokens (Token (..), TokenKind (..))
 import Text.Megaparsec
   ( MonadParsec (notFollowedBy, try),
     choice,
+    count,
     many,
     noneOf,
     optional,
@@ -16,6 +18,8 @@ import Text.Megaparsec.Char
   ( alphaNumChar,
     char,
     digitChar,
+    hexDigitChar,
+    octDigitChar,
     string,
   )
 
@@ -37,13 +41,17 @@ mkLiteralConstructor = Token
 intLitParser :: Parser (Int -> Int -> Token)
 intLitParser = try $ do
   sign <- optional $ char '-'
-  digits <- some digitChar
+  headDigit <- digitChar
+  tailDigits <- many (digitChar <|> char '_')
 
   notFollowedBy $ char '.'
-  let val = maybe digits (: digits) sign
+  let rawDigits = headDigit : tailDigits
+      cleanDigits = filter (/= '_') rawDigits
+      val = maybe cleanDigits (: cleanDigits) sign
       num = read val :: Int
+      sourceVal = maybe rawDigits (: rawDigits) sign
 
-  return $ mkLiteralConstructor (LitInt num) val
+  return $ mkLiteralConstructor (LitInt num) sourceVal
 
 floatLitParser :: Parser (Int -> Int -> Token)
 floatLitParser = try $ do
@@ -121,5 +129,43 @@ escapeChar =
       char 'r' >> return '\r',
       char '\\' >> return '\\',
       char '"' >> return '"',
-      char '\'' >> return '\''
+      char '\'' >> return '\'',
+      try octalEscape,
+      try hexEscape,
+      try unicodeEscape
     ]
+
+octalEscape :: Parser Char
+octalEscape = do
+  digits <- choice [try (count 3 octDigitChar), try (count 2 octDigitChar), count 1 octDigitChar]
+  let value = foldl (\acc d -> acc * 8 + C.digitToInt d) 0 digits
+  case value > 255 of
+    True -> fail "Octal escape sequence out of range (max \\377)"
+    False -> return $ C.chr value
+
+hexEscape :: Parser Char
+hexEscape = do
+  void $ char 'x'
+  digits <- choice [try (count 2 hexDigitChar), count 1 hexDigitChar]
+  let value = foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
+  case value > 255 of
+    True -> fail "Hexadecimal escape sequence out of range (max \\xff)"
+    False -> return $ C.chr value
+
+unicodeEscape :: Parser Char
+unicodeEscape = do
+  void $ char 'u'
+  value <- choice [bracedUnicode, unbracedUnicode]
+  case value > 0x10FFFF of
+    True -> fail "Unicode escape sequence out of range"
+    False -> return $ C.chr value
+  where
+    bracedUnicode = do
+      void $ char '{'
+      digits <- some hexDigitChar
+      void $ char '}'
+      return $ foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
+
+    unbracedUnicode = do
+      digits <- choice [ try (count 4 hexDigitChar), try (count 6 hexDigitChar)]
+      return $ foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits

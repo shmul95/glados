@@ -1,4 +1,20 @@
-module Rune.IR.Printer (prettyPrintIR) where
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Printer
+  ( prettyPrintIR
+  , printProgram
+  , printTopLevel
+  , printFunction
+  , printInstruction
+  , printOperand
+  , printType
+  ) where
+#else
+module Rune.IR.Printer
+  ( prettyPrintIR
+  ) where
+#endif
 
 import Data.List (intercalate)
 import Lib (escapeString)
@@ -24,8 +40,10 @@ printProgram (IRProgram name defs) =
 printTopLevel :: IRTopLevel -> String
 printTopLevel (IRExtern name) =
   "EXTERN " ++ name
-printTopLevel (IRGlobalString name value) =
+printTopLevel (IRGlobalDef name (IRGlobalStringVal value)) =
   "GLOBAL " ++ name ++ ": string = \"" ++ escapeString value ++ "\\0\""
+printTopLevel (IRGlobalDef name (IRGlobalFloatVal value typ)) =
+  "GLOBAL " ++ name ++ ": " ++ printType typ ++ " = " ++ show value
 printTopLevel (IRFunctionDef func) =
   printFunction func
 printTopLevel (IRStructDef name fields) =

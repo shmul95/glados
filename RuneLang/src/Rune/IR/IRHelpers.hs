@@ -1,3 +1,36 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.IRHelpers
+  ( astTypeToIRType,
+    sizeOfIRType,
+    registerVar,
+    registerCall,
+    newTemp,
+    nextLabelIndex,
+    makeLabel,
+    newStringGlobal,
+    newFloatGlobal,
+    genFormatString,
+    endsWithRet,
+    pushLoopContext,
+    popLoopContext,
+    getCurrentLoop,
+    mangleMethodName,
+    getOperandType,
+    getCommonType,
+    selectReturnType,
+    irTypeToASTType,
+    unsignedTypeOfWidth,
+    signedTypeOfWidth,
+    intWidth,
+    isSigned,
+    isIntType,
+    isFloatType,
+    promoteTypes
+  )
+where
+#else
 module Rune.IR.IRHelpers
   ( astTypeToIRType,
     sizeOfIRType,
@@ -15,19 +48,31 @@ module Rune.IR.IRHelpers
     mangleMethodName,
     getOperandType,
     getCommonType,
+    selectReturnType
   )
 where
+#endif
 
 import Control.Monad.State (gets, modify)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import Rune.AST.Nodes (Type (..))
-import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..))
+import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..), IRGlobalValue (..))
+import Rune.Semantics.Type (FuncStack)
+import Rune.Semantics.Helper (selectSignature)
 
 --
 -- type conversion
 --
+
+selectReturnType :: FuncStack -> String -> [IRType] -> IRType
+selectReturnType fs funcName actualIRTypes =
+  let actualASTTypes = map irTypeToASTType actualIRTypes
+   in case selectSignature fs funcName actualASTTypes of
+        Just retASTType -> astTypeToIRType retASTType
+        Nothing -> error $ "Semantic error: No matching signature found for function call: " ++ funcName
+                            ++ " with arguments: " ++ show actualASTTypes
 
 -- TODO: handle more types
 astTypeToIRType :: Type -> IRType
@@ -46,7 +91,26 @@ astTypeToIRType TypeBool = IRBool
 astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
-astTypeToIRType _ = error "Unsupported type conversion from AST to IR"
+astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR, got TypeAny"
+
+irTypeToASTType :: IRType -> Type
+irTypeToASTType IRI8 = TypeI8
+irTypeToASTType IRI16 = TypeI16
+irTypeToASTType IRI32 = TypeI32
+irTypeToASTType IRI64 = TypeI64
+irTypeToASTType IRF32 = TypeF32
+irTypeToASTType IRF64 = TypeF64
+irTypeToASTType IRBool = TypeBool
+irTypeToASTType IRU8 = TypeU8
+irTypeToASTType IRU16 = TypeU16
+irTypeToASTType IRU32 = TypeU32
+irTypeToASTType IRU64 = TypeU64
+irTypeToASTType IRChar = TypeChar
+irTypeToASTType IRNull = TypeNull
+irTypeToASTType (IRStruct s) = TypeCustom s
+irTypeToASTType (IRPtr IRChar) = TypeString
+irTypeToASTType (IRPtr (IRStruct s)) = TypeCustom s
+irTypeToASTType (IRPtr _) = TypeAny
 
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers
@@ -67,12 +131,15 @@ sizeOfIRType (IRPtr _) = 8 -- Ô_ö
 sizeOfIRType (IRStruct _) = 8 -- ö_Ô
 sizeOfIRType IRNull = 8
 
+
 getCommonType :: IROperand -> IROperand -> IRType
-getCommonType l r = case (getOperandType l, getOperandType r) of
-  (Just t1, Just t2) -> promoteTypes t1 t2
-  (Just t, Nothing) -> t
-  (Nothing, Just t) -> t
-  _ -> IRI32
+getCommonType l r =
+  case (getOperandType l, getOperandType r) of
+    (Just t1, Just t2) -> promoteTypes t1 t2
+    (Just t, _)        -> t
+    (_, Just t)        -> t
+    _                  -> IRI32
+
 
 --
 -- symbol table
@@ -105,10 +172,6 @@ nextLabelIndex = do
 makeLabel :: String -> Int -> IRLabel
 makeLabel prefix idx = IRLabel $ ".L." ++ prefix ++ show idx
 
---
--- create a global new string
---
-
 -- | check if global string already exists
 --  if so     -> return its name
 --  otherwise -> create a new global string and return its name
@@ -128,16 +191,41 @@ freshStringName = do
   counter <- gets gsStringCounter
   func    <- gets gsCurrentFunc
   let base = fromMaybe "global" func
-      name = "str_" <> base <> show counter
+      name = "str_" ++ base ++ show counter
   modify $ \s -> s { gsStringCounter = counter + 1 }
   pure name
 
 insertGlobalString :: String -> String -> IRGen ()
 insertGlobalString name value =
   modify $ \s ->
-    s { gsGlobals   = IRGlobalString name value : gsGlobals s
+    s { gsGlobals   = IRGlobalDef name (IRGlobalStringVal value) : gsGlobals s
       , gsStringMap = Map.insert value name (gsStringMap s)
       }
+newFloatGlobal :: Double -> IRType -> IRGen String
+newFloatGlobal value typ = do
+  mp <- gets gsFloatMap
+  case Map.lookup (value, typ) mp of
+    Just name -> pure name
+    Nothing -> createFloatGlobal value typ
+
+createFloatGlobal :: Double -> IRType -> IRGen String
+createFloatGlobal value typ = do
+  counter <- gets gsFloatCounter
+  func    <- gets gsCurrentFunc
+
+  let base = fromMaybe "global" func
+      prefix = case typ of
+                 IRF32 -> "f32_"
+                 IRF64 -> "f64_"
+                 _     -> "float_"  -- fallback for other types
+      name = prefix ++ base ++ show counter
+  modify $ \s ->
+    s { gsFloatCounter = counter + 1
+      , gsGlobals = IRGlobalDef name (IRGlobalFloatVal value typ) : gsGlobals s
+      , gsFloatMap = Map.insert (value, typ) name (gsFloatMap s)
+      }
+  pure name
+
 
 genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do
@@ -214,8 +302,6 @@ promoteTypes t1 t2
             (False, False) -> unsignedTypeOfWidth maxW
             _              -> signedTypeOfWidth maxW
   -- bool and char
-  | t1 == IRBool && t2 == IRBool = IRBool
-  | t1 == IRChar && t2 == IRChar = IRChar
   | otherwise = IRI32
 
 --
@@ -250,6 +336,11 @@ isSigned IRI16  = True
 isSigned IRI32  = True
 isSigned IRI64  = True
 isSigned _      = False
+
+isFloatType :: IRType -> Bool
+isFloatType IRF32 = True
+isFloatType IRF64 = True
+isFloatType _     = False
 
 signedTypeOfWidth :: Int -> IRType
 signedTypeOfWidth 8  = IRI8

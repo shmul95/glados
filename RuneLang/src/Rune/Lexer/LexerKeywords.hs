@@ -27,7 +27,9 @@ keywordMap =
     (KwOverride, "override"),
     (KwLoop, "loop"),
     (KwNext, "next"),
-    (KwStop, "stop")
+    (KwStop, "stop"),
+    (OpAnd, "and"),
+    (OpOr, "or")
   ]
 
 keywordParsers :: [Parser (Int -> Int -> Token)]

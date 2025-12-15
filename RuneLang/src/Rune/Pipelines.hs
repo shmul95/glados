@@ -1,7 +1,30 @@
+{-# OPTIONS_GHC -cpp #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
-module Rune.Pipelines (compilePipeline, interpretPipeline) where
+#if defined(TESTING_EXPORT)
+module Rune.Pipelines
+  ( compilePipeline,
+    interpretPipeline,
+    pipeline,
+    verifAndGenIR,
+    runPipeline,
+    runPipelineAction,
+    genIR,
+    optimizeIR,
+    checkSemantics,
+    safeRead,
+    parseLexer,
+    parseAST,
+  )
+where
+#else
+module Rune.Pipelines
+  ( compilePipeline,
+    interpretPipeline,
+  )
+where
+#endif
 
 import Control.Exception (IOException, try)
 import Control.Monad ((>=>))
@@ -12,9 +35,12 @@ import Rune.Backend.X86_64.Codegen (emitAssembly)
 import Rune.IR.Generator (generateIR)
 import Rune.IR.Nodes (IRProgram)
 import Rune.IR.Printer (prettyPrintIR)
+import Rune.IR.Optimizer (runIROptimizer)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
+import Rune.Semantics.Type (FuncStack)
+import Lib (fixpoint)
 import Text.Megaparsec (errorBundlePretty)
 
 --
@@ -35,8 +61,13 @@ pipeline :: (FilePath, String) -> Either String IRProgram
 pipeline =
   parseLexer
     >=> parseAST
-    >=> checkSemantics
-    >=> genIR
+    >=> verifAndGenIR
+    >=> optimizeIR
+
+verifAndGenIR :: Program -> Either String IRProgram
+verifAndGenIR p = do
+  (checkedAST, funcStack) <- checkSemantics p
+  genIR checkedAST funcStack
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
@@ -53,10 +84,13 @@ runPipelineAction inFile onSuccess =
 -- private encapsulations for error handling
 --
 
-genIR :: Program -> Either String IRProgram
-genIR p = Right $ generateIR p
+optimizeIR :: IRProgram -> Either String IRProgram
+optimizeIR = Right . fixpoint runIROptimizer
 
-checkSemantics :: Program -> Either String Program
+genIR :: Program -> FuncStack -> Either String IRProgram
+genIR p fs = Right $ generateIR p fs
+
+checkSemantics :: Program -> Either String (Program, FuncStack)
 checkSemantics = verifVars
 
 safeRead :: FilePath -> IO (Either String String)

@@ -1,3 +1,21 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Backend.Helpers
+  ( emit,
+    escapeString,
+    collectIRVars,
+    collectTopLevels,
+    calculateStackMap,
+    alignUp,
+    collectTopLevel,
+    collectVars,
+    accumulateOffset,
+    encodeCharacter,
+    makeRbpOffset
+  )
+where
+#else
 module Rune.Backend.Helpers
   ( emit,
     escapeString,
@@ -6,13 +24,15 @@ module Rune.Backend.Helpers
     calculateStackMap,
   )
 where
+#endif
 
 import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
-import Rune.Backend.Types (Extern, Function, GlobalString)
+import Rune.Backend.Types (Extern, Function, Global)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 import Lib (isPrintable)
+import Data.Char (ord)
 
 --
 -- public
@@ -21,7 +41,7 @@ import Lib (isPrintable)
 emit :: Int -> String -> String
 emit lvl s = replicate (lvl * 4) ' ' ++ s
 
-collectTopLevels :: [IRTopLevel] -> ([Extern], [GlobalString], [Function])
+collectTopLevels :: [IRTopLevel] -> ([Extern], [Global], [Function])
 collectTopLevels tls =
   let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
    in (nub es, reverse gs, reverse fs)
@@ -45,14 +65,14 @@ escapeString = intercalate "," . encodeCharacter
 alignUp :: Int -> Int -> Int
 alignUp x n = (x + n - 1) `div` n * n
 
-collectTopLevel :: IRTopLevel -> ([Extern], [GlobalString], [Function]) -> ([Extern], [GlobalString], [Function])
+collectTopLevel :: IRTopLevel -> ([Extern], [Global], [Function]) -> ([Extern], [Global], [Function])
 collectTopLevel (IRExtern name) (e, g, f) = (name : e, g, f)
-collectTopLevel (IRGlobalString n v) (e, g, f) = (e, (n, v) : g, f)
+collectTopLevel (IRGlobalDef n v) (e, g, f) = (e, (n, v) : g, f)
 collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
 collectTopLevel _ acc = acc
 
 collectIRVars :: Function -> Map.Map String IRType
-collectIRVars (IRFunction _ params _ body) =
+collectIRVars (IRFunction _ params _ body) = 
   let initialMap = Map.fromList params
    in foldl' collectVars initialMap body
 
@@ -76,7 +96,10 @@ collectVars acc (IRCMP_GTE n _ _) = Map.insert n IRBool acc
 collectVars acc (IRAND_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IROR_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRCALL n _ _ (Just t)) = Map.insert n t acc
+collectVars acc (IRCALL n _ _ Nothing) | not (null n) = Map.insert n IRI64 acc
 collectVars acc (IRADDR n _ t) = Map.insert n t acc
+collectVars acc (IRINC _) = acc
+collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
 
 accumulateOffset :: Map.Map String IRType -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
@@ -89,14 +112,15 @@ accumulateOffset _ (currentOffset, accMap) (name, irType) =
 
 encodeCharacter :: String -> [String]
 encodeCharacter "" = []
-encodeCharacter s@(c : cs)
+encodeCharacter (c : cs)
   | c == '\n' = "10" : encodeCharacter cs
   | c == '\r' = "13" : encodeCharacter cs
   | c == '\t' = "9" : encodeCharacter cs
   | c == '\0' = "0" : encodeCharacter cs
-  | otherwise =
-      let (printables, rest) = span isPrintable s
+  | isPrintable c =
+      let (printables, rest) = span isPrintable (c : cs)
        in ("\"" ++ printables ++ "\"") : encodeCharacter rest
+  | otherwise = show (ord c) : encodeCharacter cs
 
 -- | convert offset from function stack frame to RBP-relative offset
 makeRbpOffset :: Int -> Int -> Int

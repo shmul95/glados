@@ -1,18 +1,33 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.IR.Generator.GenStatement
+  ( genStatement,
+    genBlock,
+    genVarDecl,
+    genVarType,
+    genAssignment,
+    genReturnExpr,
+    genExprStmt
+  )
+where
+#else
 module Rune.IR.Generator.GenStatement
   ( genStatement,
   )
 where
+#endif
 
-import Rune.AST.Nodes (Expression, Statement (..), Type)
+import Rune.AST.Nodes (Expression(..), Statement (..), Type(..))
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Generator.Statement.ControlFlow (genIfElse, genIfNoElse, genNext, genStop)
 import Rune.IR.Generator.Statement.Loops (genForEach, genForTo, genLoop)
-import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
+import Rune.IR.IRHelpers (astTypeToIRType, registerVar, newFloatGlobal)
 import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
     IROperand (..),
-    IRType (IRNull),
+    IRType (..),
   )
 
 --
@@ -41,6 +56,13 @@ genBlock :: [Statement] -> IRGen [IRInstruction]
 genBlock = fmap concat . mapM genStatement
 
 genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
+genVarDecl name (Just TypeF64) (ExprLitFloat f) = do
+  glName <- newFloatGlobal f IRF64
+  let finalType = IRF64
+      op        = IRGlobal glName IRF64
+      assignInstr = IRASSIGN name op finalType
+  registerVar name (IRTemp name finalType) finalType
+  pure [assignInstr]
 genVarDecl name maybeType expr = do
   (instrs, op, inferredType) <- genExpression expr
 

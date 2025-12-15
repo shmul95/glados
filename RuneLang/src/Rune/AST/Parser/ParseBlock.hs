@@ -1,6 +1,24 @@
+{-# OPTIONS_GHC -cpp #-}
+
 module Rune.AST.Parser.ParseBlock
+#if defined(TESTING_EXPORT)
+  ( parseBlock,
+    parseBlockLoop,
+    parseStatement,
+    parseReturn,
+    parseIf,
+    parseFor,
+    parseForRangeRest,
+    parseForRangeRestNoInit,
+    parseForEachRest,
+    parseLoop,
+    parseStop,
+    parseNext
+  )
+#else
   ( parseBlock,
   )
+#endif
 where
 
 import Control.Applicative (optional, (<|>))
