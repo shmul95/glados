@@ -214,7 +214,11 @@ createFloatGlobal value typ = do
   func    <- gets gsCurrentFunc
 
   let base = fromMaybe "global" func
-      name = "float_" ++ base ++ show counter
+      prefix = case typ of
+                 IRF32 -> "f32_"
+                 IRF64 -> "f64_"
+                 _     -> "float_"  -- fallback for other types
+      name = prefix ++ base ++ show counter
   modify $ \s ->
     s { gsFloatCounter = counter + 1
       , gsGlobals = IRGlobalDef name (IRGlobalFloatVal value typ) : gsGlobals s
