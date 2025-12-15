@@ -47,7 +47,7 @@ testGenLitFloat = testGroup "genLitFloat"
       let (instrs, op, typ) = runGen (genLitFloat 3.14)
       in do
         instrs @?= []
-        op @?= IRGlobal "float_global0" IRF32
+        op @?= IRGlobal "f32_global0" IRF32
         typ @?= IRF32
   ]
 

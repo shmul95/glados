@@ -254,12 +254,12 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
   [ testCase "newFloatGlobal creates new global when not interned" $
       let (name, state) = runState (newFloatGlobal 3.14 IRF32) emptyState
       in do
-        name @?= "float_global0"
+        name @?= "f32_global0"
         gsFloatCounter state @?= 1
-        Map.lookup (3.14, IRF32) (gsFloatMap state) @?= Just "float_global0"
+        Map.lookup (3.14, IRF32) (gsFloatMap state) @?= Just "f32_global0"
         case gsGlobals state of
           (IRGlobalDef n (IRGlobalFloatVal v t) : _) -> do
-            n @?= "float_global0"
+            n @?= "f32_global0"
             v @?= 3.14
             t @?= IRF32
           _ -> assertFailure "Expected IRGlobalDef with float value"
@@ -268,12 +268,12 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
       let initial =
             emptyState
               { gsFloatCounter = 1
-              , gsFloatMap = Map.singleton (2.71, IRF32) "float_global0"
-              , gsGlobals = [IRGlobalDef "float_global0" (IRGlobalFloatVal 2.71 IRF32)]
+              , gsFloatMap = Map.singleton (2.71, IRF32) "f32_global0"
+              , gsGlobals = [IRGlobalDef "f32_global0" (IRGlobalFloatVal 2.71 IRF32)]
               }
           (name, state) = runState (newFloatGlobal 2.71 IRF32) initial
       in do
-        name @?= "float_global0"
+        name @?= "f32_global0"
         gsFloatCounter state @?= 1
         gsGlobals state @?= gsGlobals initial
   ]
