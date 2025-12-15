@@ -137,28 +137,28 @@ escapeChar =
 
 octalEscape :: Parser Char
 octalEscape = do
-  digits <- some octDigitChar
+  digits <- choice [try (count 3 octDigitChar), try (count 2 octDigitChar), count 1 octDigitChar]
   let value = foldl (\acc d -> acc * 8 + C.digitToInt d) 0 digits
-  if value > 255
-    then fail "Octal escape sequence out of range (max \\377)"
-    else return $ C.chr value
+  case value > 255 of
+    True -> fail "Octal escape sequence out of range (max \\377)"
+    False -> return $ C.chr value
 
 hexEscape :: Parser Char
 hexEscape = do
   void $ char 'x'
-  digits <- some hexDigitChar
+  digits <- choice [try (count 2 hexDigitChar), count 1 hexDigitChar]
   let value = foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
-  if value > 255
-    then fail "Hexadecimal escape sequence out of range (max \\xff)"
-    else return $ C.chr value
+  case value > 255 of
+    True -> fail "Hexadecimal escape sequence out of range (max \\xff)"
+    False -> return $ C.chr value
 
 unicodeEscape :: Parser Char
 unicodeEscape = do
   void $ char 'u'
   value <- choice [bracedUnicode, unbracedUnicode]
-  if value > 0x10FFFF
-    then fail "Unicode escape sequence out of range"
-    else return $ C.chr value
+  case value > 0x10FFFF of
+    True -> fail "Unicode escape sequence out of range"
+    False -> return $ C.chr value
   where
     bracedUnicode = do
       void $ char '{'
@@ -167,10 +167,5 @@ unicodeEscape = do
       return $ foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
 
     unbracedUnicode = do
-      digits <- choice
-        [ try (count 4 hexDigitChar),
-          try (count 6 hexDigitChar)
-        ]
+      digits <- choice [ try (count 4 hexDigitChar), try (count 6 hexDigitChar)]
       return $ foldl (\acc d -> acc * 16 + C.digitToInt d) 0 digits
-
-
