@@ -13,5 +13,5 @@ def factorial(n: i32) ~> i32
 def main() -> null
 {
     val = factorial(5)?;
-    show(val); 
+    show(val);
 }
