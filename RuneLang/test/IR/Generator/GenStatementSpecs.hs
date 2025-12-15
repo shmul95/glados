@@ -5,6 +5,7 @@ module IR.Generator.GenStatementSpecs (genStatementTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.GenStatement
 import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..))
 import Rune.AST.Nodes (Statement(..), Expression(..), Type(..))
@@ -32,11 +33,11 @@ genStatementTests = testGroup "Rune.IR.Generator.GenStatement"
 testGenStatement :: TestTree
 testGenStatement = testGroup "genStatement"
   [ testCase "StmtReturn Nothing generates IRRET Nothing" $
-      let result = runGen (genStatement (StmtReturn Nothing))
+      let result = runGen (genStatement (StmtReturn dummyPos Nothing))
       in result @?= [IRRET Nothing]
 
   , testCase "StmtReturn with int generates IRRET with value" $
-      let result = runGen (genStatement (StmtReturn (Just (ExprLitInt 42))))
+      let result = runGen (genStatement (StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))))
       in case result of
         [IRRET (Just _)] -> return ()
         _ -> assertBool "Expected IRRET with value" False
@@ -52,24 +53,24 @@ testGenBlock = testGroup "genBlock"
       in result @?= []
 
   , testCase "Single statement block" $
-      let result = runGen (genBlock [StmtReturn Nothing])
+      let result = runGen (genBlock [StmtReturn dummyPos Nothing])
       in result @?= [IRRET Nothing]
 
   , testCase "Multiple statements concatenated" $
-      let result = runGen (genBlock [StmtReturn Nothing, StmtReturn Nothing])
+      let result = runGen (genBlock [StmtReturn dummyPos Nothing, StmtReturn dummyPos Nothing])
       in length result @?= 2
   ]
 
 testGenVarDecl :: TestTree
 testGenVarDecl = testGroup "genVarDecl"
   [ testCase "Declares variable with explicit type" $
-      let result = runGen (genVarDecl "x" (Just TypeI32) (ExprLitInt 10))
+      let result = runGen (genVarDecl "x" (Just TypeI32) (ExprLitInt dummyPos 10))
       in case result of
         [IRASSIGN "x" (IRConstInt 10) IRI32] -> return ()
         _ -> assertBool "Expected IRASSIGN" False
 
   , testCase "Declares variable with inferred type" $
-      let result = runGen (genVarDecl "y" Nothing (ExprLitInt 5))
+      let result = runGen (genVarDecl "y" Nothing (ExprLitInt dummyPos 5))
       in assertBool "Should generate assignment" $ not $ null result
 
   , testCase "Handles IRTemp operand differently" $
@@ -91,7 +92,7 @@ testGenVarType = testGroup "genVarType"
 testGenAssignment :: TestTree
 testGenAssignment = testGroup "genAssignment"
   [ testCase "Assigns constant to variable" $
-      let result = runGen (genVarDecl "x" Nothing (ExprLitInt 1) >> genAssignment (ExprVar "x") (ExprLitInt 2))
+      let result = runGen (genVarDecl "x" Nothing (ExprLitInt dummyPos 1) >> genAssignment (ExprVar dummyPos "x") (ExprLitInt dummyPos 2))
       in assertBool "Should generate assignment" $ not $ null result
 
   , testCase "Handles non-temp lvalue" $
@@ -101,19 +102,19 @@ testGenAssignment = testGroup "genAssignment"
 testGenReturnExpr :: TestTree
 testGenReturnExpr = testGroup "genReturnExpr"
   [ testCase "Returns IRNull as Nothing" $
-      let result = runGen (genReturnExpr ExprLitNull)
+      let result = runGen (genReturnExpr (ExprLitNull dummyPos))
       in case last result of
         IRRET Nothing -> return ()
         _ -> assertBool "Expected IRRET Nothing for null" False
 
   , testCase "Returns non-null value" $
-      let result = runGen (genReturnExpr (ExprLitInt 42))
+      let result = runGen (genReturnExpr (ExprLitInt dummyPos 42))
       in case last result of
         IRRET (Just _) -> return ()
         _ -> assertBool "Expected IRRET with value" False
 
   , testCase "Returns boolean value" $
-      let result = runGen (genReturnExpr (ExprLitBool True))
+      let result = runGen (genReturnExpr (ExprLitBool dummyPos True))
       in case last result of
         IRRET (Just _) -> return ()
         _ -> assertBool "Expected IRRET with value" False

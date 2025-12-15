@@ -5,6 +5,7 @@ module IR.Generator.Statement.LoopsSpecs (loopsTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Statement.Loops
 import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..))
 import Rune.AST.Nodes (Expression(..))
@@ -28,30 +29,30 @@ loopsTests = testGroup "Rune.IR.Generator.Statement.Loops"
 testGenForTo :: TestTree
 testGenForTo = testGroup "genForTo"
   [ testCase "Generates for loop with start" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
           genBlock _ = return []
-          instrs = runGen (genForTo genExpr genBlock "i" (Just (ExprLitInt 0)) (ExprLitInt 10) [])
+          instrs = runGen (genForTo genExpr genBlock "i" (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [])
       in do
         assertBool "Should have labels" $ any isLabel instrs
         assertBool "Should have comparison" $ any isCmp instrs
         length (filter isLabel instrs) @?= 3
 
   , testCase "Generates for loop without start (defaults to 0)" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
           genBlock _ = return []
-          instrs = runGen (genForTo genExpr genBlock "i" Nothing (ExprLitInt 10) [])
+          instrs = runGen (genForTo genExpr genBlock "i" Nothing (ExprLitInt dummyPos 10) [])
       in assertBool "Should generate loop" $ not $ null instrs
   ]
 
 testGenForEach :: TestTree
 testGenForEach = testGroup "genForEach"
   [ testCase "Generates foreach loop" $
-      let genExpr (ExprLitString s) = return ([], IRGlobal s (IRPtr IRChar), IRPtr IRChar)
+      let genExpr (ExprLitString _ s) = return ([], IRGlobal s (IRPtr IRChar), IRPtr IRChar)
           genExpr _ = return ([], IRConstNull, IRNull)
           genBlock _ = return []
-          instrs = runGen (genForEach genExpr genBlock "ch" (ExprLitString "str") [])
+          instrs = runGen (genForEach genExpr genBlock "ch" (ExprLitString dummyPos "str") [])
       in do
         assertBool "Should have labels" $ any isLabel instrs
         assertBool "Should have IRDEREF" $ any isDeref instrs

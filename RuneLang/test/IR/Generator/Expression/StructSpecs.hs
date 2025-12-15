@@ -5,6 +5,7 @@ module IR.Generator.Expression.StructSpecs (structExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Struct
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
 import Rune.AST.Nodes (Expression(..))
@@ -37,9 +38,9 @@ testGenAccess = testGroup "genAccess"
 testGenStructInit :: TestTree
 testGenStructInit = testGroup "genStructInit"
   [ testCase "Generates struct initialization" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstNull, IRNull)
-          (instrs, _, typ) = runGen (genStructInit genExpr "Point" [("x", ExprLitInt 1)])
+          (instrs, _, typ) = runGen (genStructInit genExpr "Point" [("x", ExprLitInt dummyPos 1)])
       in do
         assertBool "Should have IRALLOC" $ any isAlloc instrs
         case typ of
@@ -47,9 +48,9 @@ testGenStructInit = testGroup "genStructInit"
           _ -> assertBool "Expected IRStruct Point" False
 
   , testCase "Generates field initializations" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstNull, IRNull)
-          (instrs, _, _) = runGen (genStructInit genExpr "Vec" [("x", ExprLitInt 1), ("y", ExprLitInt 2)])
+          (instrs, _, _) = runGen (genStructInit genExpr "Vec" [("x", ExprLitInt dummyPos 1), ("y", ExprLitInt dummyPos 2)])
       in assertBool "Should have instructions" $ not $ null instrs
   ]
 

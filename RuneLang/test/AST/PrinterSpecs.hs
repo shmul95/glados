@@ -4,6 +4,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertEqual)
 import Rune.AST.Nodes
 import Rune.AST.Printer (prettyPrint)
+import TestHelpers (dummyPos)
 
 --
 -- public
@@ -32,7 +33,7 @@ programPrinterTests = testGroup "Program Printer Tests"
       in assertEqual "Pretty print empty program" expected (prettyPrint prog)
 
     , testCase "Program with one function" $
-        let func = DefFunction "main" [] TypeI32 [StmtReturn (Just (ExprLitInt 0))]
+        let func = DefFunction "main" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 0))]
             prog = Program "main.ru" [func]
             expected = init $ unlines
               [ "Program: main.ru"
@@ -50,7 +51,7 @@ topLevelPrinterTests :: TestTree
 topLevelPrinterTests = testGroup "TopLevelDef Printer Tests"
   [ testCase "Function with params and body" $
       let params = [Parameter "x" TypeI32, Parameter "y" TypeF64]
-          body = [StmtVarDecl "z" (Just TypeF64) (ExprLitFloat 1.5)]
+          body = [StmtVarDecl dummyPos "z" (Just TypeF64) (ExprLitFloat dummyPos 1.5)]
           func = DefFunction "calc" params TypeF64 body
           prog = Program "t.ru" [func]
           expected = init $ unlines
@@ -103,8 +104,8 @@ topLevelPrinterTests = testGroup "TopLevelDef Printer Tests"
 
 statementPrinterTests :: TestTree
 statementPrinterTests = testGroup "Statement Printer Tests"
-  [ testCase "VarDecl with type" $
-      let stmt = StmtVarDecl "x" (Just TypeI32) (ExprLitInt 10)
+  [ testCase "Var Decl with type" $
+      let stmt = StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 10)
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -119,7 +120,7 @@ statementPrinterTests = testGroup "Statement Printer Tests"
       in assertEqual "VarDecl with type" expected (prettyPrint prog)
 
   , testCase "Assignment" $
-      let stmt = StmtAssignment (ExprVar "x") (ExprLitInt 5)
+      let stmt = StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprLitInt dummyPos 5)
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -136,7 +137,7 @@ statementPrinterTests = testGroup "Statement Printer Tests"
       in assertEqual "Assignment" expected (prettyPrint prog)
 
   , testCase "If Else" $
-      let stmt = StmtIf (ExprLitBool True) [StmtStop] (Just [StmtNext])
+      let stmt = StmtIf dummyPos (ExprLitBool dummyPos True) [StmtStop dummyPos] (Just [StmtNext dummyPos])
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -155,7 +156,7 @@ statementPrinterTests = testGroup "Statement Printer Tests"
       in assertEqual "If Else" expected (prettyPrint prog)
 
   , testCase "For Loop" $
-      let stmt = StmtFor "i" (Just TypeI32) (Just (ExprLitInt 0)) (ExprLitInt 10) [StmtNext]
+      let stmt = StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [StmtNext dummyPos]
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -174,7 +175,7 @@ statementPrinterTests = testGroup "Statement Printer Tests"
       in assertEqual "For Loop" expected (prettyPrint prog)
 
   , testCase "For Loop implicit start" $
-      let stmt = StmtFor "i" Nothing Nothing (ExprLitInt 10) []
+      let stmt = StmtFor dummyPos "i" Nothing Nothing (ExprLitInt dummyPos 10) []
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -191,7 +192,7 @@ statementPrinterTests = testGroup "Statement Printer Tests"
       in assertEqual "For Loop implicit start" expected (prettyPrint prog)
 
   , testCase "ForEach" $
-      let stmt = StmtForEach "item" (Just TypeString) (ExprVar "items") []
+      let stmt = StmtForEach dummyPos "item" (Just TypeString) (ExprVar dummyPos "items") []
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -207,7 +208,7 @@ statementPrinterTests = testGroup "Statement Printer Tests"
       in assertEqual "ForEach" expected (prettyPrint prog)
 
   , testCase "Loop" $
-      let stmt = StmtLoop [StmtStop]
+      let stmt = StmtLoop dummyPos [StmtStop dummyPos]
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -222,7 +223,7 @@ statementPrinterTests = testGroup "Statement Printer Tests"
       in assertEqual "Loop" expected (prettyPrint prog)
 
   , testCase "Expr Statement" $
-      let stmt = StmtExpr (ExprCall "f" [])
+      let stmt = StmtExpr dummyPos (ExprCall dummyPos "f" [])
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -244,8 +245,8 @@ statementPrinterTests = testGroup "Statement Printer Tests"
 expressionPrinterTests :: TestTree
 expressionPrinterTests = testGroup "Expression Printer Tests"
   [ testCase "Binary Op" $
-      let expr = ExprBinary Add (ExprLitInt 1) (ExprLitInt 2)
-          stmt = StmtReturn (Just expr)
+      let expr = ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2)
+          stmt = StmtReturn dummyPos (Just expr)
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -261,8 +262,8 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
       in assertEqual "Binary Op" expected (prettyPrint prog)
 
   , testCase "Unary Op" $
-      let expr = ExprUnary Negate (ExprLitInt 1)
-          stmt = StmtReturn (Just expr)
+      let expr = ExprUnary dummyPos Negate (ExprLitInt dummyPos 1)
+          stmt = StmtReturn dummyPos (Just expr)
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -277,8 +278,8 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
       in assertEqual "Unary Op" expected (prettyPrint prog)
 
   , testCase "Call" $
-      let expr = ExprCall "add" [ExprLitInt 1, ExprLitInt 2]
-          stmt = StmtReturn (Just expr)
+      let expr = ExprCall dummyPos "add" [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2]
+          stmt = StmtReturn dummyPos (Just expr)
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -295,8 +296,8 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
       in assertEqual "Call" expected (prettyPrint prog)
 
   , testCase "Struct Init" $
-      let expr = ExprStructInit "Point" [("x", ExprLitInt 1), ("y", ExprLitInt 2)]
-          stmt = StmtReturn (Just expr)
+      let expr = ExprStructInit dummyPos "Point" [("x", ExprLitInt dummyPos 1), ("y", ExprLitInt dummyPos 2)]
+          stmt = StmtReturn dummyPos (Just expr)
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -317,8 +318,8 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
       in assertEqual "Struct Init" expected (prettyPrint prog)
 
   , testCase "Access" $
-      let expr = ExprAccess (ExprVar "p") "x"
-          stmt = StmtReturn (Just expr)
+      let expr = ExprAccess dummyPos (ExprVar dummyPos "p") "x"
+          stmt = StmtReturn dummyPos (Just expr)
           prog = Program "t.ru" [DefFunction "f" [] TypeNull [stmt]]
           expected = init $ unlines
             [ "Program: t.ru"
@@ -333,14 +334,14 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
       in assertEqual "Access" expected (prettyPrint prog)
 
   , testCase "Literals" $
-      let exprs = [ ExprLitInt 1
-                  , ExprLitFloat 1.5
-                  , ExprLitString "s"
-                  , ExprLitChar 'c'
-                  , ExprLitBool True
-                  , ExprLitNull
+      let exprs = [ ExprLitInt dummyPos 1
+                  , ExprLitFloat dummyPos 1.5
+                  , ExprLitString dummyPos "s"
+                  , ExprLitChar dummyPos 'c'
+                  , ExprLitBool dummyPos True
+                  , ExprLitNull dummyPos
                   ]
-          stmts = map (StmtExpr) exprs
+          stmts = map (StmtExpr dummyPos) exprs
           prog = Program "t.ru" [DefFunction "f" [] TypeNull stmts]
           expected = init $ unlines
             [ "Program: t.ru"

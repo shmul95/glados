@@ -4,6 +4,7 @@
 module IR.Generator.Expression.CallSpecs (callExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
+import TestHelpers (dummyPos)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Rune.IR.Generator.Expression.Call
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
@@ -36,9 +37,9 @@ testGenCall = testGroup "genCall"
           _ -> assertBool "Expected IRTemp" False
 
   , testCase "Generates function call with args" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, _, _) = runGen (genCall genExpr "add" [ExprLitInt 1, ExprLitInt 2])
+          (instrs, _, _) = runGen (genCall genExpr "add" [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2])
       in assertBool "Should have IRCALL" $ any isCall instrs
 
   , testCase "Registers function call" $

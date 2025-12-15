@@ -5,6 +5,7 @@ import Rune.Semantics.Vars (verifVars)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertFailure)
 import Data.List (isInfixOf)
+import TestHelpers (dummyPos)
 
 --
 -- public
@@ -51,7 +52,16 @@ varsSemanticsTests =
       expectOk "validates correct function call arguments" correctArgsProgram,
       expectWrongType "detects multiple wrong types in same call" multipleWrongTypesProgram,
       expectOk "handles empty parameter list" emptyParamsProgram,
-      expectWrongType "validates nested function call arguments" nestedFunctionCallProgram
+      expectWrongType "validates nested function call arguments" nestedFunctionCallProgram,
+      -- New tests for source position coverage
+      testGroup "Source Position Error Reporting"
+        [ expectErrWithPos "reports line and column for undefined variable" errorAtLine5Col10 5 10
+        , expectErrWithPos "reports line and column for type mismatch" typeErrorAtLine3Col5 3 5
+        , expectErrWithPos "reports line and column for undefined function" undefinedFuncAtLine7Col15 7 15
+        , expectErrWithPos "reports correct position in nested expression" nestedErrorAtLine10Col20 10 20
+        , expectErrWithContext "includes context in error message" contextProgram "variable reference" "global context"
+        , expectErrWithContext "includes nested context" nestedContextProgram "variable assignment" "global context"
+        ]
     ]
 
 --
@@ -67,47 +77,45 @@ expectOk label program = testCase label $
 expectErr :: String -> Program -> String -> TestTree
 expectErr label program missingVar =
   testCase label $ case verifVars program of
-    Left msg | undefinedMsg missingVar `isInfixOf` msg -> return ()
+    Left msg | ("Expected: variable '" ++ missingVar ++ "' to be defined") `isInfixOf` msg -> return ()
+            | ("Expected: function '" ++ missingVar ++ "' to exist") `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected UndefinedVar error for " ++ missingVar ++ ", got: " ++ show result
 
 expectTypeOverwrite :: String -> Program -> TestTree
 expectTypeOverwrite label program =
   testCase label $ case verifVars program of
-    Left msg | "TypeOverwrite:" `isInfixOf` msg -> return ()
+    Left msg | "Expected: variable" `isInfixOf` msg && "to have type" `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected TypeOverwrite error, got: " ++ show result
 
 expectMultipleType :: String -> Program -> TestTree
 expectMultipleType label program =
   testCase label $ case verifVars program of
-    Left msg | "MultipleType:" `isInfixOf` msg -> return ()
+    Left msg | "to have type" `isInfixOf` msg && "being assigned" `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected MultipleType error, got: " ++ show result
 
 expectUnknownFunction :: String -> Program -> String -> TestTree
 expectUnknownFunction label program fname =
   testCase label $ case verifVars program of
-    Left msg | ("UnknownFunction:" `isInfixOf` msg) && (fname `isInfixOf` msg) -> return ()
+    Left msg | ("Expected: function '" ++ fname ++ "' to exist") `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected UnknownFunction error for " ++ fname ++ ", got: " ++ show result
 
 expectWrongType :: String -> Program -> TestTree
 expectWrongType label program =
   testCase label $ case verifVars program of
-    Left msg | "WrongType:" `isInfixOf` msg -> return ()
+    Left msg | "Expected: argument" `isInfixOf` msg && "to have type" `isInfixOf` msg -> return ()
     result -> assertFailure $ "Expected WrongType error, got: " ++ show result
 
 expectWrongNbArgsLess :: String -> Program -> TestTree
 expectWrongNbArgsLess label program =
   testCase label $ case verifVars program of
-    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too few" `isInfixOf` msg) -> return ()
+    Left msg | ("Expected:" `isInfixOf` msg) && ("arguments (too few)" `isInfixOf` msg) -> return ()
     result -> assertFailure $ "Expected WrongNbArgs (too few) error, got: " ++ show result
 
 expectWrongNbArgsMore :: String -> Program -> TestTree
 expectWrongNbArgsMore label program =
   testCase label $ case verifVars program of
-    Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too many" `isInfixOf` msg) -> return ()
+    Left msg | ("Expected:" `isInfixOf` msg) && ("arguments (too many)" `isInfixOf` msg) -> return ()
     result -> assertFailure $ "Expected WrongNbArgs (too many) error, got: " ++ show result
-
-undefinedMsg :: String -> String
-undefinedMsg name = "\n\tUndefinedVar: " ++ name ++ " doesn't exist in the scope"
 
 validProgram :: Program
 validProgram =
@@ -117,16 +125,16 @@ validProgram =
         "bar"
         [Parameter "x" TypeI32]
         TypeNull
-        [StmtReturn (Just ExprLitNull)],
+        [StmtReturn dummyPos (Just (ExprLitNull dummyPos))],
       DefFunction
         "foo"
         [Parameter "arg" TypeI32]
         TypeI32
-        [ StmtVarDecl "local" (Just TypeI32) (ExprVar "arg"),
-          StmtExpr (ExprCall "bar" [ExprVar "local"]),
-          StmtFor "i" (Just TypeI32) (Just (ExprLitInt 0)) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
-          StmtForEach "item" (Just TypeI32) (ExprVar "local") [StmtExpr (ExprVar "item")],
-          StmtReturn (Just ExprLitNull)
+        [ StmtVarDecl dummyPos "local" (Just TypeI32) (ExprVar dummyPos "arg"),
+          StmtExpr dummyPos (ExprCall dummyPos "bar" [ExprVar dummyPos "local"]),
+          StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 1) [StmtExpr dummyPos (ExprVar dummyPos "i")],
+          StmtForEach dummyPos "item" (Just TypeI32) (ExprVar dummyPos "local") [StmtExpr dummyPos (ExprVar dummyPos "item")],
+          StmtReturn dummyPos (Just (ExprLitNull dummyPos))
         ]
     ]
 
@@ -138,7 +146,7 @@ invalidProgram =
         "foo"
         []
         TypeI32
-        [StmtExpr (ExprVar "missing")]
+        [StmtExpr dummyPos (ExprVar dummyPos "missing")]
     ]
 
 blockLeakProgram :: Program
@@ -149,11 +157,11 @@ blockLeakProgram =
         "foo"
         []
         TypeI32
-        [ StmtIf
-            (ExprLitBool True)
-            [StmtVarDecl "inner" Nothing (ExprLitInt 1)]
+        [ StmtIf dummyPos
+            (ExprLitBool dummyPos True)
+            [StmtVarDecl dummyPos "inner" Nothing (ExprLitInt dummyPos 1)]
             Nothing,
-          StmtExpr (ExprVar "inner")
+          StmtExpr dummyPos (ExprVar dummyPos "inner")
         ]
     ]
 
@@ -168,7 +176,7 @@ structProgram =
             "len"
             [Parameter "self" TypeAny]
             TypeI32
-            [StmtExpr (ExprVar "self")]
+            [StmtExpr dummyPos (ExprVar dummyPos "self")]
         ]
     ]
 
@@ -180,7 +188,7 @@ overrideLeakProgram =
         "show"
         []
         TypeNull
-        [StmtExpr (ExprVar "ghost")]
+        [StmtExpr dummyPos (ExprVar dummyPos "ghost")]
     ]
 
 overrideValidProgram :: Program
@@ -191,7 +199,7 @@ overrideValidProgram =
         "print"
         [Parameter "value" TypeI32]
         TypeI32
-        [StmtReturn (Just (ExprVar "value"))]
+        [StmtReturn dummyPos (Just (ExprVar dummyPos "value"))]
     ]
 
 forLeakProgram :: Program
@@ -202,8 +210,8 @@ forLeakProgram =
         "loop"
         []
         TypeNull
-        [ StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprLitInt 1) [StmtExpr (ExprVar "i")],
-          StmtExpr (ExprVar "i")
+        [ StmtFor dummyPos "i" Nothing (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 1) [StmtExpr dummyPos (ExprVar dummyPos "i")],
+          StmtExpr dummyPos (ExprVar dummyPos "i")
         ]
     ]
 
@@ -215,9 +223,9 @@ forEachLeakProgram =
         "loop"
         []
         TypeNull
-        [ StmtVarDecl "source" Nothing (ExprLitInt 0),
-          StmtForEach "item" Nothing (ExprVar "source") [StmtExpr (ExprVar "item")],
-          StmtExpr (ExprVar "item")
+        [ StmtVarDecl dummyPos "source" Nothing (ExprLitInt dummyPos 0),
+          StmtForEach dummyPos "item" Nothing (ExprVar dummyPos "source") [StmtExpr dummyPos (ExprVar dummyPos "item")],
+          StmtExpr dummyPos (ExprVar dummyPos "item")
         ]
     ]
 
@@ -229,7 +237,7 @@ returnLeakProgram =
         "returns"
         []
         TypeNull
-        [StmtReturn (Just (ExprVar "retval"))]
+        [StmtReturn dummyPos (Just (ExprVar dummyPos "retval"))]
     ]
 
 ifElseElseProgram :: Program
@@ -240,10 +248,10 @@ ifElseElseProgram =
         "branch"
         []
         TypeNull
-        [ StmtIf
-            (ExprLitBool False)
+        [ StmtIf dummyPos
+            (ExprLitBool dummyPos False)
             []
-            (Just [StmtExpr (ExprVar "elseVar")])
+            (Just [StmtExpr dummyPos (ExprVar dummyPos "elseVar")])
         ]
     ]
 
@@ -255,8 +263,8 @@ structInitProgram =
         "build"
         [Parameter "seed" TypeI32]
         TypeNull
-        [ StmtVarDecl "point" (Just (TypeCustom "Point")) (ExprStructInit "Point" [("x", ExprVar "seed")]),
-          StmtExpr (ExprAccess (ExprVar "point") "x")
+        [ StmtVarDecl dummyPos "point" (Just (TypeCustom "Point")) (ExprStructInit dummyPos "Point" [("x", ExprVar dummyPos "seed")]),
+          StmtExpr dummyPos (ExprAccess dummyPos (ExprVar dummyPos "point") "x")
         ]
     ]
 
@@ -268,7 +276,7 @@ expressionProgram =
         "ops"
         [Parameter "x" TypeI32]
         TypeNull
-        [ StmtExpr (ExprBinary Add (ExprVar "x") (ExprUnary Negate (ExprVar "x")))
+        [ StmtExpr dummyPos (ExprBinary dummyPos Add (ExprVar dummyPos "x") (ExprUnary dummyPos Negate (ExprVar dummyPos "x")))
         ]
     ]
 
@@ -276,12 +284,12 @@ callArgsErrorProgram :: Program
 callArgsErrorProgram =
   Program
     "call-args"
-    [ DefFunction "foo" [Parameter "x" TypeAny] TypeNull [StmtReturn Nothing],
+    [ DefFunction "foo" [Parameter "x" TypeAny] TypeNull [StmtReturn dummyPos Nothing],
       DefFunction
         "caller"
         []
         TypeNull
-        [StmtExpr (ExprCall "foo" [ExprVar "arg"])]
+        [StmtExpr dummyPos (ExprCall dummyPos "foo" [ExprVar dummyPos "arg"])]
     ]
 
 structInitErrorProgram :: Program
@@ -292,7 +300,7 @@ structInitErrorProgram =
         "build"
         []
         TypeNull
-        [StmtVarDecl "point" Nothing (ExprStructInit "Point" [("x", ExprVar "fieldVal")])]
+        [StmtVarDecl dummyPos "point" Nothing (ExprStructInit dummyPos "Point" [("x", ExprVar dummyPos "fieldVal")])]
     ]
 
 accessErrorProgram :: Program
@@ -303,7 +311,7 @@ accessErrorProgram =
         "access"
         []
         TypeNull
-        [StmtExpr (ExprAccess (ExprVar "target") "field")]
+        [StmtExpr dummyPos (ExprAccess dummyPos (ExprVar dummyPos "target") "field")]
     ]
 
 assignmentTypeOverwriteProgram :: Program
@@ -314,8 +322,8 @@ assignmentTypeOverwriteProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "x" (Just TypeI32) (ExprLitInt 1),
-          StmtAssignment (ExprVar "x") (ExprLitFloat 1.0)
+        [ StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 1),
+          StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprLitFloat dummyPos 1.0)
         ]
     ]
 
@@ -327,7 +335,7 @@ binaryErrorProgram =
         "bin"
         []
         TypeNull
-        [StmtExpr (ExprBinary Add (ExprVar "lhs") (ExprLitInt 0))]
+        [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprVar dummyPos "lhs") (ExprLitInt dummyPos 0))]
     ]
 
 unaryErrorProgram :: Program
@@ -338,7 +346,7 @@ unaryErrorProgram =
         "neg"
         []
         TypeNull
-        [StmtExpr (ExprUnary Negate (ExprVar "value"))]
+        [StmtExpr dummyPos (ExprUnary dummyPos Negate (ExprVar dummyPos "value"))]
     ]
 
 
@@ -350,8 +358,8 @@ typeOverwriteProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "x" (Just TypeI32) (ExprLitInt 42),
-          StmtVarDecl "x" (Just TypeF32) (ExprLitFloat 3.14)
+        [ StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42),
+          StmtVarDecl dummyPos "x" (Just TypeF32) (ExprLitFloat dummyPos 3.14)
         ]
     ]
 
@@ -363,7 +371,7 @@ multipleTypeProgram =
         "test"
         []
         TypeNull
-        [StmtVarDecl "x" (Just TypeI32) (ExprLitFloat 3.14)]
+        [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitFloat dummyPos 3.14)]
     ]
 
 loopProgram :: Program
@@ -374,8 +382,8 @@ loopProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "x" (Just TypeI32) (ExprLitInt 1),
-          StmtLoop [StmtExpr (ExprVar "x")]
+        [ StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 1),
+          StmtLoop dummyPos [StmtExpr dummyPos (ExprVar dummyPos "x")]
         ]
     ]
 
@@ -387,7 +395,7 @@ stopNextProgram =
         "test"
         []
         TypeNull
-        [ StmtLoop [StmtStop, StmtNext]
+        [ StmtLoop dummyPos [StmtStop dummyPos, StmtNext dummyPos]
         ]
     ]
 
@@ -399,8 +407,8 @@ nonVarAssignmentProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "point" (Just (TypeCustom "Point")) (ExprStructInit "Point" [("x", ExprLitInt 1)]),
-          StmtAssignment (ExprAccess (ExprVar "point") "x") (ExprLitInt 2)
+        [ StmtVarDecl dummyPos "point" (Just (TypeCustom "Point")) (ExprStructInit dummyPos "Point" [("x", ExprLitInt dummyPos 1)]),
+          StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "point") "x") (ExprLitInt dummyPos 2)
         ]
     ]
 
@@ -412,7 +420,7 @@ forWithoutStartProgram =
         "test"
         []
         TypeNull
-        [ StmtFor "i" (Just TypeI32) Nothing (ExprLitInt 10) [StmtExpr (ExprVar "i")]
+        [ StmtFor dummyPos "i" (Just TypeI32) Nothing (ExprLitInt dummyPos 10) [StmtExpr dummyPos (ExprVar dummyPos "i")]
         ]
     ]
 
@@ -424,7 +432,7 @@ forEndErrorProgram =
         "test"
         []
         TypeNull
-        [ StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprVar "endVar") [StmtExpr (ExprVar "i")]
+        [ StmtFor dummyPos "i" Nothing (Just (ExprLitInt dummyPos 0)) (ExprVar dummyPos "endVar") [StmtExpr dummyPos (ExprVar dummyPos "i")]
         ]
     ]
 
@@ -436,7 +444,7 @@ ifConditionErrorProgram =
         "test"
         []
         TypeNull
-        [ StmtIf (ExprVar "condVar") [] Nothing
+        [ StmtIf dummyPos (ExprVar dummyPos "condVar") [] Nothing
         ]
     ]
 
@@ -448,12 +456,12 @@ literalExpressionsProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "i" (Just TypeI32) (ExprLitInt 42),
-          StmtVarDecl "f" (Just TypeF32) (ExprLitFloat 3.14),
-          StmtVarDecl "s" (Just TypeString) (ExprLitString "hello"),
-          StmtVarDecl "c" (Just TypeU8) (ExprLitChar 'a'),
-          StmtVarDecl "b" (Just TypeBool) (ExprLitBool True),
-          StmtVarDecl "n" (Just TypeNull) ExprLitNull
+        [ StmtVarDecl dummyPos "i" (Just TypeI32) (ExprLitInt dummyPos 42),
+          StmtVarDecl dummyPos "f" (Just TypeF32) (ExprLitFloat dummyPos 3.14),
+          StmtVarDecl dummyPos "s" (Just TypeString) (ExprLitString dummyPos "hello"),
+          StmtVarDecl dummyPos "c" (Just TypeU8) (ExprLitChar dummyPos 'a'),
+          StmtVarDecl dummyPos "b" (Just TypeBool) (ExprLitBool dummyPos True),
+          StmtVarDecl dummyPos "n" (Just TypeNull) (ExprLitNull dummyPos)
         ]
     ]
 
@@ -468,9 +476,9 @@ knownFunctionCallProgram :: Program
 knownFunctionCallProgram =
   Program
     "known-func"
-    [ DefFunction "helper" [] TypeI32 [StmtReturn (Just (ExprLitInt 1))],
-      DefFunction "main" [] TypeNull [StmtExpr (ExprCall "helper" [])],
-      DefFunction "test_show" [] TypeNull [StmtExpr (ExprCall "show" [ExprLitString "test"])]
+    [ DefFunction "helper" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))],
+      DefFunction "main" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "helper" [])],
+      DefFunction "test_show" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "show" [ExprLitString dummyPos "test"])]
     ]
 
 assignmentRHSErrorProgram :: Program
@@ -481,8 +489,8 @@ assignmentRHSErrorProgram =
         "test"
         []
         TypeNull
-        [ StmtVarDecl "x" Nothing (ExprLitInt 1),
-          StmtAssignment (ExprVar "x") (ExprVar "rhsVar")
+        [ StmtVarDecl dummyPos "x" Nothing (ExprLitInt dummyPos 1),
+          StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprVar dummyPos "rhsVar")
         ]
     ]
 
@@ -495,90 +503,194 @@ unknownFunctionProgram =
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "thisDoesNotExist" [])]
+        [StmtExpr dummyPos (ExprCall dummyPos "thisDoesNotExist" [])]
     ]
 
 wrongTypeProgram :: Program
 wrongTypeProgram =
   Program
     "wrong-type"
-    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitString "wrong"])]
+        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitString dummyPos "wrong"])]
     ]
 
 tooFewArgsProgram :: Program
 tooFewArgsProgram =
   Program
     "too-few-args"
-    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitInt 1])]
+        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitInt dummyPos 1])]
     ]
 
 tooManyArgsProgram :: Program
 tooManyArgsProgram =
   Program
     "too-many-args"
-    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+    [ DefFunction "helper" [Parameter "x" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitInt 1, ExprLitInt 2])]
+        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2])]
     ]
 
 correctArgsProgram :: Program
 correctArgsProgram =
   Program
     "correct-args"
-    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeF32, Parameter "z" TypeString] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeF32, Parameter "z" TypeString] TypeI32 [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitInt 1, ExprLitFloat 2.5, ExprLitString "test"])]
+        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitInt dummyPos 1, ExprLitFloat dummyPos 2.5, ExprLitString dummyPos "test"])]
     ]
 
 multipleWrongTypesProgram :: Program
 multipleWrongTypesProgram =
   Program
     "multiple-wrong-types"
-    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
+    [ DefFunction "helper" [Parameter "x" TypeI32, Parameter "y" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "helper" [ExprLitString "wrong1", ExprLitBool True])]
+        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitString dummyPos "wrong1", ExprLitBool dummyPos True])]
     ]
 
 emptyParamsProgram :: Program
 emptyParamsProgram =
   Program
     "empty-params"
-    [ DefFunction "helper" [] TypeI32 [StmtReturn (Just (ExprLitInt 42))],
+    [ DefFunction "helper" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "helper" [])]
+        [StmtExpr dummyPos (ExprCall dummyPos "helper" [])]
     ]
 
 nestedFunctionCallProgram :: Program
 nestedFunctionCallProgram =
   Program
     "nested-func-call"
-    [ DefFunction "inner" [Parameter "x" TypeI32] TypeI32 [StmtReturn (Just (ExprVar "x"))],
-      DefFunction "outer" [Parameter "y" TypeI32] TypeI32 [StmtReturn (Just (ExprCall "inner" [ExprVar "y"]))],
+    [ DefFunction "inner" [Parameter "x" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
+      DefFunction "outer" [Parameter "y" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprCall dummyPos "inner" [ExprVar dummyPos "y"]))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr (ExprCall "outer" [ExprLitString "wrong"])]
+        [StmtExpr dummyPos (ExprCall dummyPos "outer" [ExprLitString dummyPos "wrong"])]
+    ]
+
+--
+-- New helper functions for source position tests
+--
+
+expectErrWithPos :: String -> Program -> Int -> Int -> TestTree
+expectErrWithPos label program expectedLine expectedCol =
+  testCase label $ case verifVars program of
+    Left msg -> do
+      let posStr = "test.ru:" ++ show expectedLine ++ ":" ++ show expectedCol
+      if posStr `isInfixOf` msg
+        then return ()
+        else assertFailure $ "Expected error at " ++ posStr ++ ", but got: " ++ msg
+    Right _ -> assertFailure "Expected error but got success"
+
+expectErrWithContext :: String -> Program -> String -> String -> TestTree
+expectErrWithContext label program expectedCtx1 expectedCtx2 =
+  testCase label $ case verifVars program of
+    Left msg -> do
+      if (expectedCtx1 `isInfixOf` msg) && (expectedCtx2 `isInfixOf` msg)
+        then return ()
+        else assertFailure $ "Expected contexts '" ++ expectedCtx1 ++ "' and '" ++ expectedCtx2 ++ "', but got: " ++ msg
+    Right _ -> assertFailure "Expected error but got success"
+
+--
+-- Test programs with specific source positions
+--
+
+errorAtLine5Col10 :: Program
+errorAtLine5Col10 =
+  Program
+    "error-at-5-10"
+    [ DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (SourcePos "test.ru" 5 10) (ExprVar (SourcePos "test.ru" 5 10) "undefinedVar")]
+    ]
+
+typeErrorAtLine3Col5 :: Program
+typeErrorAtLine3Col5 =
+  Program
+    "type-error-at-3-5"
+    [ DefFunction
+        "main"
+        []
+        TypeNull
+        [ StmtVarDecl (SourcePos "test.ru" 2 1) "x" (Just TypeI32) (ExprLitInt (SourcePos "test.ru" 2 20) 42),
+          StmtAssignment (SourcePos "test.ru" 3 5) (ExprVar (SourcePos "test.ru" 3 5) "x") (ExprLitFloat (SourcePos "test.ru" 3 5) 3.14)
+        ]
+    ]
+
+undefinedFuncAtLine7Col15 :: Program
+undefinedFuncAtLine7Col15 =
+  Program
+    "undefined-func-at-7-15"
+    [ DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (SourcePos "test.ru" 7 15) (ExprCall (SourcePos "test.ru" 7 15) "nonExistentFunc" [])]
+    ]
+
+nestedErrorAtLine10Col20 :: Program
+nestedErrorAtLine10Col20 =
+  Program
+    "nested-error-at-10-20"
+    [ DefFunction
+        "main"
+        []
+        TypeNull
+        [ StmtExpr
+            (SourcePos "test.ru" 10 1)
+            (ExprBinary
+              (SourcePos "test.ru" 10 10)
+              Add
+              (ExprLitInt (SourcePos "test.ru" 10 8) 1)
+              (ExprVar (SourcePos "test.ru" 10 20) "undefined"))
+        ]
+    ]
+
+contextProgram :: Program
+contextProgram =
+  Program
+    "context-program"
+    [ DefFunction
+        "main"
+        []
+        TypeNull
+        [StmtExpr (SourcePos "test.ru" 1 1) (ExprVar (SourcePos "test.ru" 1 1) "missingVar")]
+    ]
+
+nestedContextProgram :: Program
+nestedContextProgram =
+  Program
+    "nested-context-program"
+    [ DefFunction
+        "foo"
+        []
+        TypeNull
+        [ StmtVarDecl (SourcePos "test.ru" 2 5) "x" (Just TypeI32) (ExprLitInt (SourcePos "test.ru" 2 20) 10),
+          StmtAssignment (SourcePos "test.ru" 3 5) (ExprVar (SourcePos "test.ru" 3 5) "x") (ExprLitString (SourcePos "test.ru" 3 9) "wrong")
+        ]
     ]

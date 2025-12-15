@@ -5,6 +5,7 @@ module IR.Generator.Expression.Call.ShowSpecs (showCallTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Call.Show
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
 import Rune.AST.Nodes (Expression(..))
@@ -29,25 +30,25 @@ showCallTests = testGroup "Rune.IR.Generator.Expression.Call.Show"
 testGenShowCall :: TestTree
 testGenShowCall = testGroup "genShowCall"
   [ testCase "Routes bool to genShowBoolCall" $
-      let genExpr (ExprLitBool b) = return ([], IRConstBool b, IRBool)
+      let genExpr (ExprLitBool _ b) = return ([], IRConstBool b, IRBool)
           genExpr _ = return ([], IRConstBool True, IRBool)
-          (instrs, _, typ) = runGen (genShowCall genExpr (ExprLitBool True))
+          (instrs, _, typ) = runGen (genShowCall genExpr (ExprLitBool dummyPos True))
       in do
         typ @?= IRNull
         assertBool "Should have instructions" $ not $ null instrs
 
   , testCase "Routes char to genShowCharCall" $
-      let genExpr (ExprLitChar c) = return ([], IRConstChar c, IRChar)
+      let genExpr (ExprLitChar _ c) = return ([], IRConstChar c, IRChar)
           genExpr _ = return ([], IRConstChar 'a', IRChar)
-          (instrs, _, typ) = runGen (genShowCall genExpr (ExprLitChar 'x'))
+          (instrs, _, typ) = runGen (genShowCall genExpr (ExprLitChar dummyPos 'x'))
       in do
         typ @?= IRNull
         assertBool "Should have putchar call" $ any isCall instrs
 
   , testCase "Routes other types to genShowPrintfCall" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, _, typ) = runGen (genShowCall genExpr (ExprLitInt 42))
+          (instrs, _, typ) = runGen (genShowCall genExpr (ExprLitInt dummyPos 42))
       in do
         typ @?= IRNull
         assertBool "Should have printf call" $ any isCall instrs

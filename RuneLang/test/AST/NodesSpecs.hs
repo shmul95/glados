@@ -3,6 +3,7 @@ module AST.NodesSpecs (astNodesTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertEqual, assertBool, assertFailure)
 import Rune.AST.Nodes
+import TestHelpers (dummyPos)
 
 --
 -- public
@@ -212,8 +213,8 @@ topLevelDefTests = testGroup "TopLevelDef Tests"
   where
     param = Parameter "x" TypeI32
     field = Field "x" TypeI32
-    blockA = [StmtStop]
-    blockB = [StmtNext]
+    blockA = [StmtStop dummyPos]
+    blockB = [StmtNext dummyPos]
     defFunc = DefFunction "foo" [param] TypeI32 blockA
     defStruct = DefStruct "Vec2f" [field] [defFunc]
     defOverride = DefOverride "show" [param] TypeNull blockA
@@ -222,127 +223,127 @@ statementTests :: TestTree
 statementTests = testGroup "Statement Tests"
   [
     testCase "Show StmtVarDecl" $ 
-      assertBool "Show" (not (null (show (StmtVarDecl "x" (Just TypeI32) exprVar))))
+      assertBool "Show" (not (null (show (StmtVarDecl dummyPos "x" (Just TypeI32) exprVar))))
   , testCase "Show StmtAssignment" $ 
-      assertBool "Show" (not (null (show (StmtAssignment exprVar exprLitInt))))
+      assertBool "Show" (not (null (show (StmtAssignment dummyPos exprVar exprLitInt))))
   , testCase "Show StmtReturn (Just)" $ 
-      assertBool "Show" (not (null (show (StmtReturn (Just exprLitInt)))))
+      assertBool "Show" (not (null (show (StmtReturn dummyPos (Just exprLitInt)))))
   , testCase "Show StmtReturn (Nothing)" $ 
-      assertBool "Show" (not (null (show (StmtReturn Nothing))))
+      assertBool "Show" (not (null (show (StmtReturn dummyPos Nothing))))
   , testCase "Show StmtIf (Just else)" $ 
-      assertBool "Show" (not (null (show (StmtIf exprLitBool block block'))))
+      assertBool "Show" (not (null (show (StmtIf dummyPos exprLitBool block block'))))
   , testCase "Show StmtIf (Nothing else)" $ 
-      assertBool "Show" (not (null (show (StmtIf exprLitBool block Nothing))))
+      assertBool "Show" (not (null (show (StmtIf dummyPos exprLitBool block Nothing))))
   , testCase "Show StmtFor (Full)" $ 
-      assertBool "Show" (not (null (show (StmtFor "i" (Just TypeI32) (Just exprLitInt) exprLitInt block))))
+      assertBool "Show" (not (null (show (StmtFor dummyPos "i" (Just TypeI32) (Just exprLitInt) exprLitInt block))))
   , testCase "Show StmtFor (No type/start)" $ 
-      assertBool "Show" (not (null (show (StmtFor "i" Nothing Nothing exprLitInt block))))
+      assertBool "Show" (not (null (show (StmtFor dummyPos "i" Nothing Nothing exprLitInt block))))
   , testCase "Show StmtForEach" $ 
-      assertBool "Show" (not (null (show (StmtForEach "item" Nothing exprVar block))))
+      assertBool "Show" (not (null (show (StmtForEach dummyPos "item" Nothing exprVar block))))
   , testCase "Show StmtLoop" $ 
-      assertBool "Show" (not (null (show (StmtLoop block))))
+      assertBool "Show" (not (null (show (StmtLoop dummyPos block))))
   , testCase "Show StmtStop" $ 
-      assertBool "Show" (not (null (show StmtStop)))
+      assertBool "Show" (not (null (show (StmtStop dummyPos))))
   , testCase "Show StmtNext" $ 
-      assertBool "Show" (not (null (show StmtNext)))
+      assertBool "Show" (not (null (show (StmtNext dummyPos))))
   , testCase "Show StmtExpr" $ 
-      assertBool "Show" (not (null (show (StmtExpr exprLitInt))))
+      assertBool "Show" (not (null (show (StmtExpr dummyPos exprLitInt))))
   , testCase "Eq StmtVarDecl" $ 
-      assertBool "Unequal name" (StmtVarDecl "x" Nothing exprLitInt /= StmtVarDecl "y" Nothing exprLitInt)
+      assertBool "Unequal name" (StmtVarDecl dummyPos "x" Nothing exprLitInt /= StmtVarDecl dummyPos "y" Nothing exprLitInt)
   , testCase "Eq StmtAssignment" $ do
-      let s1 = StmtAssignment exprVar exprLitInt
-      let s2 = StmtAssignment (ExprVar "y") exprLitInt
-      let s3 = StmtAssignment exprVar (ExprLitInt 2)
+      let s1 = StmtAssignment dummyPos exprVar exprLitInt
+      let s2 = StmtAssignment dummyPos (ExprVar dummyPos "y") exprLitInt
+      let s3 = StmtAssignment dummyPos exprVar (ExprLitInt dummyPos 2)
       assertBool "Equal" (s1 == s1)
       assertBool "Unequal L" (s1 /= s2)
       assertBool "Unequal R" (s1 /= s3)
   , testCase "Eq StmtReturn" $ do
-      assertBool "Eq Just" (StmtReturn (Just exprLitInt) == StmtReturn (Just exprLitInt))
-      assertBool "Eq Nothing" (StmtReturn Nothing == StmtReturn Nothing)
-      assertBool "Neq" (StmtReturn (Just exprLitInt) /= StmtReturn Nothing)
+      assertBool "Eq Just" (StmtReturn dummyPos (Just exprLitInt) == StmtReturn dummyPos (Just exprLitInt))
+      assertBool "Eq Nothing" (StmtReturn dummyPos Nothing == StmtReturn dummyPos Nothing)
+      assertBool "Neq" (StmtReturn dummyPos (Just exprLitInt) /= StmtReturn dummyPos Nothing)
   , testCase "Eq StmtIf" $ 
-      assertBool "Unequal else" (StmtIf exprLitBool block block' /= StmtIf exprLitBool block Nothing)
+      assertBool "Unequal else" (StmtIf dummyPos exprLitBool block block' /= StmtIf dummyPos exprLitBool block Nothing)
   , testCase "Eq StmtFor" $ do
-      let f1 = StmtFor "i" Nothing Nothing exprLitInt block
-      let f2 = StmtFor "j" Nothing Nothing exprLitInt block
+      let f1 = StmtFor dummyPos "i" Nothing Nothing exprLitInt block
+      let f2 = StmtFor dummyPos "j" Nothing Nothing exprLitInt block
       assertBool "Equal" (f1 == f1)
       assertBool "Unequal var" (f1 /= f2)
   , testCase "Eq StmtForEach" $ do
-      let fe1 = StmtForEach "i" Nothing exprVar block
-      let fe2 = StmtForEach "j" Nothing exprVar block
+      let fe1 = StmtForEach dummyPos "i" Nothing exprVar block
+      let fe2 = StmtForEach dummyPos "j" Nothing exprVar block
       assertBool "Equal" (fe1 == fe1)
       assertBool "Unequal var" (fe1 /= fe2)
   , testCase "Eq StmtLoop" $ 
-      assertBool "Equal" (StmtLoop block == StmtLoop block)
+      assertBool "Equal" (StmtLoop dummyPos block == StmtLoop dummyPos block)
   , testCase "Eq StmtStop/StmtNext" $ 
-      assertBool "Unequal constructors" (StmtStop /= StmtNext)
+      assertBool "Unequal constructors" (StmtStop dummyPos /= StmtNext dummyPos)
   , testCase "Eq StmtExpr" $ 
-      assertBool "Unequal" (StmtExpr exprLitInt /= StmtExpr (ExprLitInt 999))
+      assertBool "Unequal" (StmtExpr dummyPos exprLitInt /= StmtExpr dummyPos (ExprLitInt dummyPos 999))
   ]
   where
-    exprLitInt = ExprLitInt 1
-    exprLitBool = ExprLitBool True
-    exprVar = ExprVar "list"
-    block = [StmtStop]
-    block' = Just [StmtNext]
+    exprLitInt = ExprLitInt dummyPos 1
+    exprLitBool = ExprLitBool dummyPos True
+    exprVar = ExprVar dummyPos "list"
+    block = [StmtStop dummyPos]
+    block' = Just [StmtNext dummyPos]
 
 expressionTests :: TestTree
 expressionTests = testGroup "Expression Tests"
   [
     testCase "Show ExprBinary" $ 
-      assertBool "Show" (not (null (show (ExprBinary Add exprLitInt exprLitInt))))
+      assertBool "Show" (not (null (show (ExprBinary dummyPos Add exprLitInt exprLitInt))))
   , testCase "Show ExprUnary" $ 
-      assertBool "Show" (not (null (show (ExprUnary Negate exprLitInt))))
+      assertBool "Show" (not (null (show (ExprUnary dummyPos Negate exprLitInt))))
   , testCase "Show ExprCall" $ 
-      assertBool "Show" (not (null (show (ExprCall "foo" [exprLitInt]))))
+      assertBool "Show" (not (null (show (ExprCall dummyPos "foo" [exprLitInt]))))
   , testCase "Show ExprStructInit" $ 
-      assertBool "Show" (not (null (show (ExprStructInit "Vec2f" [("x", exprLitInt)]))))
+      assertBool "Show" (not (null (show (ExprStructInit dummyPos "Vec2f" [("x", exprLitInt)]))))
   , testCase "Show ExprAccess" $ 
-      assertBool "Show" (not (null (show (ExprAccess exprVar "field"))))
+      assertBool "Show" (not (null (show (ExprAccess dummyPos exprVar "field"))))
   , testCase "Show ExprLitInt" $ 
       assertBool "Show" (not (null (show exprLitInt)))
   , testCase "Show ExprLitFloat" $ 
-      assertBool "Show" (not (null (show (ExprLitFloat 3.14))))
+      assertBool "Show" (not (null (show (ExprLitFloat dummyPos 3.14))))
   , testCase "Show ExprLitString" $ 
-      assertBool "Show" (not (null (show (ExprLitString "hi"))))
+      assertBool "Show" (not (null (show (ExprLitString dummyPos "hi"))))
   , testCase "Show ExprLitChar" $ 
-      assertBool "Show" (not (null (show (ExprLitChar 'a'))))
+      assertBool "Show" (not (null (show (ExprLitChar dummyPos 'a'))))
   , testCase "Show ExprLitBool" $ 
-      assertBool "Show" (not (null (show (ExprLitBool False))))
+      assertBool "Show" (not (null (show (ExprLitBool dummyPos False))))
   , testCase "Show ExprLitNull" $ 
-      assertBool "Show" (not (null (show ExprLitNull)))
+      assertBool "Show" (not (null (show (ExprLitNull dummyPos))))
   , testCase "Show ExprVar" $ 
       assertBool "Show" (not (null (show exprVar)))
   , testCase "Eq ExprBinary" $ 
-      assertBool "Unequal op" (ExprBinary Add exprLitInt exprLitInt /= ExprBinary Sub exprLitInt exprLitInt)
+      assertBool "Unequal op" (ExprBinary dummyPos Add exprLitInt exprLitInt /= ExprBinary dummyPos Sub exprLitInt exprLitInt)
   , testCase "Eq ExprUnary" $ 
-      assertBool "Unequal op" (ExprUnary Negate exprLitInt /= ExprUnary PropagateError exprLitInt)
+      assertBool "Unequal op" (ExprUnary dummyPos Negate exprLitInt /= ExprUnary dummyPos PropagateError exprLitInt)
   , testCase "Eq ExprCall" $ 
-      assertBool "Unequal name" (ExprCall "foo" [] /= ExprCall "bar" [])
+      assertBool "Unequal name" (ExprCall dummyPos "foo" [] /= ExprCall dummyPos "bar" [])
   , testCase "Eq ExprStructInit" $ 
-      assertBool "Unequal fields" (ExprStructInit "V" [("x", exprLitInt)] /= ExprStructInit "V" [("y", exprLitInt)])
+      assertBool "Unequal fields" (ExprStructInit dummyPos "V" [("x", exprLitInt)] /= ExprStructInit dummyPos "V" [("y", exprLitInt)])
   , testCase "Eq ExprAccess" $ 
-      assertBool "Unequal target" (ExprAccess exprVar "f" /= ExprAccess (ExprLitInt 0) "f")
+      assertBool "Unequal target" (ExprAccess dummyPos exprVar "f" /= ExprAccess dummyPos (ExprLitInt dummyPos 0) "f")
   , testCase "Eq ExprVar" $ 
-      assertBool "Unequal var" (ExprVar "a" /= ExprVar "b")
+      assertBool "Unequal var" (ExprVar dummyPos "a" /= ExprVar dummyPos "b")
   , testCase "Eq ExprLitInt" $ 
-      assertBool "Unequal val" (ExprLitInt 1 /= ExprLitInt 2)
+      assertBool "Unequal val" (ExprLitInt dummyPos 1 /= ExprLitInt dummyPos 2)
   , testCase "Eq ExprLitFloat" $ 
-      assertBool "Unequal val" (ExprLitFloat 1.0 /= ExprLitFloat 2.0)
+      assertBool "Unequal val" (ExprLitFloat dummyPos 1.0 /= ExprLitFloat dummyPos 2.0)
   , testCase "Eq ExprLitString" $ 
-      assertBool "Unequal val" (ExprLitString "a" /= ExprLitString "b")
+      assertBool "Unequal val" (ExprLitString dummyPos "a" /= ExprLitString dummyPos "b")
   , testCase "Eq ExprLitChar" $ 
-      assertBool "Unequal val" (ExprLitChar 'a' /= ExprLitChar 'b')
+      assertBool "Unequal val" (ExprLitChar dummyPos 'a' /= ExprLitChar dummyPos 'b')
   , testCase "Eq ExprLitBool" $ 
-      assertBool "Unequal val" (ExprLitBool True /= ExprLitBool False)
+      assertBool "Unequal val" (ExprLitBool dummyPos True /= ExprLitBool dummyPos False)
   , testCase "Eq ExprLitNull" $ 
-      assertBool "Equal" (ExprLitNull == ExprLitNull)
+      assertBool "Equal" (ExprLitNull dummyPos == ExprLitNull dummyPos)
   , testCase "Eq Different Constructors" $ 
-      assertBool "ExprLitInt /= ExprLitFloat" (exprLitInt /= ExprLitFloat 1.0)
+      assertBool "ExprLitInt /= ExprLitFloat" (exprLitInt /= ExprLitFloat dummyPos 1.0)
   ]
   where
-    exprLitInt = ExprLitInt 1
-    exprVar = ExprVar "v"
+    exprLitInt = ExprLitInt dummyPos 1
+    exprVar = ExprVar dummyPos "v"
 
 fieldAccessorTests :: TestTree
 fieldAccessorTests = testGroup "Field Accessor Tests"
@@ -396,97 +397,97 @@ fieldAccessorTests = testGroup "Field Accessor Tests"
         _ -> assertFailure "Expected DefOverride"
   
   , testCase "Statement accessors" $ do
-      let vd = StmtVarDecl {varName = "x", varType = Just TypeI32, varValue = ExprLitInt 0}
+      let vd = StmtVarDecl {stmtPos = dummyPos, varName = "x", varType = Just TypeI32, varValue = ExprLitInt dummyPos 0}
       case vd of
         StmtVarDecl {varName = name, varType = vtype, varValue = value} -> do
           assertEqual "varName" "x" name
           assertEqual "varType" (Just TypeI32) vtype
-          assertEqual "varValue" (ExprLitInt 0) value
+          assertEqual "varValue" (ExprLitInt dummyPos 0) value
         _ -> assertFailure "Expected StmtVarDecl"
 
-      let assign = StmtAssignment {assignLValue = ExprVar "x", assignRValue = ExprLitInt 1}
+      let assign = StmtAssignment {stmtPos = dummyPos, assignLValue = ExprVar dummyPos "x", assignRValue = ExprLitInt dummyPos 1}
       case assign of
         StmtAssignment {assignLValue = lval, assignRValue = rval} -> do
-          assertEqual "assignLValue" (ExprVar "x") lval
-          assertEqual "assignRValue" (ExprLitInt 1) rval
+          assertEqual "assignLValue" (ExprVar dummyPos "x") lval
+          assertEqual "assignRValue" (ExprLitInt dummyPos 1) rval
         _ -> assertFailure "Expected StmtAssignment"
 
-      let ret = StmtReturn (Just (ExprLitInt 42))
+      let ret = StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))
       case ret of
-        StmtReturn x -> assertEqual "StmtReturn value" (Just (ExprLitInt 42)) x
+        StmtReturn _ x -> assertEqual "StmtReturn value" (Just (ExprLitInt dummyPos 42)) x
         _ -> assertFailure "Expected StmtReturn"
 
-      let ifStmt = StmtIf {ifCond = ExprLitBool True, ifThen = [StmtStop], ifElse = Just [StmtNext]}
+      let ifStmt = StmtIf {stmtPos = dummyPos, ifCond = ExprLitBool dummyPos True, ifThen = [StmtStop dummyPos], ifElse = Just [StmtNext dummyPos]}
       case ifStmt of
         StmtIf {ifCond = cond, ifThen = thenBlock, ifElse = elseBlock} -> do
-          assertEqual "ifCond" (ExprLitBool True) cond
-          assertEqual "ifThen" [StmtStop] thenBlock
-          assertEqual "ifElse" (Just [StmtNext]) elseBlock
+          assertEqual "ifCond" (ExprLitBool dummyPos True) cond
+          assertEqual "ifThen" [StmtStop dummyPos] thenBlock
+          assertEqual "ifElse" (Just [StmtNext dummyPos]) elseBlock
         _ -> assertFailure "Expected StmtIf"
 
-      let forStmt = StmtFor {forVar = "i", forVarType = Just TypeI32, forStart = Just (ExprLitInt 0), forEnd = ExprLitInt 10, forBody = []}
+      let forStmt = StmtFor {stmtPos = dummyPos, forVar = "i", forVarType = Just TypeI32, forStart = Just (ExprLitInt dummyPos 0), forEnd = ExprLitInt dummyPos 10, forBody = []}
       case forStmt of
         StmtFor {forVar = var, forVarType = vtype, forStart = start, forEnd = end, forBody = body} -> do
           assertEqual "forVar" "i" var
           assertEqual "forVarType" (Just TypeI32) vtype
-          assertEqual "forStart" (Just (ExprLitInt 0)) start
-          assertEqual "forEnd" (ExprLitInt 10) end
+          assertEqual "forStart" (Just (ExprLitInt dummyPos 0)) start
+          assertEqual "forEnd" (ExprLitInt dummyPos 10) end
           assertEqual "forBody" [] body
         _ -> assertFailure "Expected StmtFor"
 
-      let forEach = StmtForEach {forEachVar = "i", forEachVarType = Just TypeI32, forEachIterable = ExprVar "list", forEachBody = []}
+      let forEach = StmtForEach {stmtPos = dummyPos, forEachVar = "i", forEachVarType = Just TypeI32, forEachIterable = ExprVar dummyPos "list", forEachBody = []}
       case forEach of
         StmtForEach {forEachVar = var, forEachVarType = vtype, forEachIterable = iter, forEachBody = body} -> do
           assertEqual "forEachVar" "i" var
           assertEqual "forEachVarType" (Just TypeI32) vtype
-          assertEqual "forEachIterable" (ExprVar "list") iter
+          assertEqual "forEachIterable" (ExprVar dummyPos "list") iter
           assertEqual "forEachBody" [] body
         _ -> assertFailure "Expected StmtForEach"
 
-      let loopStmt = StmtLoop [StmtStop]
+      let loopStmt = StmtLoop dummyPos [StmtStop dummyPos]
       case loopStmt of
-        StmtLoop body -> assertEqual "StmtLoop body" [StmtStop] body
+        StmtLoop _ body -> assertEqual "StmtLoop body" [StmtStop dummyPos] body
         _ -> assertFailure "Expected StmtLoop"
 
-      let exprStmt = StmtExpr (ExprLitInt 1)
+      let exprStmt = StmtExpr dummyPos (ExprLitInt dummyPos 1)
       case exprStmt of
-        StmtExpr expr -> assertEqual "StmtExpr value" (ExprLitInt 1) expr
+        StmtExpr _ expr -> assertEqual "StmtExpr value" (ExprLitInt dummyPos 1) expr
         _ -> assertFailure "Expected StmtExpr"
 
   , testCase "Expression accessors" $ do
-      let bin = ExprBinary Add (ExprLitInt 1) (ExprLitInt 2)
+      let bin = ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2)
       case bin of
-        ExprBinary op left right -> do
+        ExprBinary _ op left right -> do
           assertEqual "ExprBinary (op)" Add op
-          assertEqual "ExprBinary (left)" (ExprLitInt 1) left
-          assertEqual "ExprBinary (right)" (ExprLitInt 2) right
+          assertEqual "ExprBinary (left)" (ExprLitInt dummyPos 1) left
+          assertEqual "ExprBinary (right)" (ExprLitInt dummyPos 2) right
         _ -> assertFailure "Expected ExprBinary"
 
-      let un = ExprUnary Negate (ExprLitInt 1)
+      let un = ExprUnary dummyPos Negate (ExprLitInt dummyPos 1)
       case un of
-        ExprUnary op value -> do
+        ExprUnary _ op value -> do
           assertEqual "ExprUnary (op)" Negate op
-          assertEqual "ExprUnary (value)" (ExprLitInt 1) value
+          assertEqual "ExprUnary (value)" (ExprLitInt dummyPos 1) value
         _ -> assertFailure "Expected ExprUnary"
 
-      let call = ExprCall {callName = "f", callArgs = [ExprLitInt 1]}
+      let call = ExprCall {exprPos = dummyPos, callName = "f", callArgs = [ExprLitInt dummyPos 1]}
       case call of
         ExprCall {callName = name, callArgs = args} -> do
           assertEqual "callName" "f" name
-          assertEqual "callArgs" [ExprLitInt 1] args
+          assertEqual "callArgs" [ExprLitInt dummyPos 1] args
         _ -> assertFailure "Expected ExprCall"
 
-      let initExpr = ExprStructInit {initStructName = "S", initFields = [("x", ExprLitInt 1)]}
+      let initExpr = ExprStructInit {exprPos = dummyPos, initStructName = "S", initFields = [("x", ExprLitInt dummyPos 1)]}
       case initExpr of
         ExprStructInit {initStructName = name, initFields = fields} -> do
           assertEqual "initStructName" "S" name
-          assertEqual "initFields" [("x", ExprLitInt 1)] fields
+          assertEqual "initFields" [("x", ExprLitInt dummyPos 1)] fields
         _ -> assertFailure "Expected ExprStructInit"
 
-      let acc = ExprAccess {accessTarget = ExprVar "x", accessField = "y"}
+      let acc = ExprAccess {exprPos = dummyPos, accessTarget = ExprVar dummyPos "x", accessField = "y"}
       case acc of
         ExprAccess {accessTarget = target, accessField = field} -> do
-          assertEqual "accessTarget" (ExprVar "x") target
+          assertEqual "accessTarget" (ExprVar dummyPos "x") target
           assertEqual "accessField" "y" field
         _ -> assertFailure "Expected ExprAccess"
   ]
