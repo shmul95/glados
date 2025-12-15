@@ -29,12 +29,12 @@ cliTests =
 usageString :: String
 usageString =
   unlines
-    [ "Usage: glados <command> [file] [options]",
+    [ "Usage: rune <command> [file] [options]",
       "",
       "Commands:",
       "  help           Show this help message",
       "  build [file]   Compile the given source file",
-      "  run   [file]   Interpret the given source file",
+      "  run   [file]   Show the IR of the given source file",
       "",
       "Options:",
       "  -o, --output <file>   Specify the output file for compilation",
@@ -148,7 +148,7 @@ parseRunSuccessTests =
     "Run Command Success Parsing"
     [ shouldParseTo ["run", "file.ru"] (Interpret "file.ru"),
       shouldParseTo ["--run", "another.ru"] (Interpret "another.ru"),
-      shouldParseTo ["-r", "test.glados"] (Interpret "test.glados")
+      shouldParseTo ["-r", "test.rune"] (Interpret "test.rune")
     ]
 
 parseRunFailureTests :: TestTree
@@ -196,9 +196,9 @@ parseOtherTests :: TestTree
 parseOtherTests =
   testGroup
     "General Parsing Cases"
-    [ shouldFailWith [] "No command provided. Use 'glados help'.",
-      shouldFailWith ["invalid"] "Invalid command: invalid. Use 'glados help'.",
-      shouldFailWith ["unknown", "arg"] "Invalid command: unknown. Use 'glados help'."
+    [ shouldFailWith [] "No command provided. Use 'rune help'.",
+      shouldFailWith ["invalid"] "Invalid command: invalid. Use 'rune help'.",
+      shouldFailWith ["unknown", "arg"] "Invalid command: unknown. Use 'rune help'."
     ]
 
 cliParseTests :: TestTree
