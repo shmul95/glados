@@ -78,6 +78,7 @@ showBinaryOpTests = testGroup "showBinaryOp Tests"
 showUnaryOpTests :: TestTree
 showUnaryOpTests = testGroup "showUnaryOp Tests"
   [ testCase "Negate" $ assertEqual "-" "-" (showUnaryOp Negate)
+  , testCase "Not" $ assertEqual "!" "!" (showUnaryOp Not)
   , testCase "PropagateError" $ assertEqual "?" "?" (showUnaryOp PropagateError)
   , testCase "PrefixInc" $ assertEqual "++(prefix)" "++(prefix)" (showUnaryOp PrefixInc)
   , testCase "PrefixDec" $ assertEqual "--(prefix)" "--(prefix)" (showUnaryOp PrefixDec)

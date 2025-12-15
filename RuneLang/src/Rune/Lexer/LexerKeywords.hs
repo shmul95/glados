@@ -29,7 +29,8 @@ keywordMap =
     (KwNext, "next"),
     (KwStop, "stop"),
     (OpAnd, "and"),
-    (OpOr, "or")
+    (OpOr, "or"),
+    (OpNot, "not")
   ]
 
 keywordParsers :: [Parser (Int -> Int -> Token)]

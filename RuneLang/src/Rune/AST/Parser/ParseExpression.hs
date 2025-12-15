@@ -64,6 +64,7 @@ parseUnary :: Parser Expression
 parseUnary =
   choice
     [ ExprUnary Negate <$ expect T.OpMinus <*> parseUnary,
+      ExprUnary Not <$ expect T.OpNot <*> parseUnary,
       ExprUnary PrefixInc <$ expect T.OpInc <*> parseUnary,
       ExprUnary PrefixDec <$ expect T.OpDec <*> parseUnary,
       parsePostfix
