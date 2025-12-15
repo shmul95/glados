@@ -95,6 +95,10 @@ parseUnary =
         pos <- getCurrentPos
         _ <- expect T.OpDec
         ExprUnary pos PrefixDec <$> parseUnary,
+      do
+        pos <- getCurrentPos
+        _ <- expect T.OpNot
+        ExprUnary pos Not <$> parseUnary,
       parsePostfix
     ]
 

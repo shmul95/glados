@@ -50,7 +50,7 @@ tokenKindDerivingTests =
     , testTokenKindGroup "Identifiers"
         [ Identifier "a", Identifier "b" ]
     , testTokenKindGroup "Operators"
-        [ OpPlus, OpMinus, OpMul, OpDiv, OpMod, OpAssign, OpAddAssign, OpSubAssign, OpMulAssign, OpDivAssign, OpModAssign, OpInc, OpDec, OpEq, OpNeq, OpLt, OpLte, OpGt, OpGte, OpAnd, OpOr, OpErrorProp, OpArrow, OpSquigArrow ]
+        [ OpPlus, OpMinus, OpMul, OpDiv, OpMod, OpAssign, OpAddAssign, OpSubAssign, OpMulAssign, OpDivAssign, OpModAssign, OpInc, OpDec, OpEq, OpNeq, OpLt, OpLte, OpGt, OpGte, OpAnd, OpOr, OpNot, OpErrorProp, OpArrow, OpSquigArrow ]
     , testTokenKindGroup "Delimiters & EOF"
         [ LParen, RParen, LBrace, RBrace, Comma, Semicolon, Colon, Dot, EOF ]
     ]

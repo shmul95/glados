@@ -33,6 +33,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-stack-
 
+      - name: Install nasm
+        run: |
+          sudo apt install -y nasm
+
       - name: Run tests
         run: |
           set -o pipefail

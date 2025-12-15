@@ -7,6 +7,7 @@ import Core.CLISpecs (cliTests)
 import Core.LibSpecs (libTests)
 import Core.PipelinesSpecs (pipelinesTests)
 import Core.LoggerSpecs (loggerTests)
+import Core.SanityChecksSpec (sanityChecksTests)
 
 import Lexer.LexerSpecs (lexerTests)
 import Lexer.LexerIdentifiersSpecs (lexerIdentifiersTests)
@@ -84,6 +85,7 @@ coreSpecs =
     , pipelinesTests
     , cliTests
     , loggerTests
+    , sanityChecksTests
     ]
 
 lexerSpecs :: TestTree

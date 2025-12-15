@@ -84,6 +84,7 @@ data BinaryOp
 
 data UnaryOp
   = Negate -- -x
+  | Not -- !x
   | PropagateError -- x?
   | PrefixInc -- ++x
   | PrefixDec -- --x

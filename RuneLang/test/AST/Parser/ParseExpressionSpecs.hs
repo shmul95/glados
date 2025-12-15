@@ -90,6 +90,8 @@ unaryOpTests :: TestTree
 unaryOpTests = testGroup "Unary Op Tests"
   [ testCase "Negate" $
       assertParse "-1" [tok T.OpMinus, tok (T.LitInt 1)] (ExprUnary (SourcePos "test" 1 1) Negate (ExprLitInt (SourcePos "test" 1 1) 1))
+  , testCase "Not" $
+      assertParse "!x" [tok T.OpNot, tok (T.Identifier "x")] (ExprUnary (SourcePos "test" 1 1) Not (ExprVar (SourcePos "test" 1 1) "x"))
   , testCase "PrefixInc" $
       assertParse "++x" [tok T.OpInc, tok (T.Identifier "x")] (ExprUnary (SourcePos "test" 1 1) PrefixInc (ExprVar (SourcePos "test" 1 1) "x"))
   ]

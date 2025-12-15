@@ -13,6 +13,7 @@ EXAMPLE_FILES = [
     "RuneLang/examples/return_0.ru",
     "RuneLang/examples/strings.ru",
     "RuneLang/examples/maths.ru",
+    "RuneLang/examples/operators.ru",
 ]
 
 EXPECTED_STDIN = {
@@ -23,6 +24,7 @@ EXPECTED_STDIN = {
     "RuneLang/examples/return_0.ru": None,
     "RuneLang/examples/strings.ru": None,
     "RuneLang/examples/maths.ru": None,
+    "RuneLang/examples/operators.ru": None,
 }
 
 EXPECTED_STDOUT = {
@@ -33,6 +35,7 @@ EXPECTED_STDOUT = {
     "RuneLang/examples/return_0.ru": "",
     "RuneLang/examples/strings.ru": "Hello, Rune!\n",
     "RuneLang/examples/maths.ru": "[+] PASSED\n" * 51,
+    "RuneLang/examples/operators.ru": "[+] PASSED\n" * 6,
 }
 
 EXPECTED_RETURN = {
@@ -43,6 +46,7 @@ EXPECTED_RETURN = {
     "RuneLang/examples/return_0.ru": 0,
     "RuneLang/examples/strings.ru": 0,
     "RuneLang/examples/maths.ru": 0,
+    "RuneLang/examples/operators.ru": 0,
 }
 
 GREEN = "\033[32m"
@@ -57,12 +61,8 @@ ERROR = 84
 
 def compile(filename: str, output_bin: str = OUT_BIN) -> None:
     file = Path(filename)
-    asm = file.with_suffix(".asm")
-    obj = file.with_suffix(".o")
 
-    subprocess.run(["./rune", "build", str(file), "-o", str(asm)], check=True)
-    subprocess.run(["nasm", "-f", "elf64", str(asm), "-o", str(obj)], check=True)
-    subprocess.run(["gcc", "-no-pie", str(obj), "-o", output_bin], check=True)
+    subprocess.run(["./rune", "build", str(file), "-o", str(output_bin)], check=True)
 
 
 def run_bin(stdin_data: bytes):
