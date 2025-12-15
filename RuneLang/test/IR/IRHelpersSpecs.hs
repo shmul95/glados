@@ -14,7 +14,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 import Control.Exception (evaluate, try, SomeException(..))
 import Rune.IR.IRHelpers
-import Rune.IR.Nodes (GenState(..), IRType(..), IROperand(..), IRInstruction(..), IRLabel(..), IRTopLevel(..))
+import Rune.IR.Nodes (GenState(..), IRType(..), IROperand(..), IRInstruction(..), IRLabel(..), IRTopLevel(..), IRGlobalValue(..))
 import Rune.AST.Nodes (Type(..))
 import Data.List (isInfixOf)
 
@@ -31,6 +31,7 @@ irHelpersTests =
     , testSymbolTableHelpers
     , testNamingHelpers
     , testStringGlobalHelpers
+    , testFloatGlobalHelpers
     , testControlFlowHelpers
     , testOperandHelpers
     , testSelectReturnType
@@ -51,6 +52,7 @@ emptyState = GenState
   { gsTempCounter = 0
   , gsLabelCounter = 0
   , gsStringCounter = 0
+  , gsFloatCounter = 0
   , gsGlobals = []
   , gsCurrentFunc = Nothing
   , gsSymTable = Map.empty
@@ -58,6 +60,7 @@ emptyState = GenState
   , gsLoopStack = []
   , gsCalledFuncs = Set.empty
   , gsStringMap = Map.empty
+  , gsFloatMap = Map.empty
   , gsFuncStack = HM.empty
   }
 
@@ -210,10 +213,10 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
         Map.lookup "hello" (gsStringMap state) @?= Just "str_main0"
         length (gsGlobals state) @?= 1
         case gsGlobals state of
-          (IRGlobalString n v : _) -> do
+          (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
             n @?= "str_main0"
             v @?= "hello"
-          _ -> assertFailure "Expected IRGlobalString"
+          _ -> assertFailure "Expected IRGlobalDef with string value"
 
   , testCase "newStringGlobal returns existing name if exists" $
       let state0 = emptyState { gsStringMap = Map.singleton "hello" "str_existing" }
@@ -233,6 +236,46 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
               name @?= "str_main0"
               typ @?= IRPtr IRChar
             _ -> assertFailure "Expected IRGlobal operand"
+
+  , testCase "newStringGlobal uses 'global' prefix when outside a function" $
+      let (name, state) = runState (newStringGlobal "top") emptyState
+      in do
+        name @?= "str_global0"
+        Map.lookup "top" (gsStringMap state) @?= Just "str_global0"
+        case gsGlobals state of
+          (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
+            n @?= "str_global0"
+            v @?= "top"
+          _ -> assertFailure "Expected IRGlobalDef with string value for top-level string"
+  ]
+
+testFloatGlobalHelpers :: TestTree
+testFloatGlobalHelpers = testGroup "Float Global Helpers"
+  [ testCase "newFloatGlobal creates new global when not interned" $
+      let (name, state) = runState (newFloatGlobal 3.14 IRF32) emptyState
+      in do
+        name @?= "f32_global0"
+        gsFloatCounter state @?= 1
+        Map.lookup (3.14, IRF32) (gsFloatMap state) @?= Just "f32_global0"
+        case gsGlobals state of
+          (IRGlobalDef n (IRGlobalFloatVal v t) : _) -> do
+            n @?= "f32_global0"
+            v @?= 3.14
+            t @?= IRF32
+          _ -> assertFailure "Expected IRGlobalDef with float value"
+
+  , testCase "newFloatGlobal reuses existing label when value interned" $
+      let initial =
+            emptyState
+              { gsFloatCounter = 1
+              , gsFloatMap = Map.singleton (2.71, IRF32) "f32_global0"
+              , gsGlobals = [IRGlobalDef "f32_global0" (IRGlobalFloatVal 2.71 IRF32)]
+              }
+          (name, state) = runState (newFloatGlobal 2.71 IRF32) initial
+      in do
+        name @?= "f32_global0"
+        gsFloatCounter state @?= 1
+        gsGlobals state @?= gsGlobals initial
   ]
 
 testControlFlowHelpers :: TestTree

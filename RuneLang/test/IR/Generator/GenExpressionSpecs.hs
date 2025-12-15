@@ -42,7 +42,7 @@ testGenExpression = testGroup "genExpression"
       let (instrs, op, typ) = runGen (genExpression (ExprLitFloat 3.14))
       in do
         instrs @?= []
-        op @?= IRConstFloat 3.14
+        op @?= IRGlobal "f32_global0" IRF32
         typ @?= IRF32
 
   , testCase "Generates char literal" $

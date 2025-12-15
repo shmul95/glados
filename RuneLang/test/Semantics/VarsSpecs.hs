@@ -5,6 +5,8 @@ import Rune.Semantics.Vars (verifVars)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertFailure)
 import Data.List (isInfixOf)
+import qualified Data.HashMap.Strict as HM
+import Control.Monad (unless)
 
 --
 -- public
@@ -51,7 +53,11 @@ varsSemanticsTests =
       expectOk "validates correct function call arguments" correctArgsProgram,
       expectWrongType "detects multiple wrong types in same call" multipleWrongTypesProgram,
       expectOk "handles empty parameter list" emptyParamsProgram,
-      expectWrongType "validates nested function call arguments" nestedFunctionCallProgram
+      expectWrongType "validates nested function call arguments" nestedFunctionCallProgram,
+      expectFuncStackContent "mangleFuncStack does not mangle single functions" noOverloadProgram ["foo"],
+      expectFuncStackContent "mangleFuncStack mangles overloaded functions" overloadProgram ["null_bar_i32", "null_bar_f32"],
+      expectOk "verifScope handles StmtReturn Nothing" returnNothingProgram,
+      expectOk "verifScope handles empty block" emptyBlockProgram
     ]
 
 --
@@ -105,6 +111,14 @@ expectWrongNbArgsMore label program =
   testCase label $ case verifVars program of
     Left msg | ("WrongNbArgs:" `isInfixOf` msg) && ("too many" `isInfixOf` msg) -> return ()
     result -> assertFailure $ "Expected WrongNbArgs (too many) error, got: " ++ show result
+
+expectFuncStackContent :: String -> Program -> [String] -> TestTree
+expectFuncStackContent label program expectedNames = testCase label $
+  case verifVars program of
+    Right (_, fs) -> do
+      let actualNames = HM.keys fs
+      mapM_ (\name -> unless (name `elem` actualNames) $ assertFailure $ "Expected function " ++ name ++ " not found in FuncStack keys: " ++ show actualNames) expectedNames
+    Left err -> assertFailure $ "Expected success, but got error: " ++ err
 
 undefinedMsg :: String -> String
 undefinedMsg name = "\n\tUndefinedVar: " ++ name ++ " doesn't exist in the scope"
@@ -186,12 +200,19 @@ overrideLeakProgram =
 overrideValidProgram :: Program
 overrideValidProgram =
   Program
-    "function-valid"
+    "override-valid"
     [ DefFunction
-        "print"
+        "myPrint"
+        [Parameter "value" TypeF32]
+        TypeNull
+        [StmtReturn Nothing],
+      DefOverride
+        "myPrint"
         [Parameter "value" TypeI32]
-        TypeI32
-        [StmtReturn (Just (ExprVar "value"))]
+        TypeNull
+        [ StmtVarDecl "y" (Just TypeI32) (ExprVar "value")
+        , StmtReturn Nothing
+        ]
     ]
 
 forLeakProgram :: Program
@@ -581,4 +602,53 @@ nestedFunctionCallProgram =
         []
         TypeNull
         [StmtExpr (ExprCall "outer" [ExprLitString "wrong"])]
+    ]
+
+noOverloadProgram :: Program
+noOverloadProgram =
+  Program
+    "no-overload"
+    [ DefFunction
+        "foo"
+        [Parameter "x" TypeI32]
+        TypeNull
+        [StmtReturn Nothing]
+    ]
+
+overloadProgram :: Program
+overloadProgram =
+  Program
+    "overload"
+    [ DefFunction
+        "bar"
+        [Parameter "x" TypeI32]
+        TypeNull
+        [StmtReturn Nothing],
+      DefOverride
+        "bar"
+        [Parameter "y" TypeF32]
+        TypeNull
+        [StmtReturn Nothing]
+    ]
+
+returnNothingProgram :: Program
+returnNothingProgram =
+  Program
+    "return-nothing"
+    [ DefFunction
+        "foo"
+        []
+        TypeNull
+        [StmtReturn Nothing]
+    ]
+
+emptyBlockProgram :: Program
+emptyBlockProgram =
+  Program
+    "empty-block"
+    [ DefFunction
+        "foo"
+        []
+        TypeNull
+        []
     ]

@@ -12,6 +12,7 @@ EXAMPLE_FILES = [
     "RuneLang/examples/loops.ru",
     "RuneLang/examples/return_0.ru",
     "RuneLang/examples/strings.ru",
+    "RuneLang/examples/maths.ru",
 ]
 
 EXPECTED_STDIN = {
@@ -21,6 +22,7 @@ EXPECTED_STDIN = {
     "RuneLang/examples/loops.ru": None,
     "RuneLang/examples/return_0.ru": None,
     "RuneLang/examples/strings.ru": None,
+    "RuneLang/examples/maths.ru": None,
 }
 
 EXPECTED_STDOUT = {
@@ -30,6 +32,7 @@ EXPECTED_STDOUT = {
     "RuneLang/examples/loops.ru": "The final value is: 12\n",
     "RuneLang/examples/return_0.ru": "",
     "RuneLang/examples/strings.ru": "Hello, Rune!\n",
+    "RuneLang/examples/maths.ru": "[+] PASSED\n" * 51,
 }
 
 EXPECTED_RETURN = {
@@ -39,6 +42,7 @@ EXPECTED_RETURN = {
     "RuneLang/examples/loops.ru": 0,
     "RuneLang/examples/return_0.ru": 0,
     "RuneLang/examples/strings.ru": 0,
+    "RuneLang/examples/maths.ru": 0,
 }
 
 GREEN = "\033[32m"
@@ -51,7 +55,7 @@ CROSS = "✗"
 ERROR = 84
 
 
-def compile(filename: str, output_bin: str = OUT_BIN) -> str:
+def compile(filename: str, output_bin: str = OUT_BIN) -> None:
     file = Path(filename)
     asm = file.with_suffix(".asm")
     obj = file.with_suffix(".o")
@@ -59,8 +63,6 @@ def compile(filename: str, output_bin: str = OUT_BIN) -> str:
     subprocess.run(["./rune", "build", str(file), "-o", str(asm)], check=True)
     subprocess.run(["nasm", "-f", "elf64", str(asm), "-o", str(obj)], check=True)
     subprocess.run(["gcc", "-no-pie", str(obj), "-o", output_bin], check=True)
-
-    return output_bin
 
 
 def run_bin(stdin_data: bytes):
@@ -97,7 +99,14 @@ def main():
     failed = 0
 
     for example in EXAMPLE_FILES:
-        compile(example)
+
+        try:
+            compile(example)
+        except subprocess.CalledProcessError:
+            print(f" {RED}{CROSS}{RESET} Failed to compile {example}")
+            failed += 1
+            continue
+
         ok, out, code, exp_out, exp_code = run_test(example)
 
         name = example.rpartition("/")[-1]

@@ -1,6 +1,18 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TupleSections #-}
 
+#if defined(TESTING_EXPORT)
+module Rune.Semantics.Vars (
+  verifVars,
+  mangleFuncStack,
+  verifDefs,
+  verifScope,
+  verifExpr,
+  verifExprWithContext
+) where
+#else
 module Rune.Semantics.Vars (verifVars) where
+#endif
 
 import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
@@ -16,12 +28,16 @@ import Rune.Semantics.Type
   )
 
 import Rune.Semantics.Helper
-  ( checkParamType
+  ( checkParamTypeWithReturnContext
   , mangleName
   , exprType
   , assignVarType
   , checkMultipleType
   )
+
+--
+-- public
+--
 
 verifVars :: Program -> Either String (Program, FuncStack)
 verifVars prog@(Program n defs) = do
@@ -29,6 +45,10 @@ verifVars prog@(Program n defs) = do
   defs'     <- mapM (verifDefs fs) defs
   let fs' = mangleFuncStack fs
   pure $ (Program n defs', fs')
+
+--
+-- private
+--
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
@@ -45,8 +65,12 @@ verifDefs :: FuncStack -> TopLevelDef -> Either String TopLevelDef
 -- r_t : return type
 verifDefs fs (DefFunction name params r_t body) = do
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
+      paramTypes = map paramType params
+      name' = case HM.lookup name fs of
+          Just sigs | length sigs > 1 -> mangleName name r_t paramTypes
+          _ -> name
   body'     <- verifScope (fs, vs) body
-  pure $ DefFunction name params r_t body'
+  pure $ DefFunction name' params r_t body'
 
 verifDefs fs (DefOverride name params r_t body) = do
   let paramTypes = map paramType params
@@ -68,7 +92,7 @@ verifScope s@(fs, vs) (StmtVarDecl v t e : stmts) = do
   e_t     <- exprType s e
   t'      <- checkMultipleType v t e_t
   vs'     <- assignVarType vs v t'
-  e'      <- verifExpr s e
+  e'      <- verifExprWithContext t s e
   stmts'  <- verifScope (fs, vs') stmts
   pure $ StmtVarDecl v (Just t') e' : stmts'
 
@@ -159,36 +183,39 @@ verifScope _ [] = Right []
 
 
 verifExpr :: Stack -> Expression -> Either String Expression
+verifExpr = verifExprWithContext Nothing
 
-verifExpr s (ExprUnary op val) = do
-  val'    <- verifExpr s val
+verifExprWithContext :: Maybe Type -> Stack -> Expression -> Either String Expression
+
+verifExprWithContext hint s (ExprUnary op val) = do
+  val'    <- verifExprWithContext hint s val
   pure $ ExprUnary op val'
 
-verifExpr s (ExprBinary op l r) = do
-  l'      <- verifExpr s l
-  r'      <- verifExpr s r
+verifExprWithContext hint s (ExprBinary op l r) = do
+  l'      <- verifExprWithContext hint s l
+  r'      <- verifExprWithContext hint s r
   pure $ ExprBinary op l' r'
 
-verifExpr s (ExprCall name args) = do
-  name'   <- checkParamType s name args
+verifExprWithContext hint s (ExprCall name args) = do
+  name'   <- checkParamTypeWithReturnContext hint s name args
   args'   <- mapM (verifExpr s) args
   pure $ ExprCall name' args'
   
 -- linked to the struct
-verifExpr s (ExprStructInit name fields) = do
-  fields' <- mapM (\(l, e) -> (l,) <$> verifExpr s e) fields
+verifExprWithContext hint s (ExprStructInit name fields) = do
+  fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint s e) fields
   pure $ ExprStructInit name fields'
   
 -- linked to the struct
-verifExpr s (ExprAccess target field) = do
-  target' <- verifExpr s target
+verifExprWithContext hint s (ExprAccess target field) = do
+  target' <- verifExprWithContext hint s target
   pure $ ExprAccess target' field
   
-verifExpr (_, vs) (ExprVar var) =
+verifExprWithContext _ (_, vs) (ExprVar var) =
   let msg = "\n\tUndefinedVar: %s doesn't exist in the scope"
   in if HM.member var vs
     then pure (ExprVar var)
     else Left $ printf msg var
  
 -- maybe other cases i just don't try for now
-verifExpr _ expr = Right expr
+verifExprWithContext _ _ expr = Right expr

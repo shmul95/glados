@@ -4,11 +4,12 @@
 module IR.Generator.Statement.ControlFlowSpecs (controlFlowTests) where
 
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, assertBool)
+import Test.Tasty.HUnit (testCase, assertBool, (@?=))
+import Control.Monad.State (runState)
 import Rune.IR.Generator.Statement.ControlFlow
-import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..))
-import Rune.AST.Nodes (Expression(..))
-import IR.TestUtils (runGen)
+import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..), IRLabel(..), GenState(..))
+import Rune.AST.Nodes (Expression(..), Statement(..))
+import IR.TestUtils (runGen, emptyState)
 
 --
 -- public
@@ -55,25 +56,38 @@ testGenIfElse = testGroup "genIfElse"
         assertBool "Should have at least 2 labels" $ length (filter isLabel instrs) >= 2
 
   , testCase "Skips jump to end if then block ends with return" $
-      assertBool "Generated instructions" True
+      let genExpr _ = return ([], IRConstBool True, IRBool)
+          genBlock stmts =
+            case stmts of
+              [] -> return []
+              _  -> return [IRRET Nothing]
+          instrs = runGen (genIfElse genExpr genBlock (ExprLitBool True) [StmtReturn (Just (ExprLitInt 1))] [StmtReturn Nothing])
+          hasJumpToEnd = any isJumpToEnd instrs
+      in assertBool "Should not emit jump to end when then-branch ends with IRRET" (not hasJumpToEnd)
   ]
 
 testGenStop :: TestTree
 testGenStop = testGroup "genStop"
   [ testCase "Generates jump to loop end when in loop" $
-      assertBool "May generate jump or empty" True
+      let initialState = emptyState { gsLoopStack = [(IRLabel "Lheader", IRLabel "Lend")] }
+          (instrs, _) = runState genStop initialState
+      in instrs @?= [IRJUMP (IRLabel "Lend")]
 
   , testCase "Returns empty when not in loop" $
-      assertBool "Handles no loop context" True
+      let (instrs, _) = runState genStop emptyState
+      in instrs @?= []
   ]
 
 testGenNext :: TestTree
 testGenNext = testGroup "genNext"
   [ testCase "Generates jump to loop header when in loop" $
-      assertBool "May generate jump or empty" True
+      let initialState = emptyState { gsLoopStack = [(IRLabel "Lheader", IRLabel "Lend")] }
+          (instrs, _) = runState genNext initialState
+      in instrs @?= [IRJUMP (IRLabel "Lheader")]
 
   , testCase "Returns empty when not in loop" $
-      assertBool "Handles no loop context" True
+      let (instrs, _) = runState genNext emptyState
+      in instrs @?= []
   ]
 
 --
@@ -91,3 +105,7 @@ isLabel _ = False
 isRet :: IRInstruction -> Bool
 isRet (IRRET _) = True
 isRet _ = False
+
+isJumpToEnd :: IRInstruction -> Bool
+isJumpToEnd (IRJUMP (IRLabel ".L.end0")) = True
+isJumpToEnd _ = False

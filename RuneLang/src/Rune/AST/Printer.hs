@@ -1,6 +1,40 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE CPP #-}
 
+#if defined(TESTING_EXPORT)
+module Rune.AST.Printer
+  ( prettyPrint,
+    visitProgram,
+    visitTopLevel,
+    visitFunction,
+    visitStruct,
+    visitOverride,
+    visitStatement,
+    visitVarDecl,
+    visitAssignment,
+    visitReturn,
+    visitIf,
+    visitFor,
+    visitForEach,
+    visitLoop,
+    visitStop,
+    visitNext,
+    visitExpression,
+    visitBody,
+    newLine,
+    indent,
+    dedent,
+    emitParam,
+    showType,
+    showBinaryOp,
+    showUnaryOp,
+    PrinterState(..),
+    Printer
+  )
+where
+#else
 module Rune.AST.Printer (prettyPrint) where
+#endif
 
 import Control.Monad (void)
 import Control.Monad.State.Strict (State, execState, get, modify)

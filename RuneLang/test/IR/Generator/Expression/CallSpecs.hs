@@ -1,13 +1,10 @@
-{-# LANGUAGE CPP #-}
-#define TESTING_EXPORT
-
 module IR.Generator.Expression.CallSpecs (callExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Rune.IR.Generator.Expression.Call
-import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
-import Rune.AST.Nodes (Expression(..))
+import Rune.IR.Nodes
+import Rune.AST.Nodes
 import IR.TestUtils (runGen)
 
 --
@@ -18,6 +15,7 @@ callExprTests :: TestTree
 callExprTests = testGroup "Rune.IR.Generator.Expression.Call"
   [ testGenCall
   , testPrepareArg
+  , testGenArgWithContext
   ]
 
 --
@@ -74,6 +72,28 @@ testPrepareArg = testGroup "prepareArg"
       in do
         instrs @?= []
         op @?= IRConstInt 10
+  ]
+
+testGenArgWithContext :: TestTree
+testGenArgWithContext = testGroup "genArgWithContext"
+  [ testCase "Infers type for integer constant" $
+      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+          genExpr _ = return ([], IRConstInt 0, IRI32)
+          (instrs, op, inferredType) = runGen $ genArgWithContext genExpr (ExprLitInt 42) TypeI64
+      in do
+        length instrs @?= 1
+        case op of
+          IRTemp _ t -> t @?= IRI64
+          _ -> assertBool "Expected IRTemp" False
+        inferredType @?= IRI64
+  , testCase "Does not infer type when not needed" $
+      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI64)
+          genExpr _ = return ([], IRConstInt 0, IRI32)
+          (instrs, op, inferredType) = runGen $ genArgWithContext genExpr (ExprLitInt 42) TypeI64
+      in do
+        length instrs @?= 0
+        op @?= IRConstInt 42
+        inferredType @?= IRI64
   ]
 
 --

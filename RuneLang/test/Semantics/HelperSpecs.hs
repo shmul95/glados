@@ -52,7 +52,7 @@ mangleNameTests = testGroup "mangleName Tests"
   , testCase "Mangles with custom and mixed types" $
       mangleName "print" TypeNull [TypeCustom "Vec", TypeI32] @?= "null_print_Vec_i32"
   , testCase "Mangles with TypeAny" $
-      mangleName "method" TypeAny [TypeI32] @?= "any_method_i32"
+      mangleName "method" TypeAny [TypeI32] @?= "method"
   ]
 
 assignVarTypeTests :: TestTree
@@ -193,7 +193,7 @@ checkParamTypeTests = testGroup "checkParamType Tests"
           Left err -> "WrongType: arg0 exp i32 but have f32" `isInfixOf` err @? "Expected WrongType error"
           Right _ -> assertFailure "Expected error"
   , testCase "Overloaded - Match i32" $
-      checkParamType stack1 "overloaded" [ExprVar "x"] @?= Right "overloaded"
+      checkParamType stack1 "overloaded" [ExprVar "x"] @?= Right "i32_overloaded_i32"
   , testCase "Overloaded - Match f32" $
       checkParamType stack1 "overloaded" [ExprVar "f"] @?= Right "f32_overloaded_f32"
   , testCase "Overloaded - Mismatch all" $
