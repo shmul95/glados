@@ -188,6 +188,17 @@ def test_modulo() -> null
     assert(result_u64 == 0,      "u64 modulo failed");
 }
 
+def test_operation_order() -> null
+{
+    result: i32 = 10 + 20 * 3 - 5 / 5;
+    result2: i32 = (10 + (20 * 3)) - (5 / 5);
+    result3: i32 = (10 + 20) * (3 - 5) / 5;
+
+    assert(result == 69, "Operation order failed");
+    assert(result2 == 69, "Operation order with parentheses failed");
+    assert(result3 == -12, "Operation order with different parentheses failed");
+}
+
 def main() -> null
 {
     test_addition();
@@ -195,4 +206,5 @@ def main() -> null
     test_multiplication();
     test_division();
     test_modulo();
+    test_operation_order();
 }
