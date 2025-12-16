@@ -264,6 +264,12 @@ data Expression
       { accessTarget :: Expression,
         accessField :: String
       }
+  | -- | array index
+    -- arr[index]
+    ExprIndex
+      { indexTarget :: Expression,
+        indexValue :: Expression
+      }
   | -- | literals and variables
     -- 42
     ExprLitInt Int
