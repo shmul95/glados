@@ -242,6 +242,9 @@ visitExpression (ExprLitChar c) = emit $ "ExprLitChar " ++ show c
 visitExpression (ExprLitBool b) = emit $ "ExprLitBool " ++ show b
 visitExpression ExprLitNull = emit "ExprLitNull"
 visitExpression (ExprVar v) = emit $ "ExprVar " ++ v
+visitExpression (ExprLitArray elems) = do
+  emit "ExprArrayLiteral"
+  emitBlock "Elements:" (mapM_ (\e -> newLine >> visitExpression e) elems)
 
 --
 -- private helpers
@@ -293,6 +296,7 @@ showType TypeString = "string"
 showType TypeAny = "any"
 showType TypeNull = "null"
 showType (TypeCustom s) = s
+showType (TypeArray t) = "[" <> showType t <> "]"
 
 showBinaryOp :: BinaryOp -> String
 showBinaryOp Add = "+"
