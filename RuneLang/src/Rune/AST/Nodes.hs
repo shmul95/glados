@@ -32,6 +32,7 @@ data Type
   | TypeAny
   | TypeNull
   | TypeCustom String
+  | TypeArray Type
   deriving (Eq, Ord)
 
 instance Show Type where
@@ -50,6 +51,7 @@ instance Show Type where
   show  TypeString    = "str"
   show  TypeAny       = "any"
   show  TypeNull      = "null"
+  show (TypeArray t)  = "[" <> show t <> "]"
   show (TypeCustom s) = s
 
 data BinaryOp
@@ -277,4 +279,7 @@ data Expression
     ExprLitNull
   | -- variable
     ExprVar String
+  | -- array literal
+    -- [1, 2, 3, 4]
+    ExprLitArray [Expression]
   deriving (Show, Eq)
