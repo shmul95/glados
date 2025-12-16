@@ -7,7 +7,7 @@ import Control.Applicative (optional, (<|>))
 import Rune.AST.Nodes (BinaryOp (..), Expression (..), Statement (..))
 import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
-import Rune.AST.ParserHelper (chainPostfix, check, choice, expect, failParse, match, peek, try, withContext)
+import Rune.AST.ParserHelper (between, chainPostfix, check, choice, expect, failParse, match, peek, try, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -65,9 +65,15 @@ parseAccessOrVar = chainPostfix parseBase op
     parseBase =
       (ExprVar <$> parseIdentifier)
         <|> failParse "Expected L-Value (variable or field access)"
-    op = do
-      f <- expect T.Dot *> parseIdentifier
-      pure $ \e -> ExprAccess e f
+    op =
+      choice
+        [ do
+            f <- expect T.Dot *> parseIdentifier
+            pure $ \e -> ExprAccess e f,
+          do
+            index <- between (expect T.LBracket) (expect T.RBracket) (withContext "array index" parseExpression)
+            pure $ \e -> ExprIndex e index
+        ]
 
 parseAssignment :: Parser Statement
 parseAssignment = do
@@ -104,10 +110,10 @@ parseExprStmt :: Parser Statement
 parseExprStmt = do
   expr <- parseExpression
   isSemicolon <- match T.Semicolon
-  if isSemicolon
-    then pure (StmtExpr expr)
-    else do
+  case isSemicolon of
+    True -> pure (StmtExpr expr)
+    False -> do 
       isEnd <- check T.RBrace
-      if isEnd
-        then pure (StmtReturn (Just expr))
-        else failParse "Expected ';' after expression or block-ending '}' for implicit return"
+      case isEnd of
+        True -> pure (StmtReturn (Just expr))
+        False -> failParse "Expected ';' after expression or block-ending '}' for implicit return"
