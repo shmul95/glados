@@ -19,6 +19,7 @@ lexerDelimitersTests =
     , test_delimiters_semicolon
     , test_delimiters_colon
     , test_delimiters_dot
+    , test_delimiters_brackets
     , test_delimiters_all_together
     ]
 
@@ -50,9 +51,13 @@ test_delimiters_dot :: TestTree
 test_delimiters_dot = testCase "Dot ." $
   lexTest "." [tok Dot "." 1 1, tok EOF "" 1 2]
 
+test_delimiters_brackets :: TestTree
+test_delimiters_brackets = testCase "Brackets []" $
+  lexTest "[]" [tok LBracket "[" 1 1, tok RBracket "]" 1 2, tok EOF "" 1 3]
+
 test_delimiters_all_together :: TestTree
 test_delimiters_all_together = testCase "All delimiters separated" $
-  lexTest "( ) { } , ; : ."
+  lexTest "( ) { } , ; : . []"
     [ tok LParen "(" 1 1
     , tok RParen ")" 1 3
     , tok LBrace "{" 1 5
@@ -61,5 +66,7 @@ test_delimiters_all_together = testCase "All delimiters separated" $
     , tok Semicolon ";" 1 11
     , tok Colon ":" 1 13
     , tok Dot "." 1 15
-    , tok EOF "" 1 16
+    , tok LBracket "[" 1 17
+    , tok RBracket "]" 1 18
+    , tok EOF "" 1 19
     ]
