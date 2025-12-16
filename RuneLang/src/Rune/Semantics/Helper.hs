@@ -7,6 +7,7 @@ module Rune.Semantics.Helper
   , checkMultipleType
   , selectSignature
   , checkEachParam
+  , isTypeCompatible
   ) where
 
 import Data.Maybe (fromMaybe)
@@ -103,7 +104,7 @@ exprType :: Stack -> Expression -> Either String Type
 exprType _ (ExprLitInt _)         = Right TypeI32
 exprType _ (ExprLitFloat  _)      = Right TypeF32
 exprType _ (ExprLitString  _)     = Right TypeString
-exprType _ (ExprLitChar _ )       = Right TypeU8
+exprType _ (ExprLitChar _ )       = Right TypeChar
 exprType _ (ExprLitBool  _)       = Right TypeBool
 exprType _ (ExprStructInit st _)  = Right $ TypeCustom st
 exprType _ ExprLitNull            = Right TypeNull
@@ -117,14 +118,20 @@ exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs
 exprType s@(fs, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
-exprType s (ExprIndex target _) = do
-  t <- exprType s target
-  case t of
-    TypeArray inner -> Right inner
-    TypeAny -> Right TypeAny
-    _ -> Left $ "Indexing non-array type: " ++ show t
--- TODO: improve array type handling
-exprType _ (ExprLitArray _) = Right TypeAny
+exprType s (ExprIndex target _) = exprType s target >>= extractArrayType
+  where
+    extractArrayType (TypeArray inner) = Right inner
+    extractArrayType TypeAny = Right TypeAny
+    extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
+exprType _ (ExprLitArray []) = Right $ TypeArray TypeAny
+exprType s (ExprLitArray (e:es)) = do
+  firstType <- exprType s e
+  allTypes <- mapM (exprType s) es
+  checkArray firstType allTypes
+  where
+    checkArray t ts
+      | all (isTypeCompatible t) ts = Right $ TypeArray t
+      | otherwise = Left $ printf "\n\tIncompatibleArrayElements: array elements have incompatible types, first is %s" (show t)
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs
