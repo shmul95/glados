@@ -92,10 +92,8 @@ checkMultipleTypeTests = testGroup "checkMultipleType Tests"
       checkMultipleType "v" "test.ru" 1 1 (Just TypeI32) TypeAny @?= Right TypeI32
   , testCase "Existing concrete, new TypeNull (returns TypeNull)" $
       checkMultipleType "v" "test.ru" 1 1 (Just TypeI32) TypeNull @?= Right TypeNull
-  , testCase "Incompatible concrete types (i32 annot, i64 value) - Error" $
-      case checkMultipleType "v" "test.ru" 1 1 (Just TypeI32) TypeI64 of
-          Left _ -> return ()
-          Right _ -> assertFailure "Expected error"
+  , testCase "Incompatible concrete types (i32 annot, i64 value) - Allowed with implicit conversion" $
+      checkMultipleType "v" "test.ru" 1 1 (Just TypeI32) TypeI64 @?= Right TypeI32
   , testCase "Incompatible concrete types - Error" $
       case checkMultipleType "v" "test.ru" 1 1 (Just TypeI32) TypeF32 of
           Left _ -> return ()
@@ -121,8 +119,8 @@ exprTypeTests = testGroup "exprType Tests"
       exprType stack1 (ExprVar dummyPos "z") @?= TypeAny
   , testCase "ExprBinary (valid arithmetic, promotion)" $
       exprType stack1 (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2)) @?= TypeI32
-  , testCase "ExprBinary (valid comparison, returns i32)" $
-      exprType stack1 (ExprBinary dummyPos Eq (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2)) @?= TypeI32
+  , testCase "ExprBinary (valid comparison, returns bool)" $
+      exprType stack1 (ExprBinary dummyPos Eq (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2)) @?= TypeBool
   , testCase "ExprBinary (invalid, returns i32)" $
       exprType stack1 (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitBool dummyPos True)) @?= TypeI32
   , testCase "ExprUnary Type (assumes type does not change)" $
