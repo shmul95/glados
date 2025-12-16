@@ -23,7 +23,9 @@ delimiterMap =
     (Comma, ","),
     (Semicolon, ";"),
     (Colon, ":"),
-    (Dot, ".")
+    (Dot, "."),
+    (LBracket, "["),
+    (RBracket, "]")
   ]
 
 delimiterParsers :: [Parser (Int -> Int -> Token)]

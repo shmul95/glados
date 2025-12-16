@@ -78,6 +78,8 @@ data TokenKind
   | Semicolon -- ;
   | Colon -- :
   | Dot -- .
+  | LBracket -- [
+  | RBracket -- ]
   | EOF
   deriving (Show, Eq, Ord)
 
