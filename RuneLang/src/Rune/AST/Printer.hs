@@ -219,8 +219,11 @@ visitExpression (ExprUnary op val) = do
   visitExpression val
   dedent
 visitExpression (ExprCall name args) = do
-  emit $ "ExprCall " ++ name
+  emit "ExprCall"
+  indent
+  emitBlock "Target:" (newLine >> visitExpression name)
   emitBlock "Arguments:" (mapM_ (\a -> newLine >> visitExpression a) args)
+  dedent
 visitExpression (ExprStructInit name fields) = do
   emit $ "ExprStructInit " ++ name
   emitBlock "Fields:" (mapM_ emitInitField fields)

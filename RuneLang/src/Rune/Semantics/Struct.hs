@@ -44,6 +44,6 @@ validateFieldType sName structs field = do
       if HM.member customType structs
         then Right field
         else Left $
-          printf "Field '%s' in struct '%s' references unknown struct '%s'"
+          printf "Field '%s' in struct '%s' references unknown type '%s'"
             (fieldName field) sName customType
     _ -> Right field

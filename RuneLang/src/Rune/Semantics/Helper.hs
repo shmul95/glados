@@ -115,9 +115,14 @@ exprType s (ExprBinary op a b)    = do
   iHTBinary op a' b'
 exprType s (ExprUnary _ expr)     = exprType s expr -- assume the op don't change the type
 exprType (_, vs, _) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
-exprType s@(fs, _, _) (ExprCall fn args) = do
-  argTypes <- sequence $ map (exprType s) args
+exprType s@(fs, _, _) (ExprCall (ExprVar fn) args) = do
+  argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
+exprType s@(fs, _, _) (ExprCall (ExprAccess (ExprVar target) method) args) = do
+  argTypes <- mapM (exprType s) args
+  let mangledName = mangleName (target ++ "_" ++ method) TypeAny argTypes
+  Right $ fromMaybe TypeAny (selectSignature fs mangledName argTypes)
+exprType _ (ExprCall _ _) = Left "Invalid function call target"
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs

@@ -42,6 +42,8 @@ import Rune.Semantics.Helper
   , checkMultipleType
   )
 
+import Debug.Trace (trace)
+
 --
 -- state monad
 --
@@ -263,7 +265,6 @@ verifExpr :: VarStack -> Expression -> SemM Expression
 verifExpr = verifExprWithContext Nothing
 
 verifExprWithContext :: Maybe Type -> VarStack -> Expression -> SemM Expression
-
 verifExprWithContext hint vs (ExprUnary op val) = do
   val'    <- verifExprWithContext hint vs val
   pure $ ExprUnary op val'
@@ -273,31 +274,52 @@ verifExprWithContext hint vs (ExprBinary op l r) = do
   r'      <- verifExprWithContext hint vs r
   pure $ ExprBinary op l' r'
 
-verifExprWithContext hint vs (ExprCall name args) = do
+verifExprWithContext hint vs (ExprCall (ExprVar fname) args) = do
+  fs <- gets stFuncs
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
+
+  args' <- trace ("FuncStack: " ++ show fs) $ mapM (verifExpr vs) args
+  argTypes <- lift $ mapM (exprType s) args'
+
+  let match = checkParamTypeWithReturnContext hint s fname args'
+  case match of
+    Right foundName -> pure $ ExprCall (ExprVar foundName) args'
+    Left _ -> do
+      templates <- gets stTemplates
+      case HM.lookup fname templates of
+        Nothing -> lift $ Left $ printf "Function %s not found (neither concrete nor generic)" fname
+        Just templateDef -> do
+          targetExpr <- tryInstantiateTemplate templateDef fname args' argTypes hint
+          pure $ ExprCall targetExpr args'
+
+verifExprWithContext hint vs (ExprCall (ExprAccess (ExprVar target) method) args) = do
   fs <- gets stFuncs
   ss <- gets stStructs
   let s = (fs, vs, ss)
 
   args' <- mapM (verifExpr vs) args
   argTypes <- lift $ mapM (exprType s) args'
+  targetType <- trace (show argTypes) lift $ exprType s (ExprVar target)
 
-  let match = checkParamTypeWithReturnContext hint s name args'
-
+  let name = show targetType ++ "_" ++ method
+      match = trace ("ARGS TYPES: " ++ show argTypes ++ "/\\ ARGS: " ++ show args') checkParamTypeWithReturnContext hint s name args'
   case match of
-    Right foundName -> pure $ ExprCall foundName args'
+    Right foundName -> pure $ ExprCall (ExprVar foundName) args'
     Left _ -> do
-        templates <- gets stTemplates
-        case HM.lookup name templates of
-            Nothing -> lift $ Left $ printf "Function %s not found (neither concrete nor generic)" name
-            Just templateDef -> tryInstantiateTemplate templateDef name args' argTypes hint
+      templates <- gets stTemplates
+      case HM.lookup name templates of
+        Nothing -> lift $ Left $ printf "Function %s not found (neither concrete nor generic)" name
+        Just templateDef -> do
+          targetExpr <- tryInstantiateTemplate templateDef name args' argTypes hint
+          pure $ ExprCall targetExpr args'
+
+verifExprWithContext _ _ (ExprCall _ _) =
+  lift $ Left "Invalid function call target"
 
 verifExprWithContext hint vs (ExprStructInit name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
   pure $ ExprStructInit name fields'
-
-verifExprWithContext hint vs (ExprAccess target field) = do
-  target' <- verifExprWithContext hint vs target
-  pure $ ExprAccess target' field
 
 verifExprWithContext _ vs (ExprVar var)
   | HM.member var vs = pure (ExprVar var)
@@ -313,7 +335,7 @@ verifMethod sName (DefFunction methodName params retType body) = do
   let params' = fixSelfType sName params
       paramTypes = map paramType params'
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
-      mangledName = mangleName (sName ++ "_" ++ methodName) retType paramTypes
+      mangledName = sName ++ "_" ++ methodName
 
   when (HM.member mangledName fs) $
     lift $ Left $ printf "Method '%s' in struct '%s' is already defined" methodName sName
@@ -331,18 +353,16 @@ verifMethod _ def = pure def
 --
 
 tryInstantiateTemplate :: TopLevelDef -> String -> [Expression] -> [Type] -> Maybe Type -> SemM Expression
-tryInstantiateTemplate def originalName args argTypes contextRetType = do
+tryInstantiateTemplate def originalName _ argTypes contextRetType = do
   retTy <- resolveReturnType originalName argTypes contextRetType
   let mangled = mangleName originalName retTy argTypes
 
   alreadyInstantiated mangled >>= \case
-    True  -> pure $ call mangled
+    True  -> pure $ ExprVar mangled
     False -> do
       verified <- verifTopLevel (instantiate def argTypes retTy)
       registerInstantiation mangled verified retTy argTypes
-      pure $ call mangled
-  where
-    call name = ExprCall name args
+      pure $ ExprVar mangled
 
 resolveReturnType :: String -> [Type] -> Maybe Type -> SemM Type
 resolveReturnType originalName argTypes mCtx =

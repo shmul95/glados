@@ -246,7 +246,7 @@ data Expression
   | -- | function call
     -- foo(arg1, arg2, ...)
     ExprCall
-      { callName :: String,
+      { callName :: Expression,
         callArgs :: [Expression]
       }
   | -- | struct initialization

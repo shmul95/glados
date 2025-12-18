@@ -8,6 +8,8 @@ import Rune.AST.ParserHelper
 import Rune.AST.Types (Parser (..), ParserState (..))
 import qualified Rune.Lexer.Tokens as T
 
+import Debug.Trace (trace)
+import Rune.AST.Printer (prettyPrint)
 --
 -- public
 --
@@ -16,7 +18,9 @@ parseRune :: FilePath -> [T.Token] -> Either String Program
 parseRune filepath tokens =
   case runParser parseProgram (ParserState tokens 0 filepath 0) of
     Left err -> Left err
-    Right (prog, _) -> Right prog
+    Right (prog, _) -> 
+      trace ("=== PARSED AST ===\n" ++ prettyPrint prog) (Right prog)
+
 
 --
 -- private

@@ -72,7 +72,7 @@ collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
 collectTopLevel _ acc = acc
 
 collectIRVars :: Function -> Map.Map String IRType
-collectIRVars (IRFunction _ params _ body) = 
+collectIRVars (IRFunction _ params _ body) =
   let initialMap = Map.fromList params
    in foldl' collectVars initialMap body
 

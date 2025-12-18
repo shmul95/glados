@@ -35,8 +35,11 @@ genExpression (ExprLitString s) = genLitString s
 genExpression (ExprVar name) = genVar name
 genExpression (ExprBinary op l r) = genBinary genExpression op l r
 genExpression (ExprUnary op e) = genUnary genExpression op e
-genExpression (ExprCall "show" [a]) = genShowCall genExpression a
-genExpression (ExprCall name args) = genCall genExpression name args
+genExpression (ExprCall (ExprVar "show") [a]) = genShowCall genExpression a
+genExpression (ExprCall (ExprVar name) args) = genCall genExpression name args
+genExpression (ExprCall (ExprAccess (ExprVar target) method) args) =
+  genCall genExpression (target ++ "_" ++ method) args
+genExpression (ExprCall _ _) = error "Invalid function call target"
 genExpression (ExprAccess t f) = genAccess genExpression t f
 genExpression (ExprStructInit name fields) = genStructInit genExpression name fields
 
