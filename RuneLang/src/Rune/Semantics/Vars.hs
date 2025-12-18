@@ -28,6 +28,7 @@ import Rune.Semantics.Generic (instantiate)
 import Rune.Semantics.Type
   ( FuncStack
   , VarStack
+  , StructStack
   , Templates
   )
 
@@ -48,6 +49,7 @@ data SemState = SemState
   , stTemplates    :: Templates               -- << generic functions ('any')
   , stNewDefs      :: [TopLevelDef]           -- << new functions
   , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
+  , stStructs      :: StructStack            -- << known structs
   }
 
 type SemM a = StateT SemState (Either String) a
@@ -63,17 +65,18 @@ verifVars (Program n defs) = do
 
   fs <- findFunc (Program n concreteDefs)
 
-  let initialState = SemState 
+  let initialState = SemState
         { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
+        , stStructs = HM.empty
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFs = mangleFuncStack (stFuncs finalState)
-  
+
   pure (Program n allDefs, finalFs)
 
 --
@@ -133,7 +136,8 @@ verifTopLevel def = pure def -- Structs
 verifScope :: VarStack -> Block -> SemM Block
 verifScope vs (StmtVarDecl v t e : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
 
   e'      <- verifExprWithContext t vs e
 
@@ -174,7 +178,8 @@ verifScope vs (StmtIf cond a Nothing : stmts) = do
 
 verifScope vs (StmtFor v t (Just start) end body : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
   e_t     <- lift $ exprType s start
 
   vs'     <- lift $ assignVarType vs v e_t
@@ -197,7 +202,8 @@ verifScope vs (StmtFor v t Nothing end body : stmts) = do
 
 verifScope vs (StmtForEach v t iter body : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
   e_t     <- lift $ exprType s iter
 
   vs'     <- lift $ assignVarType vs v e_t
@@ -215,7 +221,8 @@ verifScope vs (StmtLoop body : stmts) = do
 
 verifScope vs (StmtAssignment (ExprVar lv) rv : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
 
   rv'     <- verifExpr vs rv
   e_t     <- lift $ exprType s rv'
@@ -256,7 +263,8 @@ verifExprWithContext hint vs (ExprBinary op l r) = do
 
 verifExprWithContext hint vs (ExprCall name args) = do
   fs <- gets stFuncs
-  let s = (fs, vs)
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
 
   args' <- mapM (verifExpr vs) args
   argTypes <- lift $ mapM (exprType s) args'

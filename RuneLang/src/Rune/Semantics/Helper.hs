@@ -21,6 +21,7 @@ import Rune.Semantics.OpType (iHTBinary, sameType, isIntegerType, isFloatType)
 import Rune.Semantics.Type
   ( VarStack
   , FuncStack
+  -- , StructStack
   , Stack
   )
 
@@ -34,7 +35,7 @@ checkParamType :: Stack -> String -> [Expression] -> Either String String
 checkParamType = checkParamTypeWithReturnContext Nothing
 
 checkParamTypeWithReturnContext :: Maybe Type -> Stack -> String -> [Expression] -> Either String String
-checkParamTypeWithReturnContext returnContext s@(fs, _) fname es =
+checkParamTypeWithReturnContext returnContext s@(fs, _, _) fname es =
   case HM.lookup fname fs of
     Nothing     -> unknown
     Just []     -> unknown
@@ -113,8 +114,8 @@ exprType s (ExprBinary op a b)    = do
   b' <- exprType s b
   iHTBinary op a' b'
 exprType s (ExprUnary _ expr)     = exprType s expr -- assume the op don't change the type
-exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
-exprType s@(fs, _) (ExprCall fn args) = do
+exprType (_, vs, _) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+exprType s@(fs, _, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 
