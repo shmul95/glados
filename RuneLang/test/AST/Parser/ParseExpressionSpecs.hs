@@ -22,6 +22,7 @@ parseExpressionTests =
     , postfixTests
     , structInitTests
     , parenthesesTests
+    , arrayLiteralTests
     ]
 
 --
@@ -160,4 +161,37 @@ parenthesesTests = testGroup "Parentheses Tests"
       assertParse "(1 + 2)"
         [tok T.LParen, tok (T.LitInt 1), tok T.OpPlus, tok (T.LitInt 2), tok T.RParen]
         (ExprBinary Add (ExprLitInt 1) (ExprLitInt 2))
+  ]
+
+arrayLiteralTests :: TestTree
+arrayLiteralTests = testGroup "Array Literal Tests"
+  [ testCase "Empty array []" $
+      assertParse "[]"
+        [tok T.LBracket, tok T.RBracket]
+        (ExprLitArray [])
+  
+  , testCase "Array with single int [1]" $
+      assertParse "[1]"
+        [tok T.LBracket, tok (T.LitInt 1), tok T.RBracket]
+        (ExprLitArray [ExprLitInt 1])
+  
+  , testCase "Array with multiple ints [1, 2, 3]" $
+      assertParse "[1, 2, 3]"
+        [tok T.LBracket, tok (T.LitInt 1), tok T.Comma, tok (T.LitInt 2), tok T.Comma, tok (T.LitInt 3), tok T.RBracket]
+        (ExprLitArray [ExprLitInt 1, ExprLitInt 2, ExprLitInt 3])
+  
+  , testCase "Array with strings" $
+      assertParse "[\"hello\", \"world\"]"
+        [tok T.LBracket, tok (T.LitString "hello"), tok T.Comma, tok (T.LitString "world"), tok T.RBracket]
+        (ExprLitArray [ExprLitString "hello", ExprLitString "world"])
+  
+  , testCase "Array with chars ['a', 'b', 'c']" $
+      assertParse "['a', 'b', 'c']"
+        [tok T.LBracket, tok (T.LitChar 'a'), tok T.Comma, tok (T.LitChar 'b'), tok T.Comma, tok (T.LitChar 'c'), tok T.RBracket]
+        (ExprLitArray [ExprLitChar 'a', ExprLitChar 'b', ExprLitChar 'c'])
+  
+  , testCase "Array with expressions [1 + 2, 3 * 4]" $
+      assertParse "[1 + 2, 3 * 4]"
+        [tok T.LBracket, tok (T.LitInt 1), tok T.OpPlus, tok (T.LitInt 2), tok T.Comma, tok (T.LitInt 3), tok T.OpMul, tok (T.LitInt 4), tok T.RBracket]
+        (ExprLitArray [ExprBinary Add (ExprLitInt 1) (ExprLitInt 2), ExprBinary Mul (ExprLitInt 3) (ExprLitInt 4)])
   ]

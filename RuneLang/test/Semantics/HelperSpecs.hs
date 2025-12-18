@@ -19,6 +19,7 @@ funcStack1 = HM.fromList
   [ ("foo", [(TypeI32, [TypeI32, TypeF32])])
   , ("overloaded", [(TypeI32, [TypeI32]), (TypeF32, [TypeF32]), (TypeI32, [TypeI64])])
   , ("any_arg", [(TypeNull, [TypeAny])])
+  , ("show", [(TypeNull, [TypeAny]), (TypeNull, [TypeArray TypeAny])])
   ]
 
 stack1 :: Stack
@@ -104,8 +105,27 @@ exprTypeTests = testGroup "exprType Tests"
       exprType stack1 (ExprLitFloat 1.0) @?= Right TypeF32
       exprType stack1 ExprLitNull @?= Right TypeNull
       exprType stack1 (ExprLitString "") @?= Right TypeString
-      exprType stack1 (ExprLitChar 'a') @?= Right TypeU8
+      exprType stack1 (ExprLitChar 'a') @?= Right TypeChar
       exprType stack1 (ExprLitBool True) @?= Right TypeBool
+  , testCase "Array Literal Types" $ do
+      exprType stack1 (ExprLitArray []) @?= Right (TypeArray TypeAny)
+      exprType stack1 (ExprLitArray [ExprLitInt 1]) @?= Right (TypeArray TypeI32)
+      exprType stack1 (ExprLitArray [ExprLitInt 1, ExprLitInt 2, ExprLitInt 3]) @?= Right (TypeArray TypeI32)
+      exprType stack1 (ExprLitArray [ExprLitChar 'a', ExprLitChar 'b']) @?= Right (TypeArray TypeChar)
+      exprType stack1 (ExprLitArray [ExprLitString "hello", ExprLitString "world"]) @?= Right (TypeArray TypeString)
+  , testCase "Array Index Types" $ do
+      let arr = ExprLitArray [ExprLitInt 1, ExprLitInt 2]
+      exprType stack1 (ExprIndex arr (ExprLitInt 0)) @?= Right TypeI32
+      let charArr = ExprLitArray [ExprLitChar 'R', ExprLitChar 'u']
+      exprType stack1 (ExprIndex charArr (ExprLitInt 1)) @?= Right TypeChar
+  , testCase "ExprLitArray incompatible elements - Error" $
+      case exprType stack1 (ExprLitArray [ExprLitInt 1, ExprLitBool True]) of
+          Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
+          Right _ -> assertFailure "Expected error"
+  , testCase "ExprIndex on non-array - Error" $
+      case exprType stack1 (ExprIndex (ExprLitInt 1) (ExprLitInt 0)) of
+          Left err -> "IndexingNonArray:" `isInfixOf` err @? "Expected IndexingNonArray error"
+          Right _ -> assertFailure "Expected error"
   , testCase "ExprStructInit Type" $
       exprType stack1 (ExprStructInit "Vec2f" []) @?= Right (TypeCustom "Vec2f")
   , testCase "ExprAccess Type" $
@@ -151,6 +171,12 @@ selectSignatureTests = testGroup "selectSignature Tests"
       selectSignature funcStack1 "overloaded" [TypeBool] @?= Nothing
   , testCase "Built-in (Match TypeAny with concrete)" $
       selectSignature funcStack1 "any_arg" [TypeI32] @?= Just TypeNull
+  , testCase "Array of any (Match with array of i32)" $
+      selectSignature funcStack1 "show" [TypeArray TypeI32] @?= Just TypeNull
+  , testCase "Array of any (Match with array of string)" $
+      selectSignature funcStack1 "show" [TypeArray TypeString] @?= Just TypeNull
+  , testCase "Array of any (Match with array of char)" $
+      selectSignature funcStack1 "show" [TypeArray TypeChar] @?= Just TypeNull
   , testCase "Unknown Function" $
       selectSignature funcStack1 "unknown" [TypeI32] @?= Nothing
   ]
@@ -173,6 +199,12 @@ checkEachParamTests = testGroup "checkEachParam Tests"
       in assertBool ("Expected msg: " ++ expectedMsg) (expectedMsg `isInfixOf` fromMaybe "" result)
   , testCase "TypeAny Match" $
       checkEachParam stack1 0 [ExprVar "x"] [TypeAny] @?= Nothing
+  , testCase "TypeArray TypeAny (Match with array literal)" $
+      checkEachParam stack1 0 [ExprLitArray [ExprLitInt 1]] [TypeArray TypeAny] @?= Nothing
+  , testCase "TypeArray TypeAny (Mismatch with non-array)" $
+      let expectedMsg = "WrongType: arg0 exp [any] but have i32"
+          result = checkEachParam stack1 0 [ExprVar "x"] [TypeArray TypeAny]
+      in assertBool ("Expected msg: " ++ expectedMsg) (expectedMsg `isInfixOf` fromMaybe "" result)
   , testCase "Nested Expression Error" $
       let expr = ExprBinary Add (ExprVar "x") (ExprLitBool True)
       in case checkEachParam stack1 0 [expr] [TypeI32] of

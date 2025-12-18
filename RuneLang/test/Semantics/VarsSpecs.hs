@@ -207,7 +207,7 @@ ifConditionErrorProgram :: Program
 ifConditionErrorProgram = Program "if-cond-error" [DefFunction "test" [] TypeNull [StmtIf (ExprVar "condVar") [] Nothing]]
 
 literalExpressionsProgram :: Program
-literalExpressionsProgram = Program "literals" [DefFunction "test" [] TypeNull [StmtVarDecl "i" (Just TypeI32) (ExprLitInt 42), StmtVarDecl "f" (Just TypeF32) (ExprLitFloat 3.14), StmtVarDecl "s" (Just TypeString) (ExprLitString "hello"), StmtVarDecl "c" (Just TypeU8) (ExprLitChar 'a'), StmtVarDecl "b" (Just TypeBool) (ExprLitBool True), StmtVarDecl "n" (Just TypeNull) ExprLitNull]]
+literalExpressionsProgram = Program "literals" [DefFunction "test" [] TypeNull [StmtVarDecl "i" (Just TypeI32) (ExprLitInt 42), StmtVarDecl "f" (Just TypeF32) (ExprLitFloat 3.14), StmtVarDecl "s" (Just TypeString) (ExprLitString "hello"), StmtVarDecl "c" (Just TypeChar) (ExprLitChar 'a'), StmtVarDecl "b" (Just TypeBool) (ExprLitBool True), StmtVarDecl "n" (Just TypeNull) ExprLitNull]]
 
 structDefProgram :: Program
 structDefProgram = Program "struct-def" [DefStruct "Point" [] []]

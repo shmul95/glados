@@ -32,7 +32,10 @@ funcSemanticsTests =
       testCase "rejects override without base function" $
         case findFunc lonelyOverrideProgram of
           Left err -> "WrongOverrideDef:" `isInfixOf` err @? "Expected WrongOverrideDef error for nonExistent"
-          Right _ -> assertFailure "Expected error for lonely override"
+          Right _ -> assertFailure "Expected error for lonely override",
+      testCase "accepts override with array of any type" $
+        let stack = either error id (findFunc arrayOverrideProgram)
+         in HM.lookup "show" stack @?= Just [(TypeNull, [TypeAny]), (TypeNull, [TypeArray TypeAny])]
     ]
 
 --
@@ -108,4 +111,11 @@ lonelyOverrideProgram =
   Program
     "lonely-override"
     [ DefOverride "nonExistent" [Parameter "x" TypeI32] TypeI32 []
+    ]
+
+arrayOverrideProgram :: Program
+arrayOverrideProgram =
+  Program
+    "array-override"
+    [ DefOverride "show" [Parameter "arr" (TypeArray TypeAny)] TypeNull []
     ]

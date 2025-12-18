@@ -7,6 +7,7 @@ module Rune.Semantics.Helper
   , checkMultipleType
   , selectSignature
   , checkEachParam
+  , isTypeCompatible
   ) where
 
 import Data.Maybe (fromMaybe)
@@ -103,28 +104,40 @@ exprType :: Stack -> Expression -> Either String Type
 exprType _ (ExprLitInt _)         = Right TypeI32
 exprType _ (ExprLitFloat  _)      = Right TypeF32
 exprType _ (ExprLitString  _)     = Right TypeString
-exprType _ (ExprLitChar _ )       = Right TypeU8
+exprType _ (ExprLitChar _ )       = Right TypeChar
 exprType _ (ExprLitBool  _)       = Right TypeBool
 exprType _ (ExprStructInit st _)  = Right $ TypeCustom st
 exprType _ ExprLitNull            = Right TypeNull
 exprType _ (ExprAccess _ _)       = Right TypeAny -- don't know how to use struct
+
 exprType s (ExprBinary op a b)    = do 
   a' <- exprType s a
   b' <- exprType s b
   iHTBinary op a' b'
+
 exprType s (ExprUnary _ expr)     = exprType s expr -- assume the op don't change the type
 exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+
 exprType s@(fs, _) (ExprCall fn args) = do
   argTypes <- sequence $ map (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
-exprType s (ExprIndex target _) = do
-  t <- exprType s target
-  case t of
-    TypeArray inner -> Right inner
-    TypeAny -> Right TypeAny
-    _ -> Left $ "Indexing non-array type: " ++ show t
--- TODO: improve array type handling
-exprType _ (ExprLitArray _) = Right TypeAny
+
+exprType s (ExprIndex target _) = exprType s target >>= extractArrayType
+  where
+    extractArrayType (TypeArray inner) = Right inner
+    extractArrayType TypeAny = Right TypeAny
+    extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
+
+exprType _ (ExprLitArray []) = Right $ TypeArray TypeAny
+exprType s (ExprLitArray (e:es)) = do
+  firstType <- exprType s e
+  allTypes <- mapM (exprType s) es
+  checkArray firstType allTypes
+  where
+    checkArray t ts
+      | all (isTypeCompatible t) ts = Right $ TypeArray t
+      | otherwise = Left $ printf "\n\tIncompatibleArrayElements: array elements have incompatible types, first is %s" (show t)
+
 
 assignVarType :: VarStack -> String -> Type -> Either String VarStack
 assignVarType vs _ TypeAny = Right vs
@@ -138,6 +151,7 @@ assignVarType vs v t =
     Just t' | sameType t t' -> updated
             | otherwise     -> Left $ printf msg v (show t') (show t)
 
+
 isTypeCompatible :: Type -> Type -> Bool
 isTypeCompatible expected actual
   | sameType expected actual = True
@@ -146,6 +160,7 @@ isTypeCompatible expected actual
   | isIntegerType expected && isIntegerType actual = True
   | isFloatType expected && isFloatType actual = True
   | otherwise = False
+
 
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
 checkMultipleType _ Nothing e_t         = Right e_t
@@ -157,6 +172,7 @@ checkMultipleType v (Just t) e_t
   | otherwise =
       let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
       in Left $ printf msg v (show t) (show e_t)
+
 
 checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
 checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
@@ -170,9 +186,11 @@ checkEachParam s i (e:es) (t:at) =
       | otherwise ->
           Just (printf wrong_type i (show t) (show t')) <> next
 
+
 checkEachParam _ _ [] [] = Nothing
 checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
 checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)
+
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name at =
@@ -182,13 +200,31 @@ selectSignature fs name at =
     Just sigs ->
       case filter (match at) sigs of
         [(rt, _)] -> Just rt
+        matches@(_:_) -> Just . fst $ mostSpecific matches
         _         -> Nothing
   where 
     match :: [Type] -> (Type, [Type]) -> Bool
     match act (_, expec) =
       length act == length expec &&
       and (zipWith compat expec act)
+
     compat TypeAny _ = True
+    compat (TypeArray TypeAny) (TypeArray _) = True
     compat a b = a == b
-
-
+    
+    mostSpecific :: [(Type, [Type])] -> (Type, [Type])
+    mostSpecific = foldr1 moreSpecific
+    
+    moreSpecific :: (Type, [Type]) -> (Type, [Type]) -> (Type, [Type])
+    moreSpecific s1@(_, params1) s2@(_, params2)
+      | specificity params1 > specificity params2 = s1
+      | otherwise = s2
+    
+    specificity :: [Type] -> Int
+    specificity = sum . map typeSpecificity
+    
+    typeSpecificity :: Type -> Int
+    typeSpecificity TypeAny = 0
+    typeSpecificity (TypeArray TypeAny) = 1
+    typeSpecificity (TypeArray t) = 2 + typeSpecificity t
+    typeSpecificity _ = 3

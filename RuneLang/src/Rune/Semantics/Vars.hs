@@ -37,6 +37,7 @@ import Rune.Semantics.Helper
   , exprType
   , assignVarType
   , checkMultipleType
+  , isTypeCompatible
   )
 
 --
@@ -81,9 +82,14 @@ verifVars (Program n defs) = do
 --
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _) = ret == TypeAny || any ((== TypeAny) . paramType) params
-isGeneric (DefOverride _ params ret _) = ret == TypeAny || any ((== TypeAny) . paramType) params
+isGeneric (DefFunction _ params ret _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefOverride _ _ _ _) = False
 isGeneric _ = False
+
+hasAny :: Type -> Bool
+hasAny TypeAny = True
+hasAny (TypeArray t) = hasAny t
+hasAny _ = False
 
 getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _) = n
@@ -224,10 +230,25 @@ verifScope vs (StmtAssignment (ExprVar lv) rv : stmts) = do
   pure $ StmtAssignment (ExprVar lv) rv' : stmts'
 
 verifScope vs (StmtAssignment lhs rv : stmts) = do
+  fs      <- gets stFuncs
+  let s   = (fs, vs)
+  
   lhs'    <- verifExpr vs lhs
   rv'     <- verifExpr vs rv
+  
+  lhs_t   <- lift $ exprType s lhs'
+  rv_t    <- lift $ exprType s rv'
+  
+  lift $ checkAssignmentType lhs_t rv_t
+  
   stmts'  <- verifScope vs stmts
   pure $ StmtAssignment lhs' rv' : stmts'
+  where
+    checkAssignmentType lhs_t rv_t
+      | isTypeCompatible lhs_t rv_t = Right ()
+      | lhs_t == TypeAny = Right ()
+      | rv_t == TypeAny = Right ()
+      | otherwise = Left $ printf "\n\tIncompatibleAssignment: cannot assign %s to %s" (show rv_t) (show lhs_t)
 
 verifScope vs (StmtStop : stmts) = do
   stmts'  <- verifScope vs stmts
@@ -278,6 +299,15 @@ verifExprWithContext hint vs (ExprStructInit name fields) = do
 verifExprWithContext hint vs (ExprAccess target field) = do
   target' <- verifExprWithContext hint vs target
   pure $ ExprAccess target' field
+
+verifExprWithContext hint vs (ExprIndex target idx) = do
+  target' <- verifExprWithContext hint vs target
+  idx'    <- verifExpr vs idx
+  pure $ ExprIndex target' idx'
+
+verifExprWithContext hint vs (ExprLitArray elems) = do
+  elems' <- mapM (verifExprWithContext hint vs) elems
+  pure $ ExprLitArray elems'
 
 verifExprWithContext _ vs (ExprVar var)
   | HM.member var vs = pure (ExprVar var)
