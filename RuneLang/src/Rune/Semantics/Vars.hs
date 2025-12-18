@@ -82,9 +82,14 @@ verifVars (Program n defs) = do
 --
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _) = ret == TypeAny || any ((== TypeAny) . paramType) params
-isGeneric (DefOverride _ params ret _) = ret == TypeAny || any ((== TypeAny) . paramType) params
+isGeneric (DefFunction _ params ret _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefOverride _ _ _ _) = False
 isGeneric _ = False
+
+hasAny :: Type -> Bool
+hasAny TypeAny = True
+hasAny (TypeArray t) = hasAny t
+hasAny _ = False
 
 getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _) = n
