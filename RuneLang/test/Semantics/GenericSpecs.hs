@@ -4,7 +4,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
 import Rune.AST.Nodes
-import Rune.Semantics.Generic (instantiate)
+import Rune.Semantics.Generic
 import Rune.Semantics.Helper (mangleName)
 
 --
@@ -15,6 +15,17 @@ genericSemanticsTests :: TestTree
 genericSemanticsTests =
   testGroup
     "Rune.Semantics.Generic"
+    [ genericInstantiateTests
+    , genericReplaceParamTests
+    , genericReplaceAnyTests
+    ]
+
+--
+-- private
+--
+
+genericInstantiateTests :: TestTree
+genericInstantiateTests = testGroup "instantiate function"
     [ testCase "Instantiate DefFunction with TypeAny params" $
         let 
           def = DefFunction "foo" [Parameter "x" TypeAny] TypeAny []
@@ -63,4 +74,54 @@ genericSemanticsTests =
           def = DefStruct "MyStruct" [] []
           instantiated = instantiate def [TypeI32] TypeI32
         in instantiated @?= def
+    ]
+
+genericReplaceParamTests :: TestTree
+genericReplaceParamTests = testGroup "replaceParam function"
+    [ testCase "Replace TypeAny parameter" $
+        let 
+          param = Parameter "x" TypeAny
+          argType = TypeF32
+          expected = Parameter "x" TypeF32
+          result = replaceParam param argType
+        in result @?= expected
+    , testCase "Preserve non-TypeAny parameter" $
+        let 
+          param = Parameter "y" TypeI32
+          argType = TypeF32
+          expected = Parameter "y" TypeI32
+          result = replaceParam param argType
+        in result @?= expected
+    ]
+
+genericReplaceAnyTests :: TestTree
+genericReplaceAnyTests = testGroup "replaceAny function"
+    [ testCase "Replace TypeAny with concrete type" $
+        let 
+          t = TypeAny
+          argType = TypeString
+          expected = TypeString
+          result = replaceAny t argType
+        in result @?= expected
+    , testCase "Replace TypeArray TypeAny with concrete array type" $
+        let 
+          t = TypeArray TypeAny
+          argType = TypeArray TypeI32
+          expected = TypeArray TypeI32
+          result = replaceAny t argType
+        in result @?= expected
+    , testCase "Replace TypeArray TypeAny with non-array type" $
+        let 
+          t = TypeArray TypeAny
+          argType = TypeF32
+          expected = TypeArray TypeF32
+          result = replaceAny t argType
+        in result @?= expected
+    , testCase "Preserve non-TypeAny type" $
+        let 
+          t = TypeI32
+          argType = TypeF32
+          expected = TypeI32
+          result = replaceAny t argType
+        in result @?= expected
     ]
