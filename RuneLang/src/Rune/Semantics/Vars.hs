@@ -15,6 +15,7 @@ module Rune.Semantics.Vars (verifVars) where
 #endif
 
 import Control.Monad.State.Strict
+import Control.Monad (when)
 import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
@@ -23,6 +24,7 @@ import Text.Printf (printf)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
+import Rune.Semantics.Struct (checkFields)
 import Rune.Semantics.Generic (instantiate)
 
 import Rune.Semantics.Type
@@ -129,7 +131,17 @@ verifTopLevel (DefOverride name params r_t body) = do
   body' <- verifScope vs body
   pure $ DefOverride name' params r_t body'
 
-verifTopLevel def = pure def -- Structs
+verifTopLevel (DefStruct name fields methods) = do
+  ss     <- gets stStructs
+  when (HM.member name ss) $
+    lift $ Left $ printf "Struct '%s' is already defined" name
+  fields'  <- lift $ checkFields name ss fields
+  methods' <- mapM (verifMethod name) methods
+
+  modify $ \s -> s
+    { stStructs = HM.insert name (DefStruct name fields' methods') (stStructs s)
+    }
+  pure $ DefStruct name fields' methods'
 
 -- | scope verification
 -- NOTE: 'FuncStack' is read from State, 'VarStack' is passed locally
@@ -295,6 +307,21 @@ verifExprWithContext _ vs (ExprVar var)
 
 verifExprWithContext _ _ expr = pure expr
 
+verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
+verifMethod sName (DefFunction methodName params retType body) = do
+  let params' = fixSelfType sName params
+      paramTypes = map paramType params'
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+      mangledName = mangleName (sName ++ "_" ++ methodName) retType paramTypes
+
+  body' <- verifScope vs body
+
+  modify $ \st -> st
+    { stFuncs = HM.insertWith (<>) mangledName [(retType, paramTypes)] (stFuncs st)
+    }
+  pure $ DefFunction mangledName params' retType body'
+verifMethod _ def = pure def
+
 --
 -- instanciation
 --
@@ -337,3 +364,11 @@ registerInstantiation name def retTy argTys =
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
+---
+--- Helpers
+---
+
+fixSelfType :: String -> [Parameter] -> [Parameter]
+fixSelfType sName (p:rest)
+  | paramName p == "self" = p { paramType = TypeCustom sName } : rest
+fixSelfType _ params = params
