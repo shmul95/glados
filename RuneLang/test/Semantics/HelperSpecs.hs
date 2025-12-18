@@ -122,6 +122,10 @@ exprTypeTests = testGroup "exprType Tests"
       case exprType stack1 (ExprLitArray [ExprLitInt 1, ExprLitBool True]) of
           Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
           Right _ -> assertFailure "Expected error"
+  , testCase "ExprIndex on non-array - Error" $
+      case exprType stack1 (ExprIndex (ExprLitInt 1) (ExprLitInt 0)) of
+          Left err -> "IndexingNonArray:" `isInfixOf` err @? "Expected IndexingNonArray error"
+          Right _ -> assertFailure "Expected error"
   , testCase "ExprStructInit Type" $
       exprType stack1 (ExprStructInit "Vec2f" []) @?= Right (TypeCustom "Vec2f")
   , testCase "ExprAccess Type" $
