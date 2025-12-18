@@ -1,4 +1,4 @@
-override def show(arr: any[]) -> null
+def show_array(arr: any[]) -> null
 {
     for item in arr {
         show(item);
@@ -12,14 +12,14 @@ def array_string() -> null
     arr: string[] = ["malloc", "sizeof", "char", "etoile"];
 
     arr[2] = "rune";
-    show(arr);
+    show_array(arr);
 }
 
 def array_char() -> null
 {
     arr: char[] = ['R', 'u', 'n', 'e'];
 
-    show(arr);
+    show_array(arr);
 }
 
 def array_i32() -> i32[]
@@ -33,7 +33,7 @@ def array_i32() -> i32[]
 def main() -> null
 {
     arr = array_i32();
-    show(arr);
+    show_array(arr);
 
     array_string();
     array_char();
