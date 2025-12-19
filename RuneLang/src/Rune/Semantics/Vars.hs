@@ -15,7 +15,6 @@ module Rune.Semantics.Vars (verifVars) where
 #endif
 
 import Control.Monad.State.Strict
-import Control.Monad (when)
 import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
@@ -23,14 +22,14 @@ import qualified Data.List as List
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
-import Rune.Semantics.Func (findFunc)
-import Rune.Semantics.Struct (checkFields)
+import Rune.Semantics.Func (findFunc, findStruct)
 import Rune.Semantics.Generic (instantiate)
 
 import Rune.Semantics.Type
   ( FuncStack
   , VarStack
   , StructStack
+  , Stack
   , Templates
   )
 
@@ -40,9 +39,8 @@ import Rune.Semantics.Helper
   , exprType
   , assignVarType
   , checkMultipleType
+  , fixSelfType
   )
-
-import Debug.Trace (trace)
 
 --
 -- state monad
@@ -68,13 +66,14 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
+  ss <- findStruct (Program n defs)
 
   let initialState = SemState
         { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
-        , stStructs = HM.empty
+        , stStructs = ss
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
@@ -134,16 +133,8 @@ verifTopLevel (DefOverride name params r_t body) = do
   pure $ DefOverride name' params r_t body'
 
 verifTopLevel (DefStruct name fields methods) = do
-  ss     <- gets stStructs
-  when (HM.member name ss) $
-    lift $ Left $ printf "Struct '%s' is already defined" name
-  fields'  <- lift $ checkFields name ss fields
   methods' <- mapM (verifMethod name) methods
-
-  modify $ \s -> s
-    { stStructs = HM.insert name (DefStruct name fields' methods') (stStructs s)
-    }
-  pure $ DefStruct name fields' methods'
+  pure $ DefStruct name fields methods'
 
 -- | scope verification
 -- NOTE: 'FuncStack' is read from State, 'VarStack' is passed locally
@@ -279,40 +270,29 @@ verifExprWithContext hint vs (ExprCall (ExprVar fname) args) = do
   ss <- gets stStructs
   let s = (fs, vs, ss)
 
-  args' <- trace ("FuncStack: " ++ show fs) $ mapM (verifExpr vs) args
+  args' <- mapM (verifExpr vs) args
   argTypes <- lift $ mapM (exprType s) args'
 
-  let match = checkParamTypeWithReturnContext hint s fname args'
-  case match of
-    Right foundName -> pure $ ExprCall (ExprVar foundName) args'
-    Left _ -> do
-      templates <- gets stTemplates
-      case HM.lookup fname templates of
-        Nothing -> lift $ Left $ printf "Function %s not found (neither concrete nor generic)" fname
-        Just templateDef -> do
-          targetExpr <- tryInstantiateTemplate templateDef fname args' argTypes hint
-          pure $ ExprCall targetExpr args'
+  callOrInstantiate hint s fname args' argTypes
 
 verifExprWithContext hint vs (ExprCall (ExprAccess (ExprVar target) method) args) = do
   fs <- gets stFuncs
   ss <- gets stStructs
   let s = (fs, vs, ss)
 
+  targetType <- lift $ exprType s (ExprVar target)
+  let mangledName = show targetType ++ "_" ++ method
+
+  _ <- case HM.lookup mangledName fs of
+    Just (_:_) -> pure ()
+    _ -> lift $ Left $ printf "Method '%s' not found on type '%s'" method (show targetType)
+
   args' <- mapM (verifExpr vs) args
   argTypes <- lift $ mapM (exprType s) args'
-  targetType <- trace (show argTypes) lift $ exprType s (ExprVar target)
+  let allArgs = ExprVar target : args'
+      allArgTypes = targetType : argTypes
 
-  let name = show targetType ++ "_" ++ method
-      match = trace ("ARGS TYPES: " ++ show argTypes ++ "/\\ ARGS: " ++ show args') checkParamTypeWithReturnContext hint s name args'
-  case match of
-    Right foundName -> pure $ ExprCall (ExprVar foundName) args'
-    Left _ -> do
-      templates <- gets stTemplates
-      case HM.lookup name templates of
-        Nothing -> lift $ Left $ printf "Function %s not found (neither concrete nor generic)" name
-        Just templateDef -> do
-          targetExpr <- tryInstantiateTemplate templateDef name args' argTypes hint
-          pure $ ExprCall targetExpr args'
+  callOrInstantiate hint s mangledName allArgs allArgTypes
 
 verifExprWithContext _ _ (ExprCall _ _) =
   lift $ Left "Invalid function call target"
@@ -331,20 +311,13 @@ verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 verifMethod sName (DefFunction methodName params retType body) = do
-  fs <- gets stFuncs
   let params' = fixSelfType sName params
       paramTypes = map paramType params'
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
-      mangledName = sName ++ "_" ++ methodName
-
-  when (HM.member mangledName fs) $
-    lift $ Left $ printf "Method '%s' in struct '%s' is already defined" methodName sName
+      baseName = sName ++ "_" ++ methodName
+      mangledName = mangleName baseName retType paramTypes
 
   body' <- verifScope vs body
-
-  modify $ \st -> st
-    { stFuncs = HM.insertWith (<>) mangledName [(retType, paramTypes)] (stFuncs st)
-    }
   pure $ DefFunction mangledName params' retType body'
 verifMethod _ def = pure def
 
@@ -388,11 +361,14 @@ registerInstantiation name def retTy argTys =
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
----
---- Helpers
----
-
-fixSelfType :: String -> [Parameter] -> [Parameter]
-fixSelfType sName (p:rest)
-  | paramName p == "self" = p { paramType = TypeCustom sName } : rest
-fixSelfType _ params = params
+callOrInstantiate :: Maybe Type -> Stack -> String -> [Expression] -> [Type] -> SemM Expression
+callOrInstantiate hint s name args argTypes =
+  case checkParamTypeWithReturnContext hint s name args of
+    Right foundName -> pure $ ExprCall (ExprVar foundName) args
+    Left _ -> do
+      templates <- gets stTemplates
+      case HM.lookup name templates of
+        Just templateDef -> do
+          targetExpr <- tryInstantiateTemplate templateDef name args argTypes hint
+          pure $ ExprCall targetExpr args
+        Nothing -> lift $ Left $ printf "Function %s not found (neither concrete nor generic) with argument types: %s" name (show argTypes)

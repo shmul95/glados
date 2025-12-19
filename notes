@@ -1,0 +1,17 @@
+cas de succès:
+
+- Structure simple valide
+- Accès à des champs valides
+- Appels de méthodes valides
+- Multiple définition d'une méthode avec différents types d'arguments
+
+Cas d'erreur:
+- Structure qui existe déjà
+- Structure non définie
+- Accès à un champ inexistant
+- Appel d'une méthode inexistante
+- Appel d'une méthode avec des types d'arguments incorrects
+- Multiple définition d'un champ dans une structure
+- Type de champ invalide
+- Méthode avec code incorrect
+- Méthode sans "self" comme premier argument

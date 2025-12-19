@@ -1,13 +1,15 @@
-module Rune.Semantics.Func (findFunc) where
+module Rune.Semantics.Func (findFunc, findStruct) where
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
-import Rune.Semantics.Type (FuncStack)
+import Rune.Semantics.Type (FuncStack, StructStack)
+import Rune.Semantics.Struct (checkFields)
+import Rune.Semantics.Helper (fixSelfType)
 
 --
 -- public
@@ -22,6 +24,18 @@ findFunc (Program _ defs) = do
       msg = "\n\tHasDuplicates: %s has duplicate signatures (%s)"
   fs <- foldM findDefs builtins defs
   maybe (Right fs) Left (findDuplicateMap fs msg)
+
+findStruct :: Program -> Either String StructStack
+findStruct (Program _ defs) = do
+  let structs = [d | d@DefStruct {} <- defs]
+  foldM addStruct HM.empty structs
+  where
+    addStruct acc (DefStruct name fields methods) = do
+      when (HM.member name acc) $
+        Left $ printf "\n\tHasDuplicates: Struct '%s' is already defined" name
+      checkedFields <- checkFields name acc fields
+      Right $ HM.insert name (DefStruct name checkedFields methods) acc
+    addStruct acc _ = Right acc
 
 --
 -- private
@@ -42,14 +56,23 @@ findDefs s (DefOverride name params rType _) =
     in case HM.lookup name s of
       Just list -> Right $ HM.insert name (list ++ [newSign]) s
       Nothing   -> Left $ printf msg name
-findDefs s _ = Right s
+findDefs s (DefStruct name _ methods) =
+    foldM addMethod s methods
+  where
+    addMethod acc (DefFunction methodName params rType _) =
+      let baseName = name ++ "_" ++ methodName
+          params' = fixSelfType name params
+          paramTypes = map paramType params'
+          newSign = (rType, paramTypes)
+      in Right $ HM.insertWith (++) baseName [newSign] acc
+    addMethod acc _ = Right acc
 
 hasDuplicate :: (Ord a) => [a] -> Bool
 hasDuplicate xs = Set.size (Set.fromList xs) /= length xs
 
 findDuplicateMap :: FuncStack -> String -> Maybe String
 findDuplicateMap fs msg = foldr check Nothing (HM.toList fs)
-  where 
+  where
     check _ (Just err) = Just err
     check (name, sigs) Nothing
       | hasDuplicate sigs = Just $ printf msg name (show sigs)

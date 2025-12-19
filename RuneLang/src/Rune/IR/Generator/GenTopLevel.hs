@@ -90,12 +90,11 @@ genStruct (DefStruct name fields methods) = do
 genStruct _ = pure []
 
 -- | generate IR for a struct method
--- Vec2f.magnitude() -> magnitude_Vec2f
+-- Vec2f.magnitude() -> <structName>_<returnType>_<methodName>_<paramType1>_...
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
-genStructMethod structName' (DefFunction methName params retType body) = do
-  let mangledName = mangleMethodName structName' methName
-      typedParams = map (fixSelfParam structName') params
-  genFunction (DefFunction mangledName typedParams retType body)
+genStructMethod structName' (DefFunction methodName params retType body) = do
+  let typedParams = map (fixSelfParam structName') params
+  genFunction (DefFunction methodName typedParams retType body)
 genStructMethod _ _ = pure []
 
 --

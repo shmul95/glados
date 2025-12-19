@@ -7,6 +7,7 @@ module Rune.Semantics.Helper
   , checkMultipleType
   , selectSignature
   , checkEachParam
+  , fixSelfType
   ) where
 
 import Data.Maybe (fromMaybe)
@@ -21,7 +22,7 @@ import Rune.Semantics.OpType (iHTBinary, sameType, isIntegerType, isFloatType)
 import Rune.Semantics.Type
   ( VarStack
   , FuncStack
-  -- , StructStack
+  , StructStack
   , Stack
   )
 
@@ -108,8 +109,10 @@ exprType _ (ExprLitChar _ )       = Right TypeU8
 exprType _ (ExprLitBool  _)       = Right TypeBool
 exprType _ (ExprStructInit st _)  = Right $ TypeCustom st
 exprType _ ExprLitNull            = Right TypeNull
-exprType _ (ExprAccess _ _)       = Right TypeAny -- don't know how to use struct
-exprType s (ExprBinary op a b)    = do 
+exprType s (ExprAccess target field) = do
+  targetType <- exprType s target
+  getFieldType (case s of (_, _, ss) -> ss) targetType field
+exprType s (ExprBinary op a b)    = do
   a' <- exprType s a
   b' <- exprType s b
   iHTBinary op a' b'
@@ -181,7 +184,7 @@ selectSignature fs name at =
       case filter (match at) sigs of
         [(rt, _)] -> Just rt
         _         -> Nothing
-  where 
+  where
     match :: [Type] -> (Type, [Type]) -> Bool
     match act (_, expec) =
       length act == length expec &&
@@ -189,4 +192,19 @@ selectSignature fs name at =
     compat TypeAny _ = True
     compat a b = a == b
 
+getFieldType :: StructStack -> Type -> String -> Either String Type
+getFieldType ss (TypeCustom sName) fldName =
+  case HM.lookup sName ss of
+    Nothing -> Left $ printf "Struct '%s' not found" sName
+    Just (DefStruct _ fields _) ->
+      case filter (\(Field fName _) -> fName == fldName) fields of
+        [] -> Left $ printf "Field '%s' not found in struct '%s'" fldName sName
+        (Field _ t:_) -> Right t
+    Just _ -> Left $ printf "Struct '%s' is not a struct definition" sName
+getFieldType _ otherType fldName =
+  Left $ printf "Cannot access field '%s' on type '%s'" fldName (show otherType)
 
+fixSelfType :: String -> [Parameter] -> [Parameter]
+fixSelfType sName (p:rest)
+  | paramName p == "self" = p { paramType = TypeCustom sName } : rest
+fixSelfType _ params = params
