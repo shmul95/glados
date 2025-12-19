@@ -129,7 +129,7 @@ validProgram =
         [Parameter "arg" TypeI32]
         TypeI32
         [ StmtVarDecl dummyPos "local" (Just TypeI32) (ExprVar dummyPos "arg"),
-          StmtExpr dummyPos (ExprCall dummyPos "bar" [ExprVar dummyPos "local"]),
+          StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "bar") [ExprVar dummyPos "local"]),
           StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 1) [StmtExpr dummyPos (ExprVar dummyPos "i")],
           StmtForEach dummyPos "item" (Just TypeI32) (ExprVar dummyPos "local") [StmtExpr dummyPos (ExprVar dummyPos "item")],
           StmtReturn dummyPos (Just (ExprLitNull dummyPos))
@@ -277,7 +277,7 @@ callArgsErrorProgram =
         "caller"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "foo" [ExprVar dummyPos "arg"])]
+        [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "foo") [ExprVar dummyPos "arg"])]
     ]
 structInitErrorProgram :: Program
 structInitErrorProgram =
@@ -446,8 +446,8 @@ knownFunctionCallProgram =
   Program
     "known-func"
     [ DefFunction "helper" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))],
-      DefFunction "main" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "helper" [])],
-      DefFunction "test_show" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "show" [ExprLitString dummyPos "test"])]
+      DefFunction "main" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "helper") [])],
+      DefFunction "test_show" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "show") [ExprLitString dummyPos "test"])]
     ]
 
 assignmentRHSErrorProgram :: Program
@@ -471,7 +471,7 @@ unknownFunctionProgram =
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "thisDoesNotExist" [])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "thisDoesNotExist") [])]
     ]
 wrongTypeProgram :: Program
 wrongTypeProgram =
@@ -482,7 +482,7 @@ wrongTypeProgram =
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitString dummyPos "wrong"])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "helper") [ExprLitString dummyPos "wrong"])]
     ]
 tooFewArgsProgram :: Program
 tooFewArgsProgram =
@@ -493,7 +493,7 @@ tooFewArgsProgram =
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitInt dummyPos 1])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "helper") [ExprLitInt dummyPos 1])]
     ]
 tooManyArgsProgram :: Program
 tooManyArgsProgram =
@@ -504,7 +504,7 @@ tooManyArgsProgram =
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "helper") [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2])]
     ]
 correctArgsProgram :: Program
 correctArgsProgram =
@@ -515,7 +515,7 @@ correctArgsProgram =
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitInt dummyPos 1, ExprLitFloat dummyPos 2.5, ExprLitString dummyPos "test"])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "helper") [ExprLitInt dummyPos 1, ExprLitFloat dummyPos 2.5, ExprLitString dummyPos "test"])]
     ]
 multipleWrongTypesProgram :: Program
 multipleWrongTypesProgram =
@@ -526,7 +526,7 @@ multipleWrongTypesProgram =
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "helper" [ExprLitString dummyPos "wrong1", ExprLitBool dummyPos True])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "helper") [ExprLitString dummyPos "wrong1", ExprLitBool dummyPos True])]
     ]
 emptyParamsProgram :: Program
 emptyParamsProgram =
@@ -537,19 +537,19 @@ emptyParamsProgram =
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "helper" [])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "helper") [])]
     ]
 nestedFunctionCallProgram :: Program
 nestedFunctionCallProgram =
   Program
     "nested-func-call"
     [ DefFunction "inner" [Parameter "x" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
-      DefFunction "outer" [Parameter "y" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprCall dummyPos "inner" [ExprVar dummyPos "y"]))],
+      DefFunction "outer" [Parameter "y" TypeI32] TypeI32 [StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "inner") [ExprVar dummyPos "y"]))],
       DefFunction
         "main"
         []
         TypeNull
-        [StmtExpr dummyPos (ExprCall dummyPos "outer" [ExprLitString dummyPos "wrong"])]
+         [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "outer") [ExprLitString dummyPos "wrong"])]
     ]
 --
 -- New helper functions for source position tests

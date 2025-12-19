@@ -46,6 +46,8 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
+import Debug.Trace (trace)
+
 --
 -- state monad
 --
@@ -70,14 +72,14 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
-  ss <- findStruct (Program n concreteDefs)
+  ss <- findStruct (Program n defs)
 
   let initialState = SemState 
         { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
-        , stStructs = ss
+        , stStructs = trace (show fs) ss
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
@@ -273,7 +275,7 @@ verifExprWithContext hint vs (ExprUnary pos op val) = do
 verifExprWithContext hint vs (ExprBinary pos op l r) = do
   l' <- verifExprWithContext hint vs l
   r' <- verifExprWithContext hint vs r
-  
+
   -- Verify type compatibility for binary operations
   fs <- gets stFuncs
   ss <- gets stStructs
@@ -281,7 +283,7 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
       SourcePos file line col = pos
       leftType = exprType s l'
       rightType = exprType s r'
-  
+
   case iHTBinary op leftType rightType of
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation", "global context"]
     Right _ -> pure $ ExprBinary pos op l' r'
@@ -295,15 +297,6 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar _ fname) args) = do
   let argTypes = map (exprType s) args'
 
   callOrInstantiate cPos hint s fname args' argTypes
-  -- let match = checkParamType s name file line col args'
-
-  -- case match of
-  --   Right foundName -> pure $ ExprCall pos foundName args'
-  --   Left err -> do
-  --       templates <- gets stTemplates
-  --       case HM.lookup name templates of
-  --           Nothing -> lift $ Left $ formatSemanticError err
-  --           Just templateDef -> tryInstantiateTemplate templateDef name args' argTypes hint
 
 verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
   fs <- gets stFuncs
@@ -329,10 +322,6 @@ verifExprWithContext _ _ (ExprCall _ _ _) =
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
   pure $ ExprStructInit pos name fields'
-
--- verifExprWithContext _ vs (ExprVar pos var)
---   | HM.member var vs = pure (ExprVar pos var)
---   | otherwise       = lift $ Left $ formatSemanticError $ SemanticError (posFile pos) (posLine pos) (posCol pos) ("Undefined variable '" ++ var ++ "'") "undefined variable" ["variable reference", "global context"]
 
 verifExprWithContext _ _ expr = pure expr
 

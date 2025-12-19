@@ -218,7 +218,7 @@ expressionTests = testGroup "Expression Tests"
   , testCase "Show ExprUnary" $
       assertBool "Show" (not (null (show (ExprUnary dummyPos Negate exprLitInt))))
   , testCase "Show ExprCall" $
-      assertBool "Show" (not (null (show (ExprCall dummyPos "foo" [exprLitInt]))))
+      assertBool "Show" (not (null (show (ExprCall dummyPos (ExprVar dummyPos "foo") [exprLitInt]))))
   , testCase "Show ExprStructInit" $
       assertBool "Show" (not (null (show (ExprStructInit dummyPos "Vec2f" [("x", exprLitInt)]))))
   , testCase "Show ExprAccess" $
@@ -242,7 +242,7 @@ expressionTests = testGroup "Expression Tests"
   , testCase "Eq ExprUnary" $
       assertBool "Unequal op" (ExprUnary dummyPos Negate exprLitInt /= ExprUnary dummyPos PropagateError exprLitInt)
   , testCase "Eq ExprCall" $
-      assertBool "Unequal name" (ExprCall dummyPos "foo" [] /= ExprCall dummyPos "bar" [])
+      assertBool "Unequal name" (ExprCall dummyPos (ExprVar dummyPos "foo") [] /= ExprCall dummyPos (ExprVar dummyPos "bar") [])
   , testCase "Eq ExprStructInit" $
       assertBool "Unequal fields" (ExprStructInit dummyPos "V" [("x", exprLitInt)] /= ExprStructInit dummyPos "V" [("y", exprLitInt)])
   , testCase "Eq ExprAccess" $

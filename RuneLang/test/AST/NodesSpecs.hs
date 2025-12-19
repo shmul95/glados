@@ -220,9 +220,9 @@ testExpressionAccessors =
   testGroup
     "Expression Accessors"
     [ testCase "ExprCall accessors" $
-        let expr = ExprCall {exprPos = dummyPos, callName = "foo", callArgs = [dummyExpr]}
+        let expr = ExprCall {exprPos = dummyPos, callName = ExprVar dummyPos "foo", callArgs = [dummyExpr]}
          in do
-              callName expr @?= "foo"
+              (case callName expr of ExprVar _ n -> n; _ -> "") @?= "foo"
               callArgs expr @?= [dummyExpr]
     , testCase "ExprStructInit accessors" $
         let expr = ExprStructInit {exprPos = dummyPos, initStructName = "Point", initFields = [("x", dummyExpr)]}

@@ -22,7 +22,7 @@ funcStack1 = HM.fromList
   ]
 
 stack1 :: Stack
-stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)])
+stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)], HM.empty)
 
 --
 -- public
@@ -126,13 +126,13 @@ exprTypeTests = testGroup "exprType Tests"
   , testCase "ExprUnary Type (assumes type does not change)" $
       exprType stack1 (ExprUnary dummyPos Negate (ExprVar dummyPos "x")) @?= TypeI32
   , testCase "ExprCall (exists and matches single signature)" $
-      let call = ExprCall dummyPos "foo" [ExprVar dummyPos "x", ExprVar dummyPos "f"]
+      let call = ExprCall dummyPos (ExprVar dummyPos "foo") [ExprVar dummyPos "x", ExprVar dummyPos "f"]
       in exprType stack1 call @?= TypeI32
   , testCase "ExprCall (no matching signature)" $
-      let call = ExprCall dummyPos "foo" [ExprVar dummyPos "f", ExprVar dummyPos "f"]
+      let call = ExprCall dummyPos (ExprVar dummyPos "foo") [ExprVar dummyPos "f", ExprVar dummyPos "f"]
       in exprType stack1 call @?= TypeAny
   , testCase "ExprCall (unknown function)" $
-      let call = ExprCall dummyPos "unknownFunc" []
+      let call = ExprCall dummyPos (ExprVar dummyPos "unknownFunc") []
       in exprType stack1 call @?= TypeAny
   ]
 

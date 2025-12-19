@@ -99,29 +99,21 @@ unaryOpTests = testGroup "Unary Op Tests"
 postfixTests :: TestTree
 postfixTests = testGroup "Postfix Tests"
   [ testCase "Field Access" $
-      assertParse "x.y" 
+      assertParse "x.y"
         [tok (T.Identifier "x"), tok T.Dot, tok (T.Identifier "y")]
         (ExprAccess (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "x") "y")
-  
   , testCase "Call" $
       assertParse "f()"
         [tok (T.Identifier "f"), tok T.LParen, tok T.RParen]
-        (ExprCall (SourcePos "test" 1 1) "f" [])
-
+        (ExprCall (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "f") [])
   , testCase "Call with args" $
       assertParse "f(1, 2)"
         [tok (T.Identifier "f"), tok T.LParen, tok (T.LitInt 1), tok T.Comma, tok (T.LitInt 2), tok T.RParen]
-        (ExprCall (SourcePos "test" 1 1) "f" [ExprLitInt (SourcePos "test" 1 1) 1, ExprLitInt (SourcePos "test" 1 1) 2])
-  
+        (ExprCall (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "f") [ExprLitInt (SourcePos "test" 1 1) 1, ExprLitInt (SourcePos "test" 1 1) 2])
   , testCase "Method Call (x.f())" $
-      -- x.f() parses as (x.f)() -> ExprCall "f" [x]
-      -- Wait, parseCallPostfix implementation:
-      -- pure $ \e -> case e of
-      --   ExprAccess target field -> ExprCall field (target : args)
       assertParse "x.f()"
         [tok (T.Identifier "x"), tok T.Dot, tok (T.Identifier "f"), tok T.LParen, tok T.RParen]
-        (ExprCall (SourcePos "test" 1 1) "f" [ExprVar (SourcePos "test" 1 1) "x"])
-
+        (ExprCall (SourcePos "test" 1 1) (ExprAccess (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "x") "f") [ExprVar (SourcePos "test" 1 1) "x"])
   , testCase "Postfix Inc" $
       assertParse "x++" [tok (T.Identifier "x"), tok T.OpInc] (ExprUnary (SourcePos "test" 1 1) PostfixInc (ExprVar (SourcePos "test" 1 1) "x"))
   ]

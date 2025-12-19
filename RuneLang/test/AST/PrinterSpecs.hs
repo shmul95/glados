@@ -113,7 +113,7 @@ expressionPrinterTests = testGroup "Expression Printer Tests"
         (runPrinter $ visitExpression (ExprUnary dummyPos Negate (ExprLitInt dummyPos 1)))
   , testCase "ExprCall" $
       assertEqual "Call" "ExprCall f\nArguments:\n  ExprLitInt 1" 
-        (runPrinter $ visitExpression (ExprCall dummyPos "f" [ExprLitInt dummyPos 1]))
+        (runPrinter $ visitExpression (ExprCall dummyPos (ExprVar dummyPos "f") [ExprLitInt dummyPos 1]))
   , testCase "ExprStructInit" $
       assertEqual "StructInit" "ExprStructInit P\nFields:\n  x:\n  \n    ExprLitInt 1"
         (runPrinter $ visitExpression (ExprStructInit dummyPos "P" [("x", ExprLitInt dummyPos 1)]))
