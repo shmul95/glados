@@ -9,6 +9,7 @@ import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure)
 import Control.Monad.State (runState)
 import qualified Data.Map.Strict as Map
 import Control.Exception (try, evaluate, SomeException)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Struct
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..), GenState(..))
 import Rune.AST.Nodes (Expression(..))
@@ -34,14 +35,14 @@ structExprTests = testGroup "Rune.IR.Generator.Expression.Struct"
 testGenAccess :: TestTree
 testGenAccess = testGroup "genAccess"
   [ testCase "Generates field access for struct" $
-      let genExpr (ExprVar "p") = return ([], IRTemp "p" (IRStruct "Point"), IRStruct "Point")
+      let genExpr (ExprVar _ "p") = return ([], IRTemp "p" (IRStruct "Point"), IRStruct "Point")
           genExpr _             = return ([], IRConstNull, IRNull)
           initialState =
             emptyState
               { gsStructs = Map.fromList [("Point", [("x", IRI32)])]
               }
           ((instrs, op, typ), _) =
-            runState (genAccess genExpr (ExprVar "p") "x") initialState
+            runState (genAccess genExpr (ExprVar dummyPos "p") "x") initialState
       in do
         typ @?= IRI32
         assertBool "Should emit IRGET_FIELD" (any isGetField instrs)
@@ -50,14 +51,14 @@ testGenAccess = testGroup "genAccess"
           _          -> assertFailure "Expected IRTemp result for field access"
 
   , testCase "Looks up field type" $
-      let genExpr (ExprVar "p") = return ([], IRTemp "p" (IRPtr (IRStruct "Point")), IRPtr (IRStruct "Point"))
+      let genExpr (ExprVar _ "p") = return ([], IRTemp "p" (IRPtr (IRStruct "Point")), IRPtr (IRStruct "Point"))
           genExpr _             = return ([], IRConstNull, IRNull)
           initialState =
             emptyState
               { gsStructs = Map.fromList [("Point", [("y", IRI64)])]
               }
           ((instrs, _, typ), _) =
-            runState (genAccess genExpr (ExprVar "p") "y") initialState
+            runState (genAccess genExpr (ExprVar dummyPos "p") "y") initialState
       in do
         typ @?= IRI64
         assertBool "Should not emit IRADDR when operand is already a pointer"
@@ -67,9 +68,9 @@ testGenAccess = testGroup "genAccess"
 testGenStructInit :: TestTree
 testGenStructInit = testGroup "genStructInit"
   [ testCase "Generates struct initialization" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstNull, IRNull)
-          (instrs, _, typ) = runGen (genStructInit genExpr "Point" [("x", ExprLitInt 1)])
+          (instrs, _, typ) = runGen (genStructInit genExpr "Point" [("x", ExprLitInt dummyPos 1)])
       in do
         assertBool "Should have IRALLOC" $ any isAlloc instrs
         case typ of
@@ -77,9 +78,9 @@ testGenStructInit = testGroup "genStructInit"
           _ -> assertBool "Expected IRStruct Point" False
 
   , testCase "Generates field initializations" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstNull, IRNull)
-          (instrs, _, _) = runGen (genStructInit genExpr "Vec" [("x", ExprLitInt 1), ("y", ExprLitInt 2)])
+          (instrs, _, _) = runGen (genStructInit genExpr "Vec" [("x", ExprLitInt dummyPos 1), ("y", ExprLitInt dummyPos 2)])
       in assertBool "Should have instructions" $ not $ null instrs
   ]
 
@@ -142,10 +143,10 @@ testLookupFieldType = testGroup "lookupFieldType"
 testGenInitField :: TestTree
 testGenInitField = testGroup "genInitField"
   [ testCase "Generates address and set-field instructions for struct init" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _              = return ([], IRConstNull, IRNull)
           (instrs, _) =
-            runState (genInitField genExpr "Point" "s0" (IRStruct "Point") ("x", ExprLitInt 42)) emptyState
+            runState (genInitField genExpr "Point" "s0" (IRStruct "Point") ("x", ExprLitInt dummyPos 42)) emptyState
       in case instrs of
         [IRADDR ptrName base (IRPtr sType), IRSET_FIELD (IRTemp ptrOpName (IRPtr sType')) "Point" "x" (IRConstInt 42)] -> do
           base @?= "s0"

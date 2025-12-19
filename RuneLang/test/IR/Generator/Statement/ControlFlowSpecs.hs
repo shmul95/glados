@@ -6,6 +6,7 @@ module IR.Generator.Statement.ControlFlowSpecs (controlFlowTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertBool, (@?=))
 import Control.Monad.State (runState)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Statement.ControlFlow
 import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..), IRLabel(..), GenState(..))
 import Rune.AST.Nodes (Expression(..), Statement(..))
@@ -30,10 +31,10 @@ controlFlowTests = testGroup "Rune.IR.Generator.Statement.ControlFlow"
 testGenIfNoElse :: TestTree
 testGenIfNoElse = testGroup "genIfNoElse"
   [ testCase "Generates if without else" $
-      let genExpr (ExprLitBool b) = return ([], IRConstBool b, IRBool)
+      let genExpr (ExprLitBool _ b) = return ([], IRConstBool b, IRBool)
           genExpr _ = return ([], IRConstBool True, IRBool)
           genBlock _ = return []
-          instrs = runGen (genIfNoElse genExpr genBlock (ExprLitBool True) [])
+          instrs = runGen (genIfNoElse genExpr genBlock (ExprLitBool dummyPos True) [])
       in do
         assertBool "Should have JUMP_FALSE" $ any isJumpFalse instrs
         assertBool "Should have label" $ any isLabel instrs
@@ -41,7 +42,7 @@ testGenIfNoElse = testGroup "genIfNoElse"
   , testCase "Includes then block instructions" $
       let genExpr _ = return ([], IRConstBool True, IRBool)
           genBlock _ = return [IRRET Nothing]
-          instrs = runGen (genIfNoElse genExpr genBlock (ExprLitBool True) [])
+          instrs = runGen (genIfNoElse genExpr genBlock (ExprLitBool dummyPos True) [])
       in assertBool "Should have IRRET" $ any isRet instrs
   ]
 
@@ -50,7 +51,7 @@ testGenIfElse = testGroup "genIfElse"
   [ testCase "Generates if-else structure" $
       let genExpr _ = return ([], IRConstBool True, IRBool)
           genBlock _ = return []
-          instrs = runGen (genIfElse genExpr genBlock (ExprLitBool True) [] [])
+          instrs = runGen (genIfElse genExpr genBlock (ExprLitBool dummyPos True) [] [])
       in do
         assertBool "Should have JUMP_FALSE" $ any isJumpFalse instrs
         assertBool "Should have at least 2 labels" $ length (filter isLabel instrs) >= 2
@@ -61,7 +62,7 @@ testGenIfElse = testGroup "genIfElse"
             case stmts of
               [] -> return []
               _  -> return [IRRET Nothing]
-          instrs = runGen (genIfElse genExpr genBlock (ExprLitBool True) [StmtReturn (Just (ExprLitInt 1))] [StmtReturn Nothing])
+          instrs = runGen (genIfElse genExpr genBlock (ExprLitBool dummyPos True) [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))] [StmtReturn dummyPos Nothing])
           hasJumpToEnd = any isJumpToEnd instrs
       in assertBool "Should not emit jump to end when then-branch ends with IRRET" (not hasJumpToEnd)
   ]

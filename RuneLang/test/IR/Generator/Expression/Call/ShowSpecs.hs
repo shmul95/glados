@@ -9,6 +9,7 @@ import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure)
 import Control.Monad.State (runState)
 import Data.List (isPrefixOf)
 import qualified Data.Set as Set
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Call.Show
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..), IRTopLevel(..), IRFunction(..), IRGlobalValue(..), GenState(..), IRGen)
 import Rune.AST.Nodes (Expression(..))
@@ -60,25 +61,25 @@ isAddr (IRADDR _ _ _) = True
 isAddr _ = False
 
 genExprSimple :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprSimple (ExprLitInt n) = return ([], IRConstInt n, IRI64)
-genExprSimple (ExprLitBool b) = return ([], IRConstBool b, IRBool)
-genExprSimple (ExprLitChar c) = return ([], IRConstChar c, IRChar)
+genExprSimple (ExprLitInt _ n) = return ([], IRConstInt n, IRI64)
+genExprSimple (ExprLitBool _ b) = return ([], IRConstBool b, IRBool)
+genExprSimple (ExprLitChar _ c) = return ([], IRConstChar c, IRChar)
 genExprSimple _ = error "Unexpected expression in genExprSimple"
 
 genExprFloat :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprFloat (ExprLitFloat n) = do
+genExprFloat (ExprLitFloat _ n) = do
     gName <- newFloatGlobal n IRF64
     return ([], IRGlobal gName IRF64, IRF64)
 genExprFloat _ = error "Unexpected expression in genExprFloat"
 
 genExprString :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprString (ExprLitString _) = do
+genExprString (ExprLitString _ _) = do
     let strOp = IRPtr IRChar
     return ([], IRGlobal "str_global0" strOp, strOp)
 genExprString _ = error "Unexpected expression in genExprString"
 
 genExprStruct :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprStruct (ExprVar "s") = return ([], IRTemp "s" (IRStruct "Vec"), IRStruct "Vec")
+genExprStruct (ExprVar _ "s") = return ([], IRTemp "s" (IRStruct "Vec"), IRStruct "Vec")
 genExprStruct _ = error "Unexpected expression in genExprStruct"
 
 
@@ -88,22 +89,22 @@ genExprStruct _ = error "Unexpected expression in genExprStruct"
 
 test_show_bool_generation_details :: TestTree
 test_show_bool_generation_details = testCase "Boolean generates call to show_bool and adds it to globals" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprSimple (ExprLitBool True)) emptyState
+    let ((instrs, _, typ), state) = runState (genShowCall genExprSimple (ExprLitBool dummyPos True)) emptyState
     
     typ @?= IRNull
     assertBool "Should contain call to show_bool" $ any (isCall "show_bool") instrs
     assertBool "show_bool function should be added to globals" $ any isShowBoolDef (gsGlobals state)
 
 test_show_char_generation_details :: TestTree
-test_show_char_generation_details = testCase "Char generates call to putchar" $ do
-    let ((instrs, _, typ), _) = runState (genShowCall genExprSimple (ExprLitChar 'x')) emptyState
+test_show_char_generation_details = testCase "IRChar generates call to putchar" $ do
+    let ((instrs, _, typ), _) = runState (genShowCall genExprSimple (ExprLitChar dummyPos 'x')) emptyState
     
     typ @?= IRNull
     assertBool "Should contain call to putchar" $ any (isCall "putchar") instrs
 
 test_show_i64_generation_details :: TestTree
 test_show_i64_generation_details = testCase "IRI64 generates printf with %ld format string" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprSimple (ExprLitInt 123)) emptyState
+    let ((instrs, _, typ), state) = runState (genShowCall genExprSimple (ExprLitInt dummyPos 123)) emptyState
     
     typ @?= IRNull
     assertBool "Should contain call to printf" $ any (isCall "printf") instrs
@@ -117,7 +118,7 @@ test_show_i64_generation_details = testCase "IRI64 generates printf with %ld for
 
 test_show_f64_generation_details :: TestTree
 test_show_f64_generation_details = testCase "IRF64 generates printf with %lf format string" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprFloat (ExprLitFloat 3.14)) emptyState
+    let ((instrs, _, typ), state) = runState (genShowCall genExprFloat (ExprLitFloat dummyPos 3.14)) emptyState
     
     typ @?= IRNull
     assertBool "Should contain call to printf" $ any (isCall "printf") instrs
@@ -127,7 +128,7 @@ test_show_f64_generation_details = testCase "IRF64 generates printf with %lf for
 
 test_show_struct_generation_details :: TestTree
 test_show_struct_generation_details = testCase "IRStruct generates call to show_Struct and IRADDR" $ do
-    let ((instrs, _, typ), _) = runState (genShowCall genExprStruct (ExprVar "s")) emptyState
+    let ((instrs, _, typ), _) = runState (genShowCall genExprStruct (ExprVar dummyPos "s")) emptyState
     
     typ @?= IRNull
     assertBool "Should contain IRADDR for struct pointer" $ any isAddr instrs
@@ -135,7 +136,7 @@ test_show_struct_generation_details = testCase "IRStruct generates call to show_
 
 test_show_string_generation_details :: TestTree
 test_show_string_generation_details = testCase "IRPtr IRChar (string) generates printf with %s format string" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprString (ExprLitString "test")) emptyState
+    let ((instrs, _, typ), state) = runState (genShowCall genExprString (ExprLitString dummyPos "test")) emptyState
     
     typ @?= IRNull
     assertBool "Should contain call to printf" $ any (isCall "printf") instrs

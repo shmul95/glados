@@ -98,9 +98,9 @@ opTypeSemanticsTests =
               Right _  -> assertFailure "Should have failed for int/bool mixing",
         
           testCase "promotion behavior for Add operation" $ do
-            iHTBinary Add TypeI8 TypeI8 @?= Right TypeI16
-            iHTBinary Add TypeU8 TypeU16 @?= Right TypeU32
-            iHTBinary Add TypeI16 TypeI32 @?= Right TypeI64,
+            iHTBinary Add TypeI8 TypeI8 @?= Right TypeI8
+            iHTBinary Add TypeU8 TypeU16 @?= Right TypeU16
+            iHTBinary Add TypeI16 TypeI32 @?= Right TypeI32,
         
           testCase "promotion behavior for subtraction" $
             iHTBinary Sub TypeI16 TypeI32 @?= Right TypeI32,
@@ -109,19 +109,19 @@ opTypeSemanticsTests =
             iHTBinary Div TypeU8 TypeU16 @?= Right TypeU16,
 
           testCase "promotion behavior for Add and Mul with TypeAny" $ do
-            iHTBinary Add TypeI32 TypeAny @?= Right TypeI64
+            iHTBinary Add TypeI32 TypeAny @?= Right TypeI32
             iHTBinary Mul TypeF32 TypeAny @?= Right TypeF64,
         
           testCase "handles TypeAny in int family" $ do
-            iHTBinary Add TypeI32 TypeAny @?= Right TypeI64
+            iHTBinary Add TypeI32 TypeAny @?= Right TypeI32
             iHTBinary Sub TypeAny TypeI16 @?= Right TypeI16,
         
           testCase "handles TypeAny in uint family" $ do
-            iHTBinary Add TypeU32 TypeAny @?= Right TypeU64
+            iHTBinary Add TypeU32 TypeAny @?= Right TypeU32
             iHTBinary Sub TypeAny TypeU16 @?= Right TypeU16,
         
           testCase "handles TypeAny in float family" $ do
-            iHTBinary Add TypeF32 TypeAny @?= Right TypeF64
+            iHTBinary Add TypeF32 TypeAny @?= Right TypeF32
             iHTBinary Sub TypeAny TypeF32 @?= Right TypeF32
         ]
     ]

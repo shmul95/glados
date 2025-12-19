@@ -50,6 +50,10 @@ parseBlockTests =
 -- helpers
 --
 
+-- | Helper to create a test SourcePos
+testPos :: SourcePos
+testPos = SourcePos "test" 1 1
+
 tok :: T.TokenKind -> T.Token
 tok k = T.Token k "" 1 1
 
@@ -67,21 +71,21 @@ assertBlockParse msg tokens expected =
     Left err -> assertBool ("Parse failed: " ++ err) False
 
 runP :: Parser a -> [T.Token] -> Int -> Either String a
-runP p ts loopDepth =
+runP parser ts loopDepth =
   let state = ParserState (ts ++ [tok T.EOF]) 0 "test" loopDepth
-  in case runParser p state of
+  in case runParser parser state of
        Right (res, _) -> Right res
        Left err -> Left err
 
 assertP :: (Eq a, Show a) => String -> Parser a -> [T.Token] -> Int -> a -> IO ()
-assertP msg p tokens loopDepth expected =
-  case runP p tokens loopDepth of
+assertP msg parser tokens loopDepth expected =
+  case runP parser tokens loopDepth of
     Right actual -> assertEqual msg expected actual
     Left err -> assertBool ("Parse failed: " ++ err) False
 
 assertFail :: Show a => String -> Parser a -> [T.Token] -> Int -> String -> IO ()
-assertFail _ p tokens loopDepth expectedSubstr =
-  case runP p tokens loopDepth of
+assertFail _ parser tokens loopDepth expectedSubstr =
+  case runP parser tokens loopDepth of
     Right actual -> assertBool ("Parse unexpectedly succeeded with: " ++ show actual) False
     Left err -> assertBool ("Expected error containing: " ++ expectedSubstr ++ "\nActual error: " ++ err) (isInfixOf expectedSubstr err)
 
@@ -97,26 +101,26 @@ implicitReturnTest :: TestTree
 implicitReturnTest = testCase "Implicit Return" $
   assertBlockParse "Implicit Return"
     [tok T.LBrace, tok (T.LitInt 1), tok T.RBrace]
-    [StmtReturn (Just (ExprLitInt 1))]
+    [StmtReturn testPos (Just (ExprLitInt testPos 1))]
 
 statementTests :: TestTree
 statementTests = testGroup "Integration Stmt Tests (via parseBlock)"
   [ testCase "Multiple Statements" $
       assertBlockParse "Return; Return;"
         [tok T.LBrace, tok T.KwReturn, tok T.Semicolon, tok T.KwReturn, tok T.Semicolon, tok T.RBrace]
-        [StmtReturn Nothing, StmtReturn Nothing]
+        [StmtReturn testPos Nothing, StmtReturn testPos Nothing]
   , testCase "Var Decl with init" $
       assertBlockParse "x = 1;"
         [tok T.LBrace, tok (T.Identifier "x"), tok T.OpAssign, tok (T.LitInt 1), tok T.Semicolon, tok T.RBrace]
-        [StmtVarDecl "x" Nothing (ExprLitInt 1)]
+        [StmtVarDecl testPos "x" Nothing (ExprLitInt testPos 1)]
   , testCase "Compound Assign" $
       assertBlockParse "x += 1;"
         [tok T.LBrace, tok (T.Identifier "x"), tok T.OpAddAssign, tok (T.LitInt 1), tok T.Semicolon, tok T.RBrace]
-        [StmtAssignment (ExprVar "x") (ExprBinary Add (ExprVar "x") (ExprLitInt 1))]
+        [StmtAssignment testPos (ExprVar testPos "x") (ExprBinary testPos Add (ExprVar testPos "x") (ExprLitInt testPos 1))]
   , testCase "Expr;" $
       assertBlockParse "1;"
         [tok T.LBrace, tok (T.LitInt 1), tok T.Semicolon, tok T.RBrace]
-        [StmtExpr (ExprLitInt 1)]
+        [StmtExpr (SourcePos "test" 1 1) (ExprLitInt (SourcePos "test" 1 1) 1)]
   ]
 
 parseBlockLoopTests :: TestTree
@@ -124,33 +128,33 @@ parseBlockLoopTests = testGroup "parseBlockLoop Tests"
   [ testCase "Empty block body" $
       assertP "Returns [] on RBrace" parseBlockLoop [tok T.RBrace] 0 []
   , testCase "Single statement" $
-      assertP "Parses one statement" parseBlockLoop [tok T.KwReturn, tok T.Semicolon, tok T.RBrace] 0 [StmtReturn Nothing]
+      assertP "Parses one statement" parseBlockLoop [tok T.KwReturn, tok T.Semicolon, tok T.RBrace] 0 [StmtReturn testPos Nothing]
   , testCase "Multiple statements" $
-      assertP "Parses multiple statements" parseBlockLoop [tok T.KwStop, tok T.Semicolon, tok T.KwNext, tok T.Semicolon, tok T.RBrace] 1 [StmtStop, StmtNext]
+      assertP "Parses multiple statements" parseBlockLoop [tok T.KwStop, tok T.Semicolon, tok T.KwNext, tok T.Semicolon, tok T.RBrace] 1 [StmtStop testPos, StmtNext testPos]
   ]
 
 parseStatementTests :: TestTree
 parseStatementTests = testGroup "parseStatement Tests"
   [ testCase "Routes to parseReturn" $
-      assertP "Parses return;" parseStatement [tok T.KwReturn, tok T.Semicolon] 0 (StmtReturn Nothing)
+      assertP "Parses return;" parseStatement [tok T.KwReturn, tok T.Semicolon] 0 (StmtReturn testPos Nothing)
   , testCase "Routes to parseIf" $
-      assertP "Parses if true {}" parseStatement [tok T.KwIf, tok (T.LitBool True), tok T.LBrace, tok T.RBrace] 0 (StmtIf (ExprLitBool True) [] Nothing)
+      assertP "Parses if true {}" parseStatement [tok T.KwIf, tok (T.LitBool True), tok T.LBrace, tok T.RBrace] 0 (StmtIf testPos (ExprLitBool testPos True) [] Nothing)
   , testCase "Routes to parseLoop" $
-      assertP "Parses loop {}" parseStatement [tok T.KwLoop, tok T.LBrace, tok T.RBrace] 0 (StmtLoop [])
+      assertP "Parses loop {}" parseStatement [tok T.KwLoop, tok T.LBrace, tok T.RBrace] 0 (StmtLoop testPos [])
   , testCase "Routes to parseStop" $
-      assertP "Parses stop;" parseStatement [tok T.KwStop, tok T.Semicolon] 1 StmtStop
+      assertP "Parses stop;" parseStatement [tok T.KwStop, tok T.Semicolon] 1 (StmtStop testPos)
   , testCase "Routes to parseNext" $
-      assertP "Parses next;" parseStatement [tok T.KwNext, tok T.Semicolon] 1 StmtNext
+      assertP "Parses next;" parseStatement [tok T.KwNext, tok T.Semicolon] 1 (StmtNext testPos)
   , testCase "Routes to parseVariable (var decl)" $
-      assertP "Parses x: i32;" parseStatement [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon] 0 (StmtVarDecl "x" (Just TypeI32) ExprLitNull)
+      assertP "Parses x: i32;" parseStatement [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon] 0 (StmtVarDecl testPos "x" (Just TypeI32) (ExprLitNull testPos))
   ]
 
 parseReturnTests :: TestTree
 parseReturnTests = testGroup "parseReturn Tests"
   [ testCase "Return with no expression" $
-      assertP "Parses return;" parseReturn [tok T.KwReturn, tok T.Semicolon] 0 (StmtReturn Nothing)
+      assertP "Parses return;" parseReturn [tok T.KwReturn, tok T.Semicolon] 0 (StmtReturn testPos Nothing)
   , testCase "Return with expression" $
-      assertP "Parses return 1;" parseReturn [tok T.KwReturn, tok (T.LitInt 1), tok T.Semicolon] 0 (StmtReturn (Just (ExprLitInt 1)))
+      assertP "Parses return 1;" parseReturn [tok T.KwReturn, tok (T.LitInt 1), tok T.Semicolon] 0 (StmtReturn testPos (Just (ExprLitInt testPos 1)))
   , testCase "Fails on missing semicolon" $
       assertFail "return 1 without ;" parseReturn [tok T.KwReturn, tok (T.LitInt 1)] 0 "Expected Semicolon"
   ]
@@ -159,13 +163,13 @@ parseIfTests :: TestTree
 parseIfTests = testGroup "parseIf Tests"
   [ testCase "If (no else)" $
       let tokens = [tok T.KwIf, tok (T.LitBool True), tok T.LBrace, tok T.RBrace]
-      in assertP "Parses if true {}" parseIf tokens 0 (StmtIf (ExprLitBool True) [] Nothing)
+      in assertP "Parses if true {}" parseIf tokens 0 (StmtIf testPos (ExprLitBool testPos True) [] Nothing)
   , testCase "If Else (block)" $
       let tokens = [tok T.KwIf, tok (T.LitBool True), tok T.LBrace, tok T.RBrace, tok T.KwElse, tok T.LBrace, tok T.RBrace]
-      in assertP "Parses if {} else {}" parseIf tokens 0 (StmtIf (ExprLitBool True) [] (Just []))
+      in assertP "Parses if {} else {}" parseIf tokens 0 (StmtIf testPos (ExprLitBool testPos True) [] (Just []))
   , testCase "If Else If" $
       let tokens = [tok T.KwIf, tok (T.LitBool True), tok T.LBrace, tok T.RBrace, tok T.KwElse, tok T.KwIf, tok (T.LitBool False), tok T.LBrace, tok T.RBrace]
-      in assertP "Parses if {} else if {}" parseIf tokens 0 (StmtIf (ExprLitBool True) [] (Just [StmtIf (ExprLitBool False) [] Nothing]))
+      in assertP "Parses if {} else if {}" parseIf tokens 0 (StmtIf testPos (ExprLitBool testPos True) [] (Just [StmtIf testPos (ExprLitBool testPos False) [] Nothing]))
   , testCase "Fails on missing condition" $
       assertFail "if without condition" parseIf [tok T.KwIf, tok T.LBrace, tok T.RBrace] 0 "in if condition"
   ]
@@ -174,13 +178,13 @@ parseForTests :: TestTree
 parseForTests = testGroup "parseFor Tests"
   [ testCase "Routes to parseForRangeRest (with '=')" $
       let tokens = [tok T.KwFor, tok (T.Identifier "i"), tok T.OpAssign, tok (T.LitInt 0), tok T.KwTo, tok (T.LitInt 10), tok T.LBrace, tok T.RBrace]
-      in assertP "for i = 0 to 10 {}" parseFor tokens 0 (StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprLitInt 10) [])
+      in assertP "for i = 0 to 10 {}" parseFor tokens 0 (StmtFor testPos "i" Nothing (Just (ExprLitInt testPos 0)) (ExprLitInt testPos 10) [])
   , testCase "Routes to parseForRangeRestNoInit (with 'to')" $
       let tokens = [tok T.KwFor, tok (T.Identifier "i"), tok T.KwTo, tok (T.LitInt 10), tok T.LBrace, tok T.RBrace]
-      in assertP "for i to 10 {}" parseFor tokens 0 (StmtFor "i" Nothing Nothing (ExprLitInt 10) [])
+      in assertP "for i to 10 {}" parseFor tokens 0 (StmtFor testPos "i" Nothing Nothing (ExprLitInt testPos 10) [])
   , testCase "Routes to parseForEachRest (with 'in')" $
       let tokens = [tok T.KwFor, tok (T.Identifier "x"), tok T.KwIn, tok (T.Identifier "list"), tok T.LBrace, tok T.KwReturn, tok T.Semicolon, tok T.RBrace]
-          expected = StmtForEach "x" Nothing (ExprVar "list") [StmtReturn Nothing]
+          expected = StmtForEach testPos "x" Nothing (ExprVar testPos "list") [StmtReturn testPos Nothing]
       in assertP "for x in list {return;}" parseFor tokens 0 expected
   , testCase "Fails on invalid token after variable" $
       assertFail "for i [invalid] to" parseFor [tok T.KwFor, tok (T.Identifier "i"), tok T.LBrace] 0 "Expected '=' or 'to' or 'in'"
@@ -190,11 +194,11 @@ parseForRangeRestTests :: TestTree
 parseForRangeRestTests = testGroup "parseForRangeRest Tests"
   [ testCase "Full range for loop" $
       let tokens = [tok T.OpAssign, tok (T.LitInt 0), tok T.KwTo, tok (T.LitInt 10), tok T.LBrace, tok T.KwNext, tok T.Semicolon, tok T.RBrace]
-          expected = StmtFor "i" Nothing (Just (ExprLitInt 0)) (ExprLitInt 10) [StmtNext]
+          expected = StmtFor testPos "i" Nothing (Just (ExprLitInt testPos 0)) (ExprLitInt testPos 10) [StmtNext testPos]
       in assertP "for i = 0 to 10 {next;}" (parseForRangeRest "i" Nothing) tokens 0 expected
   , testCase "With type annotation" $
       let tokens = [tok T.OpAssign, tok (T.LitInt 0), tok T.KwTo, tok (T.LitInt 10), tok T.LBrace, tok T.RBrace]
-          expected = StmtFor "i" (Just TypeI32) (Just (ExprLitInt 0)) (ExprLitInt 10) []
+          expected = StmtFor testPos "i" (Just TypeI32) (Just (ExprLitInt testPos 0)) (ExprLitInt testPos 10) []
       in assertP "for i: i32 = 0 to 10 {}" (parseForRangeRest "i" (Just TypeI32)) tokens 0 expected
   ]
 
@@ -202,11 +206,11 @@ parseForRangeRestNoInitTests :: TestTree
 parseForRangeRestNoInitTests = testGroup "parseForRangeRestNoInit Tests"
   [ testCase "Range for loop no init" $
       let tokens = [tok T.KwTo, tok (T.LitInt 10), tok T.LBrace, tok T.RBrace]
-          expected = StmtFor "i" Nothing Nothing (ExprLitInt 10) []
+          expected = StmtFor testPos "i" Nothing Nothing (ExprLitInt testPos 10) []
       in assertP "for i to 10 {}" (parseForRangeRestNoInit "i" Nothing) tokens 0 expected
   , testCase "With type annotation" $
       let tokens = [tok T.KwTo, tok (T.LitInt 10), tok T.LBrace, tok T.RBrace]
-          expected = StmtFor "i" (Just TypeI32) Nothing (ExprLitInt 10) []
+          expected = StmtFor testPos "i" (Just TypeI32) Nothing (ExprLitInt testPos 10) []
       in assertP "for i: i32 to 10 {}" (parseForRangeRestNoInit "i" (Just TypeI32)) tokens 0 expected
   ]
 
@@ -214,11 +218,11 @@ parseForEachRestTests :: TestTree
 parseForEachRestTests = testGroup "parseForEachRest Tests"
   [ testCase "For each loop" $
       let tokens = [tok T.KwIn, tok (T.Identifier "list"), tok T.LBrace, tok T.KwReturn, tok T.Semicolon, tok T.RBrace]
-          expected = StmtForEach "x" Nothing (ExprVar "list") [StmtReturn Nothing]
+          expected = StmtForEach testPos "x" Nothing (ExprVar testPos "list") [StmtReturn testPos Nothing]
       in assertP "for x in list {return;}" (parseForEachRest "x" Nothing) tokens 0 expected
   , testCase "With type annotation" $
       let tokens = [tok T.KwIn, tok (T.Identifier "list"), tok T.LBrace, tok T.KwReturn, tok T.Semicolon, tok T.RBrace]
-          expected = StmtForEach "x" (Just TypeI32) (ExprVar "list") [StmtReturn Nothing]
+          expected = StmtForEach testPos "x" (Just TypeI32) (ExprVar testPos "list") [StmtReturn testPos Nothing]
       in assertP "for x: i32 in list {return;}" (parseForEachRest "x" (Just TypeI32)) tokens 0 expected
   ]
 
@@ -226,16 +230,16 @@ parseLoopTests :: TestTree
 parseLoopTests = testGroup "parseLoop Tests"
   [ testCase "Loop with body" $
       let tokens = [tok T.KwLoop, tok T.LBrace, tok T.KwNext, tok T.Semicolon, tok T.RBrace]
-      in assertP "loop {next;}" parseLoop tokens 0 (StmtLoop [StmtNext])
+      in assertP "loop {next;}" parseLoop tokens 0 (StmtLoop testPos [StmtNext testPos])
   , testCase "Loop with empty body" $
       let tokens = [tok T.KwLoop, tok T.LBrace, tok T.RBrace]
-      in assertP "loop {}" parseLoop tokens 0 (StmtLoop [])
+      in assertP "loop {}" parseLoop tokens 0 (StmtLoop testPos [])
   ]
 
 parseStopTests :: TestTree
 parseStopTests = testGroup "parseStop Tests"
   [ testCase "Stop inside loop" $
-      assertP "stop; (in loop)" parseStop [tok T.KwStop, tok T.Semicolon] 1 StmtStop
+      assertP "stop; (in loop)" parseStop [tok T.KwStop, tok T.Semicolon] 1 (StmtStop testPos)
   , testCase "Stop outside loop fails" $
       assertFail "stop; (outside loop)" parseStop [tok T.KwStop, tok T.Semicolon] 0 "'stop' statement can only be used inside a loop"
   , testCase "Fails on missing semicolon" $
@@ -245,7 +249,7 @@ parseStopTests = testGroup "parseStop Tests"
 parseNextTests :: TestTree
 parseNextTests = testGroup "parseNext Tests"
   [ testCase "Next inside loop" $
-      assertP "next; (in loop)" parseNext [tok T.KwNext, tok T.Semicolon] 1 StmtNext
+      assertP "next; (in loop)" parseNext [tok T.KwNext, tok T.Semicolon] 1 (StmtNext testPos)
   , testCase "Next outside loop fails" $
       assertFail "next; (outside loop)" parseNext [tok T.KwNext, tok T.Semicolon] 0 "'next' statement can only be used inside a loop"
   , testCase "Fails on missing semicolon" $
@@ -273,7 +277,7 @@ contextErrorTests = testGroup "Context Error Tests"
 
   , testCase "parseIf 'else block' context" $
       let tokens = [ tok T.KwIf , tok (T.LitBool True) , tok T.LBrace , tok T.RBrace , tok T.KwElse , tok T.LBrace , tok T.RBrace ]
-      in assertP "parseIf else block" parseIf tokens 0 (StmtIf (ExprLitBool True) [] (Just []))
+      in assertP "parseIf else block" parseIf tokens 0 (StmtIf testPos (ExprLitBool testPos True) [] (Just []))
 
   , testCase "parseForRangeRest 'start index' context" $
       assertFail "parseForRangeRest start index" (parseForRangeRest "i" Nothing) [tok T.OpAssign, tok T.KwTo] 0 "start index"

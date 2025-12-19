@@ -4,7 +4,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure, assertEqual)
 import Rune.IR.Generator.Expression.Unary
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
-import Rune.AST.Nodes (UnaryOp(..), Expression(..))
+import Rune.AST.Nodes (UnaryOp(..), Expression(..), SourcePos(..))
 import IR.TestUtils (runGen)
 
 --
@@ -31,9 +31,9 @@ unaryExprTests = testGroup "Rune.IR.Generator.Expression.Unary"
 testGenUnary :: TestTree
 testGenUnary = testGroup "genUnary"
   [ testCase "Generates negate operation" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, _, typ) = runGen (genUnary genExpr Negate (ExprLitInt 5))
+          (instrs, _, typ) = runGen (genUnary genExpr Negate (ExprLitInt (SourcePos "test.ru" 0 0) 5))
       in do
         assertBool "Should have instructions" $ not $ null instrs
         typ @?= IRI32

@@ -48,9 +48,7 @@ inferHigherType a b = unrank (notAny a b) (max (rank a) (rank b))
 
 adjustType :: BinaryOp -> Type -> Type -> Either String Type
 adjustType Mul a b = unrank (notAny a b) 4
-adjustType Add a b = do
-  higherType <- inferHigherType a b
-  unrank (notAny a b) $ min 4 (rank higherType + 1)
+adjustType Add a b = inferHigherType a b
 adjustType _   a b = inferHigherType a b
 
 iHTBinary :: BinaryOp -> Type -> Type -> Either String Type

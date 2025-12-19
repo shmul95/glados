@@ -3,11 +3,11 @@ module Rune.AST.Parser.ParseVariable
   )
 where
 
-import Control.Applicative (optional, (<|>))
-import Rune.AST.Nodes (BinaryOp (..), Expression (..), Statement (..))
+import Control.Applicative (optional)
+import Rune.AST.Nodes (BinaryOp (..), Expression (..), Statement (..), getExprPos)
 import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
-import Rune.AST.ParserHelper (chainPostfix, check, choice, expect, failParse, match, peek, try, withContext)
+import Rune.AST.ParserHelper (chainPostfix, check, choice, expect, failParse, getCurrentPos, match, peek, try, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -62,31 +62,37 @@ parseLValue = parseAccessOrVar
 parseAccessOrVar :: Parser Expression
 parseAccessOrVar = chainPostfix parseBase op
   where
-    parseBase =
-      (ExprVar <$> parseIdentifier)
-        <|> failParse "Expected L-Value (variable or field access)"
+    parseBase = do
+      pos <- getCurrentPos
+      name <- parseIdentifier
+      pure (ExprVar pos name)
     op = do
-      f <- expect T.Dot *> parseIdentifier
-      pure $ \e -> ExprAccess e f
+      pos <- getCurrentPos
+      _ <- expect T.Dot
+      f <- parseIdentifier
+      pure $ \e -> ExprAccess pos e f
 
 parseAssignment :: Parser Statement
 parseAssignment = do
+  pos <- getCurrentPos
   lvalue <- parseLValue
   opTok <- choice (map expect [T.OpAssign, T.OpAddAssign, T.OpSubAssign, T.OpMulAssign, T.OpDivAssign, T.OpModAssign])
   val <- withContext "RHS of assignment" parseExpression
   _ <- expect T.Semicolon
-  let finalExpr = case T.tokenKind opTok of
+  let lvPos = getExprPos lvalue
+      finalExpr = case T.tokenKind opTok of
         T.OpAssign -> val
-        T.OpAddAssign -> ExprBinary Add lvalue val
-        T.OpSubAssign -> ExprBinary Sub lvalue val
-        T.OpMulAssign -> ExprBinary Mul lvalue val
-        T.OpDivAssign -> ExprBinary Div lvalue val
-        T.OpModAssign -> ExprBinary Mod lvalue val
+        T.OpAddAssign -> ExprBinary lvPos Add lvalue val
+        T.OpSubAssign -> ExprBinary lvPos Sub lvalue val
+        T.OpMulAssign -> ExprBinary lvPos Mul lvalue val
+        T.OpDivAssign -> ExprBinary lvPos Div lvalue val
+        T.OpModAssign -> ExprBinary lvPos Mod lvalue val
         _ -> error "Impossible assignment operator"
-  pure $ StmtAssignment lvalue finalExpr
+  pure $ StmtAssignment pos lvalue finalExpr
 
 parseVarDecl :: Parser Statement
 parseVarDecl = do
+  pos <- getCurrentPos
   name <- parseIdentifier
   typeAnnot <- optional (expect T.Colon *> parseType)
   isAssign <- match T.OpAssign
@@ -94,20 +100,21 @@ parseVarDecl = do
     if isAssign
       then withContext "assigned value" parseExpression
       else case typeAnnot of
-        Just _ -> pure ExprLitNull
+        Just _ -> pure $ ExprLitNull pos
         Nothing -> failParse "Expected type annotation or initial value for variable declaration"
 
   _ <- expect T.Semicolon
-  pure $ StmtVarDecl name typeAnnot val
+  pure $ StmtVarDecl pos name typeAnnot val
 
 parseExprStmt :: Parser Statement
 parseExprStmt = do
+  pos <- getCurrentPos
   expr <- parseExpression
   isSemicolon <- match T.Semicolon
   if isSemicolon
-    then pure (StmtExpr expr)
+    then pure (StmtExpr pos expr)
     else do
       isEnd <- check T.RBrace
       if isEnd
-        then pure (StmtReturn (Just expr))
+        then pure (StmtReturn pos (Just expr))
         else failParse "Expected ';' after expression or block-ending '}' for implicit return"

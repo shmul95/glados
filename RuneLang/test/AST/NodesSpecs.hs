@@ -3,6 +3,7 @@ module AST.NodesSpecs (astNodesTests) where
 import Rune.AST.Nodes
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
+import TestHelpers (dummyPos)
 
 --
 -- public
@@ -19,6 +20,7 @@ astNodesTests =
       testProgramAccessors,
       testTopLevelDefAccessors,
       testStatementAccessors,
+      testConditionalAndLoopAccessors,
       testExpressionAccessors
     ]
 
@@ -27,10 +29,10 @@ astNodesTests =
 --
 
 dummyBlock :: Block
-dummyBlock = [StmtReturn Nothing]
+dummyBlock = [StmtReturn dummyPos Nothing]
 
 dummyExpr :: Expression
-dummyExpr = ExprLitInt 42
+dummyExpr = ExprLitInt dummyPos 42
 
 --
 -- private
@@ -153,57 +155,63 @@ testStatementAccessors =
   testGroup
     "Statement Accessors"
     [ testCase "StmtVarDecl accessors" $
-        let stmt = StmtVarDecl {varName = "x", varType = Just TypeI32, varValue = dummyExpr}
+        let stmt = StmtVarDecl {stmtPos = dummyPos, varName = "x", varType = Just TypeI32, varValue = dummyExpr}
          in do
               varName stmt @?= "x"
               varType stmt @?= Just TypeI32
-              varValue stmt @?= dummyExpr,
-      testCase "StmtAssignment accessors" $
-        let stmt = StmtAssignment {assignLValue = ExprVar "x", assignRValue = dummyExpr}
+              varValue stmt @?= dummyExpr
+    , testCase "StmtAssignment accessors" $
+        let stmt = StmtAssignment {stmtPos = dummyPos, assignLValue = ExprVar dummyPos "x", assignRValue = dummyExpr}
          in do
-              assignLValue stmt @?= ExprVar "x"
-              assignRValue stmt @?= dummyExpr,
+              assignLValue stmt @?= ExprVar dummyPos "x"
+              assignRValue stmt @?= dummyExpr
+    , testCase "StmtReturn accessors" $
+        case StmtReturn dummyPos (Just dummyExpr) of
+          StmtReturn _ val -> val @?= Just dummyExpr
+    ]
 
-      testCase "StmtReturn accessors" $
-        case StmtReturn (Just dummyExpr) of
-          StmtReturn val -> val @?= Just dummyExpr,
-
-      testCase "StmtIf accessors" $
-        let stmt = StmtIf {ifCond = ExprLitBool True, ifThen = dummyBlock, ifElse = Just dummyBlock}
+testConditionalAndLoopAccessors :: TestTree
+testConditionalAndLoopAccessors =
+  testGroup
+    "Conditional and Loop Accessors"
+    [ testCase "StmtIf accessors" $
+        let stmt = StmtIf {stmtPos = dummyPos, ifCond = ExprLitBool dummyPos True, ifThen = dummyBlock, ifElse = Just dummyBlock}
          in do
-              ifCond stmt @?= ExprLitBool True
+              ifCond stmt @?= ExprLitBool dummyPos True
               ifThen stmt @?= dummyBlock
-              ifElse stmt @?= Just dummyBlock,
-      testCase "StmtFor accessors" $
+              ifElse stmt @?= Just dummyBlock
+    , testCase "StmtFor accessors" $
         let stmt =
               StmtFor
-                { forVar = "i",
+                { stmtPos = dummyPos,
+                  forVar = "i",
                   forVarType = Just TypeI32,
-                  forStart = Just (ExprLitInt 0),
-                  forEnd = ExprLitInt 10,
+                  forStart = Just (ExprLitInt dummyPos 0),
+                  forEnd = ExprLitInt dummyPos 10,
                   forBody = dummyBlock
                 }
          in do
               forVar stmt @?= "i"
               forVarType stmt @?= Just TypeI32
-              forStart stmt @?= Just (ExprLitInt 0)
-              forEnd stmt @?= ExprLitInt 10
+              forStart stmt @?= Just (ExprLitInt dummyPos 0)
+              forEnd stmt @?= ExprLitInt dummyPos 10
               forBody stmt @?= dummyBlock,
       testCase "StmtForEach accessors" $
         let stmt =
               StmtForEach
-                { forEachVar = "item",
+                { stmtPos = dummyPos,
+                  forEachVar = "item",
                   forEachVarType = Nothing,
-                  forEachIterable = ExprVar "list",
+                  forEachIterable = ExprVar dummyPos "list",
                   forEachBody = dummyBlock
                 }
          in do
               forEachVar stmt @?= "item"
               forEachVarType stmt @?= Nothing
-              forEachIterable stmt @?= ExprVar "list"
+              forEachIterable stmt @?= ExprVar dummyPos "list"
               forEachBody stmt @?= dummyBlock,
       testCase "StmtLoop/Stop/Next/Expr constructors" $
-        let list = [StmtLoop dummyBlock, StmtStop, StmtNext, StmtExpr dummyExpr]
+        let list = [StmtLoop dummyPos dummyBlock, StmtStop dummyPos, StmtNext dummyPos, StmtExpr dummyPos dummyExpr]
          in length list @?= 4
     ]
 
@@ -212,31 +220,31 @@ testExpressionAccessors =
   testGroup
     "Expression Accessors"
     [ testCase "ExprCall accessors" $
-        let expr = ExprCall {callName = "foo", callArgs = [dummyExpr]}
+        let expr = ExprCall {exprPos = dummyPos, callName = "foo", callArgs = [dummyExpr]}
          in do
               callName expr @?= "foo"
-              callArgs expr @?= [dummyExpr],
-      testCase "ExprStructInit accessors" $
-        let expr = ExprStructInit {initStructName = "Point", initFields = [("x", dummyExpr)]}
+              callArgs expr @?= [dummyExpr]
+    , testCase "ExprStructInit accessors" $
+        let expr = ExprStructInit {exprPos = dummyPos, initStructName = "Point", initFields = [("x", dummyExpr)]}
          in do
               initStructName expr @?= "Point"
-              initFields expr @?= [("x", dummyExpr)],
-      testCase "ExprAccess accessors" $
-        let expr = ExprAccess {accessTarget = ExprVar "p", accessField = "x"}
+              initFields expr @?= [("x", dummyExpr)]
+    , testCase "ExprAccess accessors" $
+        let expr = ExprAccess dummyPos (ExprVar dummyPos "p") "x"
          in do
-              accessTarget expr @?= ExprVar "p"
-              accessField expr @?= "x",
-      testCase "ExprBinary/Unary/Literals constructors" $
+              accessTarget expr @?= ExprVar dummyPos "p"
+              accessField expr @?= "x"
+    , testCase "ExprBinary/Unary/Literals constructors" $
         let exprs =
-              [ ExprBinary Add dummyExpr dummyExpr,
-                ExprUnary Negate dummyExpr,
-                ExprLitInt 1,
-                ExprLitFloat 1.0,
-                ExprLitString "s",
-                ExprLitChar 'c',
-                ExprLitBool True,
-                ExprLitNull,
-                ExprVar "x"
+              [ ExprBinary dummyPos Add dummyExpr dummyExpr,
+                ExprUnary dummyPos Negate dummyExpr,
+                ExprLitInt dummyPos 1,
+                ExprLitFloat dummyPos 1.0,
+                ExprLitString dummyPos "s",
+                ExprLitChar dummyPos 'c',
+                ExprLitBool dummyPos True,
+                ExprLitNull dummyPos,
+                ExprVar dummyPos "x"
               ]
          in length exprs @?= 9
     ]
