@@ -71,7 +71,9 @@ selectReturnType :: FuncStack -> String -> [IRType] -> IRGen IRType
 selectReturnType fs funcName actualIRTypes =
   let actualASTTypes = map irTypeToASTType actualIRTypes
    in case selectSignature fs funcName actualASTTypes of
-        Just retASTType -> pure $ astTypeToIRType retASTType
+        Just retASTType -> pure $ case retASTType of
+                                    TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                                    t -> astTypeToIRType t
         Nothing -> throwError $ "Semantic error: No matching signature found for function call: " ++ funcName
                             ++ " with arguments: " ++ show actualASTTypes
 
@@ -92,8 +94,8 @@ astTypeToIRType TypeBool = IRBool
 astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
+astTypeToIRType (TypeArray _) = error "Unsupported type conversion from AST to IR: TypeArray"
 astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR: TypeAny"
-astTypeToIRType (TypeArray t) = error $ "Unsupported type conversion from AST to IR: TypeArray " ++ show t
 
 irTypeToASTType :: IRType -> Type
 irTypeToASTType IRI8 = TypeI8
@@ -112,6 +114,8 @@ irTypeToASTType IRNull = TypeNull
 irTypeToASTType (IRStruct s) = TypeCustom s
 irTypeToASTType (IRPtr IRChar) = TypeString
 irTypeToASTType (IRPtr (IRStruct s)) = TypeCustom s
+irTypeToASTType (IRArray t _) = TypeArray (irTypeToASTType t)
+irTypeToASTType (IRPtr (IRArray t _)) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr _) = TypeAny
 
 -- TODO: treat struct properly
@@ -131,6 +135,7 @@ sizeOfIRType IRU64 = 8
 sizeOfIRType IRBool = 1
 sizeOfIRType (IRPtr _) = 8 -- Ô_ö
 sizeOfIRType (IRStruct _) = 8 -- ö_Ô
+sizeOfIRType (IRArray t len) = sizeOfIRType t * len
 sizeOfIRType IRNull = 8
 
 
