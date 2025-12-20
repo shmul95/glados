@@ -61,7 +61,9 @@ genFunction (DefFunction name params retType body) = do
   irParams <- mapM genParam params
   bodyInstrs <- concat <$> mapM genStatement body
 
-  let irRetType = astTypeToIRType retType
+  let irRetType = case retType of
+                    TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                    t -> astTypeToIRType t
       cleaned = ensureReturn irRetType bodyInstrs
       func = IRFunction name irParams (Just irRetType) cleaned
 
@@ -106,14 +108,14 @@ genStructMethod _ _ = pure []
 -- | generate IR for a function parameter and register it in the symbol table
 genParam :: Parameter -> IRGen (String, IRType)
 genParam (Parameter name typ) = do
-  let irType = astTypeToIRType typ
-      finalType = case irType of
-        IRStruct s -> IRPtr (IRStruct s)
-        _ -> irType
+  let irType = case typ of
+                 TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                 TypeCustom s -> IRPtr (IRStruct s)
+                 t -> astTypeToIRType t
       irName = "p_" ++ name
 
-  registerVar name (IRParam irName finalType) finalType
-  pure (irName, finalType)
+  registerVar name (IRParam irName irType) irType
+  pure (irName, irType)
 
 -- | self: *StructType
 fixSelfParam :: String -> Parameter -> Parameter

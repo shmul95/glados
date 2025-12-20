@@ -56,7 +56,7 @@ genForTo genExpr genBlock var start end body = do
   initInstrs <- case start of
     Just startExpr -> do
       (i, op, typ) <- genExpr startExpr
-      pure (i ++ [IRASSIGN var op typ])
+      pure (i <> [IRASSIGN var op typ])
     Nothing ->
       pure [IRASSIGN var (IRConstInt 0) IRI32]
 
@@ -105,10 +105,19 @@ genForEach genExpr genBlock var iterable body = do
       bodyLbl = makeLabel "body" idx
       endLbl = makeLabel "loop_end" idx
 
-  (iterInstrs, iterOp, _) <- genExpr iterable
-  ptrTemp <- newTemp "p_ptr" (IRPtr IRChar)
-
-  registerVar var (IRTemp var IRChar) IRChar
+  (iterInstrs, iterOp, iterType) <- genExpr iterable
+  
+  -- deduce element type from iterator type
+  --   strings: IRPtr IRChar -> element is IRChar
+  --   arrays:  IRPtr (IRArray elemType _) -> element is elemType
+  let elemType = case iterType of
+                   IRPtr IRChar -> IRChar
+                   IRPtr (IRArray t _) -> t
+                   _ -> IRChar
+      ptrType = IRPtr elemType
+  
+  ptrTemp <- newTemp "p_ptr" ptrType
+  registerVar var (IRTemp var elemType) elemType
 
   pushLoopContext headerLbl endLbl
   bodyInstrs <- genBlock body
@@ -117,14 +126,14 @@ genForEach genExpr genBlock var iterable body = do
   pure $
     mconcat
       [ iterInstrs,
-        [IRASSIGN ptrTemp iterOp (IRPtr IRChar)],
+        [IRASSIGN ptrTemp iterOp ptrType],
         [IRLABEL headerLbl],
-        [IRDEREF var (IRTemp ptrTemp (IRPtr IRChar)) IRChar],
+        [IRDEREF var (IRTemp ptrTemp ptrType) elemType],
         [IRLABEL checkLbl],
-        [IRJUMP_EQ0 (IRTemp var IRChar) endLbl],
+        [IRJUMP_EQ0 (IRTemp var elemType) endLbl],
         [IRLABEL bodyLbl],
         bodyInstrs,
-        [IRINC (IRTemp ptrTemp (IRPtr IRChar))],
+        [IRINC (IRTemp ptrTemp ptrType)],
         [IRJUMP headerLbl],
         [IRLABEL endLbl]
       ]

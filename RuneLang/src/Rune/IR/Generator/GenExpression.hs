@@ -20,6 +20,7 @@ import Rune.IR.Generator.Expression.Call.Show (genShowCall)
 import Rune.IR.Generator.Expression.Literals
 import Rune.IR.Generator.Expression.Struct (genAccess, genStructInit)
 import Rune.IR.Generator.Expression.Unary (genUnary)
+import Rune.IR.Generator.Expression.Array (genLitArray, genIndex)
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -40,8 +41,8 @@ genExpression (ExprCall "show" [a]) = genShowCall genExpression a
 genExpression (ExprCall name args) = genCall genExpression name args
 genExpression (ExprAccess t f) = genAccess genExpression t f
 genExpression (ExprStructInit name fields) = genStructInit genExpression name fields
-genExpression (ExprLitArray _) = throwError "genExpression: array literals not implemented yet"
-genExpression (ExprIndex _ _) = throwError "genExpression: array indexing not implemented yet"
+genExpression (ExprLitArray exprs) = genLitArray genExpression exprs
+genExpression (ExprIndex target idx) = genIndex genExpression target idx
 
 --
 -- private

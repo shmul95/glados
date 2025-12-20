@@ -63,6 +63,7 @@ data IRType
   | IRNull
   | IRPtr IRType
   | IRStruct String
+  | IRArray IRType Int
   deriving (Show, Eq, Ord)
 
 data IRBinaryOp
@@ -105,6 +106,10 @@ data IRInstruction
   | -- struct
     IRGET_FIELD String IROperand String String IRType
   | IRSET_FIELD IROperand String String IROperand
+  | -- array
+    IRALLOC_ARRAY String IRType [IROperand]
+  | IRGET_ELEM String IROperand IROperand IRType
+  | IRSET_ELEM IROperand IROperand IROperand
   | -- arithmetic
     IRADD_OP String IROperand IROperand IRType
   | IRSUB_OP String IROperand IROperand IRType

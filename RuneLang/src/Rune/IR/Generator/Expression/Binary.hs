@@ -34,7 +34,7 @@ genBinary genExpr op left right = do
   resultTemp <- newTemp "t" resultType
   let opInstr = mkInstr op resultTemp lOp rOp lType
 
-  return (lInstrs ++ rInstrs ++ [opInstr], IRTemp resultTemp resultType, resultType)
+  return (lInstrs <> rInstrs <> [opInstr], IRTemp resultTemp resultType, resultType)
 
 --
 -- private

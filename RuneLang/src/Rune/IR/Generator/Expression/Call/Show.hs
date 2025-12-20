@@ -84,8 +84,8 @@ genShowFmtCall originalOp typ finalOp = case getFormatSpecifier originalOp typ o
   Nothing -> return ([], [finalOp])
 
 getShowFunc :: IROperand -> IRType -> String
-getShowFunc _ (IRStruct s) = "show_" ++ s
-getShowFunc _ (IRPtr (IRStruct s)) = "show_" ++ s
+getShowFunc _ (IRStruct s) = "show_" <> s
+getShowFunc _ (IRPtr (IRStruct s)) = "show_" <> s
 getShowFunc _ _ = "printf"
 
 getFormatSpecifier :: IROperand -> IRType -> Maybe String
@@ -106,12 +106,12 @@ getFormatSpecifier _ _ = Nothing
 
 prepareAddr :: IROperand -> IRType -> ([IRInstruction], IROperand)
 prepareAddr (IRTemp n _) (IRStruct t) =
-  ( [IRADDR ("addr_" ++ n) n (IRPtr (IRStruct t))]
-  , IRTemp ("addr_" ++ n) (IRPtr (IRStruct t))
+  ( [IRADDR ("addr_" <> n) n (IRPtr (IRStruct t))]
+  , IRTemp ("addr_" <> n) (IRPtr (IRStruct t))
   )
 prepareAddr (IRTemp n _) (IRPtr (IRStruct t)) =
-  ( [IRADDR ("addr_" ++ n) n (IRPtr (IRPtr (IRStruct t)))]
-  , IRTemp ("addr_" ++ n) (IRPtr (IRPtr (IRStruct t)))
+  ( [IRADDR ("addr_" <> n) n (IRPtr (IRPtr (IRStruct t)))]
+  , IRTemp ("addr_" <> n) (IRPtr (IRPtr (IRStruct t)))
   )
 prepareAddr op _ = ([], op)
 
@@ -126,7 +126,7 @@ genShowBoolCall instrs op = do
   ensureShowBoolFunc
   registerCall "show_bool"
   let callInstr = IRCALL "" "show_bool" [op] Nothing
-  return (instrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+  return (instrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
 
 -- | show(<char>) -> putchar(<char>)
 -- optimized: use putchar instead of printf("%c", char)
@@ -134,7 +134,7 @@ genShowCharCall :: [IRInstruction] -> IROperand -> IRGen ([IRInstruction], IROpe
 genShowCharCall instrs op = do
   registerCall "putchar"
   let callInstr = IRCALL "" "putchar" [op] Nothing
-  return (instrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+  return (instrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
 
 -- | generic printf fallback for other types
 genShowPrintfCall :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
@@ -146,7 +146,7 @@ genShowPrintfCall instrs op typ = do
   (fmtInstrs, callArgs) <- genShowFmtCall op typ finalOp
   
   let callInstr = IRCALL "" funcName callArgs Nothing
-  return (instrs ++ prep ++ fmtInstrs ++ [callInstr], IRTemp "t_null" IRNull, IRNull)
+  return (instrs <> prep <> fmtInstrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
 
 
 ensureShowBoolFunc :: IRGen ()

@@ -22,6 +22,7 @@ import Rune.AST.Nodes (Expression(..), Statement (..), Type(..))
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Generator.Statement.ControlFlow (genIfElse, genIfNoElse, genNext, genStop)
 import Rune.IR.Generator.Statement.Loops (genForEach, genForTo, genLoop)
+import Rune.IR.Generator.Expression.Array (genIndexAssign)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar, newFloatGlobal)
 import Rune.IR.Nodes
   ( IRGen,
@@ -78,10 +79,12 @@ genVarDecl name maybeType expr = do
       pure (instrs ++ [assignInstr])
 
 genVarType :: Maybe Type -> IRType -> IRType
+genVarType (Just (TypeArray elemType)) _ = IRPtr (IRArray (astTypeToIRType elemType) 0)
 genVarType (Just t) _ = astTypeToIRType t
 genVarType Nothing inferred = inferred
 
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]
+genAssignment (ExprIndex target idx) rvalue = genIndexAssign genExpression target idx rvalue
 genAssignment lvalue rvalue = do
   (lInstrs, lOp, _) <- genExpression lvalue
   (rInstrs, rOp, rType) <- genExpression rvalue

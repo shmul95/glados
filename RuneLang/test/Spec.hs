@@ -33,6 +33,8 @@ import Semantics.GenericSpecs (genericSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
 import IR.IRHelpersSpecs (irHelpersTests)
+import IR.ArraySpecs (arrayTests)
+import IR.Generator.Expression.ArraySpecs (arrayExprTests)
 import IR.GeneratorSpecs (generatorTests)
 import IR.Generator.GenTopLevelSpecs (genTopLevelTests)
 import IR.Generator.GenStatementSpecs (genStatementTests)
@@ -131,6 +133,8 @@ irSpecs =
     "IR Tests"
     [ irNodesTests
     , irHelpersTests
+    , arrayTests
+    , arrayExprTests
     , generatorTests
     , genTopLevelTests
     , genStatementTests
