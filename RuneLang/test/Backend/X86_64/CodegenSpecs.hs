@@ -28,6 +28,8 @@ codegenTests = testGroup "Rune.Backend.X86_64.Codegen"
     emitCallTests,
     emitRetTests,
     emitDerefTests,
+    emitAllocArrayTests,
+    emitAllocArrayOnStackTests,
     emitGetElemTests,
     emitSetElemTests,
     emitIncDecTests,
@@ -103,15 +105,65 @@ emitDerefTests = testGroup "emitDeref"
   ]
 
 
+
+emitAllocArrayTests :: TestTree
+emitAllocArrayTests = testGroup "emitAllocArray"
+  [ testCase "static array path" $
+      let sm = Map.fromList [("arr", -8)]
+          values = [IRConstInt 10, IRConstNull]
+          result = emitAllocArray sm "fn" "arr" IRI64 values
+      in assertBool "should emit static mov" $
+           any (== "    mov rax, fn_arr_lit") result &&
+           any (== "    mov qword [rbp-8], rax") result
+  , testCase "dynamic array path" $
+      let sm = Map.fromList [("arr", -8), ("arr_data", -32)]
+          values = [IRTemp "v" IRI32]
+          result = emitAllocArray sm "fn" "arr" IRI32 values
+      in assertBool "should call stack allocation" $
+           any (== "    lea rax, [rbp-32]") result
+  ]
+
+
+emitAllocArrayOnStackTests :: TestTree
+emitAllocArrayOnStackTests = testGroup "emitAllocArrayOnStack"
+  [ testCase "stack allocation logic" $
+      let sm = Map.fromList [("arr", -8), ("arr_data", -24), ("v", -12)]
+          values = [IRConstInt 1, IRTemp "v" IRI32]
+          arrType = IRArray IRI32 3
+          result = emitAllocArrayOnStack sm "arr" IRI32 values arrType
+      in assertBool "should setup ptr, store values, and sentinel" $
+           any (== "    lea rax, [rbp-24]") result &&
+           any (== "    mov rax, 1") result &&
+           any (== "    mov dword [rbp-24], eax") result &&
+           any (== "    mov eax, dword [rbp-12]") result &&
+           any (== "    mov dword [rbp-20], eax") result &&
+           any (== "    mov dword [rbp-16], 0") result
+  ]
+
+
 emitGetElemTests :: TestTree
 emitGetElemTests = testGroup "emitGetElem"
   [
-    testCase "array access" $
+    testCase "array access IRI32" $
       let sm = Map.fromList [("arr", -8), ("idx", -16), ("res", -20)]
-          result = emitGetElem sm "res" (IRTemp "arr" (IRPtr (IRArray IRI32 5))) (IRTemp "idx" IRI32) IRI32
-      in assertBool "should calculate offset and mov" $
+          target = IRTemp "arr" (IRPtr (IRArray IRI32 5))
+          index = IRTemp "idx" IRI32
+          result = emitGetElem sm "res" target index IRI32
+      in assertBool "should load base, extend index, imul, load elem and store" $
+           any (== "    mov rdi, qword [rbp-8]") result &&
+           any (== "    movsxd rsi, dword [rbp-16]") result &&
            any (== "    imul rsi, 4") result &&
-           any (== "    mov eax, dword [rdi + rsi]") result
+           any (== "    mov eax, dword [rdi + rsi]") result &&
+           any (== "    mov dword [rbp-20], eax") result
+  , testCase "array access IRI8" $
+      let sm = Map.fromList [("arr", -8), ("idx", -16), ("res", -17)]
+          target = IRTemp "arr" (IRPtr (IRArray IRI8 10))
+          index = IRTemp "idx" IRI32
+          result = emitGetElem sm "res" target index IRI8
+      in assertBool "should handle byte-sized elements and registers" $
+           any (== "    imul rsi, 1") result &&
+           any (== "    mov al, byte [rdi + rsi]") result &&
+           any (== "    mov byte [rbp-17], al") result
   ]
 
 
@@ -290,17 +342,28 @@ emitAssignTests = testGroup "emitAssign"
 emitRetTests :: TestTree
 emitRetTests = testGroup "emitRet"
   [
-    testCase "return void (null)" $
-      let sm = Map.empty
-          result = emitRet sm ".L.exit" Nothing
-      in assertBool "should xor rax and jmp" $
-           any (=="    xor rax, rax") result &&
-           any (=="    jmp .L.exit") result
+    testCase "return void (Nothing)" $
+      let result = emitRet Map.empty ".L.exit" Nothing
+      in assertBool "should xor rax" $ any (== "    xor rax, rax") result
+  , testCase "return null pointer (IRNull)" $
+      let sm = Map.fromList [("p", -8)]
+          result = emitRet sm ".L.exit" (Just (IRTemp "p" IRNull))
+      in assertBool "should xor rax for null" $ 
+           any (== "    xor rax, rax") result && any (== "    jmp .L.exit") result
+  , testCase "return float (IRF32)" $
+      let sm = Map.fromList [("f", -4)]
+          result = emitRet sm ".L.exit" (Just (IRTemp "f" IRF32))
+      in assertBool "should load into xmm0" $ 
+           any (== "    movss xmm0, dword [rbp-4]") result
+  , testCase "return double (IRF64)" $
+      let sm = Map.fromList [("d", -8)]
+          result = emitRet sm ".L.exit" (Just (IRTemp "d" IRF64))
+      in assertBool "should load into xmm0" $ 
+           any (== "    movsd xmm0, qword [rbp-8]") result
   , testCase "return integer variable" $
       let sm = Map.fromList [("res", -8)]
           result = emitRet sm ".L.exit" (Just (IRTemp "res" IRI32))
-      in assertBool "should load res into eax" $
-           any (=="    mov eax, dword [rbp-8]") result
+      in assertBool "should load res into eax" $ any (=="    mov eax, dword [rbp-8]") result
   ]
 
 isStaticOperandTests :: TestTree
