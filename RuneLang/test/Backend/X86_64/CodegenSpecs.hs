@@ -35,12 +35,88 @@ codegenTests = testGroup "Rune.Backend.X86_64.Codegen"
     emitIncDecTests,
     emitIncDecHelpersTests,
     emitAddrTests,
-    emitConditionalJumpTests
+    emitConditionalJumpTests,
+    saveCallResultTests,
+    setupCallArgsTests
   ]
 
 --
 -- private
 --
+
+setupCallArgsTests :: TestTree
+setupCallArgsTests = testGroup "setupCallArgs"
+  [
+    testCase "mix int and float arguments" $
+      let sm = Map.fromList [("a", -4), ("b", -8), ("c", -16)]
+          args = [IRTemp "a" IRI32, IRTemp "b" IRF32, IRTemp "c" IRI64]
+          result = setupCallArgs sm args
+      in assertBool "should map to correct registers" $
+           any (== "    movsxd rdi, dword [rbp-4]") result &&
+           any (== "    movss xmm0, dword [rbp-8]") result &&
+           any (== "    mov rsi, qword [rbp-16]") result
+  , testCase "exhaust all integer registers and ignore excess" $
+      let indices = [1..7 :: Int]
+          sm = Map.fromList $ map (\i -> ("v" ++ show i, -8 * i)) indices
+          args = map (\i -> IRTemp ("v" ++ show i) IRI64) indices
+          result = setupCallArgs sm args
+      in assertBool "should use 6 registers and skip the 7th" $
+           any (== "    mov rdi, qword [rbp-8]") result &&
+           any (== "    mov rsi, qword [rbp-16]") result &&
+           any (== "    mov rdx, qword [rbp-24]") result &&
+           any (== "    mov rcx, qword [rbp-32]") result &&
+           any (== "    mov r8, qword [rbp-40]") result &&
+           any (== "    mov r9, qword [rbp-48]") result &&
+           not (any (== "    mov r10, qword [rbp-56]") result)
+  , testCase "exhaust all float registers and ignore excess" $
+      let indices = [1..9 :: Int]
+          sm = Map.fromList $ map (\i -> ("f" ++ show i, -8 * i)) indices
+          args = map (\i -> IRTemp ("f" ++ show i) IRF64) indices
+          result = setupCallArgs sm args
+      in assertBool "should use 8 xmm registers and skip the 9th" $
+           any (== "    movsd xmm0, qword [rbp-8]") result &&
+           any (== "    movsd xmm7, qword [rbp-64]") result &&
+           not (any (== "    movsd xmm8, qword [rbp-72]") result)
+  , testCase "handle mixed overflow" $
+      let iIdx = [1..7 :: Int]
+          fIdx = [1..9 :: Int]
+          sm = Map.fromList $ map (\i -> ("i" ++ show i, -8 * i)) iIdx 
+                           ++ map (\i -> ("f" ++ show i, -64 - 8 * i)) fIdx
+          args = map (\i -> IRTemp ("i" ++ show i) IRI64) iIdx
+                  ++ map (\i -> IRTemp ("f" ++ show i) IRF64) fIdx
+          result = setupCallArgs sm args
+      in assertBool "should handle both limits correctly" $
+           any (== "    mov r9, qword [rbp-48]") result &&
+           any (== "    movsd xmm7, qword [rbp-128]") result
+  ]
+
+saveCallResultTests :: TestTree
+saveCallResultTests = testGroup "saveCallResult"
+  [
+    testCase "no destination" $
+      let result = saveCallResult Map.empty "" Nothing
+      in assertBool "should be empty" $ null result
+  , testCase "integer return" $
+      let sm = Map.fromList [("res", -8)]
+          result = saveCallResult sm "res" (Just IRI32)
+      in assertBool "should store eax to stack" $
+           any (== "    mov dword [rbp-8], eax") result
+  , testCase "float return" $
+      let sm = Map.fromList [("fres", -8)]
+          result = saveCallResult sm "fres" (Just IRF32)
+      in assertBool "should store xmm0 to stack" $
+           any (== "    movss dword [rbp-8], xmm0") result
+  , testCase "void return" $
+      let sm = Map.fromList [("vres", -8)]
+          result = saveCallResult sm "vres" Nothing
+      in assertBool "should store rax to stack" $
+           any (== "    mov qword [rbp-8], rax") result
+  , testCase "f64 return" $
+      let sm = Map.fromList [("dres", -16)]
+          result = saveCallResult sm "dres" (Just IRF64)
+      in assertBool "should store xmm0 to stack" $
+           any (== "    movsd qword [rbp-16], xmm0") result
+  ]
 
 collectStaticArraysTests :: TestTree
 collectStaticArraysTests = testGroup "collectStaticArrays"
