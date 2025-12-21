@@ -148,24 +148,46 @@ emitParametersTests = testGroup "emitParameters"
            any (== "    mov qword [rbp-16], rsi") result
   ]
 
+
 emitCallTests :: TestTree
 emitCallTests = testGroup "emitCall"
   [
-    testCase "call with arguments and return" $
-      let sm = Map.fromList [("arg1", -4), ("res", -8)]
-          args = [IRTemp "arg1" IRI32]
-          result = emitCall sm "res" "my_func" args (Just IRI32)
-      in assertBool "should setup args and call" $
+    testCase "standard function call (non-printf)" $
+      let sm = Map.fromList [("arg", -4), ("res", -8)]
+          args = [IRTemp "arg" IRI32]
+          result = emitCall sm "res" "custom_func" args (Just IRI32)
+      in assertBool "should setup args and call without printf fixup" $
            any (== "    movsxd rdi, dword [rbp-4]") result &&
-           any (== "    call my_func") result &&
-           any (== "    mov dword [rbp-8], eax") result
-  , testCase "printf float fixup" $
-      let sm = Map.fromList [("f", -8)]
+           any (== "    call custom_func") result &&
+           any (== "    mov dword [rbp-8], eax") result &&
+           not (any (== "    mov eax, 1") result)
+  , testCase "printf with IRF32 argument" $
+      let sm = Map.fromList [("f", -4)]
           args = [IRTemp "f" IRF32]
           result = emitCall sm "" "printf" args Nothing
-      in assertBool "should convert float to double for printf" $
+      in assertBool "should convert float to double and set eax to 1" $
            any (== "    cvtss2sd xmm0, xmm0") result &&
            any (== "    mov eax, 1") result
+  , testCase "printf with IRF64 argument" $
+      let sm = Map.fromList [("d", -8)]
+          args = [IRTemp "d" IRF64]
+          result = emitCall sm "" "printf" args Nothing
+      in assertBool "should set eax to 1 without conversion" $
+           any (== "    mov eax, 1") result &&
+           not (any (== "    cvtss2sd xmm0, xmm0") result)
+  , testCase "printf with no float arguments" $
+      let sm = Map.fromList [("i", -4)]
+          args = [IRTemp "i" IRI32]
+          result = emitCall sm "" "printf" args Nothing
+      in assertBool "should set eax to 0 (xor eax, eax)" $
+           any (== "    xor eax, eax") result
+  , testCase "printf with mixed args (int first)" $
+      let sm = Map.fromList [("i", -4), ("f", -8), ("res", -12)]
+          args = [IRTemp "i" IRI32, IRTemp "f" IRF64]
+          result = emitCall sm "res" "printf" args (Just IRI32)
+      in assertBool "should find float arg and save result to valid stack slot" $
+           any (== "    mov eax, 1") result &&
+           any (== "    mov dword [rbp-12], eax") result
   ]
 
 emitDerefTests :: TestTree
