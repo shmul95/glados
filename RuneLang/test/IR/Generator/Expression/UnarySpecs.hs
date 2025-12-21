@@ -1,7 +1,11 @@
+{-# LANGUAGE CPP #-}
+#define TESTING_EXPORT
+
 module IR.Generator.Expression.UnarySpecs (unaryExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure, assertEqual)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Unary
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
 import Rune.AST.Nodes (UnaryOp(..), Expression(..))
@@ -31,9 +35,9 @@ unaryExprTests = testGroup "Rune.IR.Generator.Expression.Unary"
 testGenUnary :: TestTree
 testGenUnary = testGroup "genUnary"
   [ testCase "Generates negate operation" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, _, typ) = runGenUnsafe (genUnary genExpr Negate (ExprLitInt 5))
+          (instrs, _, typ) = runGenUnsafe (genUnary genExpr Negate (ExprLitInt dummyPos 5))
       in do
         assertBool "Should have instructions" $ not $ null instrs
         typ @?= IRI32

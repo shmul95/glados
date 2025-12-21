@@ -36,18 +36,18 @@ import Rune.IR.Nodes
 --
 
 genStatement :: Statement -> IRGen [IRInstruction]
-genStatement (StmtVarDecl n t e) = genVarDecl n t e
-genStatement (StmtAssignment l r) = genAssignment l r
-genStatement (StmtReturn Nothing) = pure [IRRET Nothing]
-genStatement (StmtReturn (Just e)) = genReturnExpr e
-genStatement (StmtIf cond t Nothing) = genIfNoElse genExpression genBlock cond t
-genStatement (StmtIf cond t (Just e)) = genIfElse genExpression genBlock cond t e
-genStatement (StmtFor v _ s e b) = genForTo genExpression genBlock v s e b
-genStatement (StmtForEach v _ it b) = genForEach genExpression genBlock v it b
-genStatement (StmtLoop body) = genLoop genBlock body
-genStatement StmtStop = genStop
-genStatement StmtNext = genNext
-genStatement (StmtExpr expr) = genExprStmt expr
+genStatement (StmtVarDecl _ n t e) = genVarDecl n t e
+genStatement (StmtAssignment _ l r) = genAssignment l r
+genStatement (StmtReturn _ Nothing) = pure [IRRET Nothing]
+genStatement (StmtReturn _ (Just e)) = genReturnExpr e
+genStatement (StmtIf _ cond t Nothing) = genIfNoElse genExpression genBlock cond t
+genStatement (StmtIf _ cond t (Just e)) = genIfElse genExpression genBlock cond t e
+genStatement (StmtFor _ v _ s e b) = genForTo genExpression genBlock v s e b
+genStatement (StmtForEach _ v _ it b) = genForEach genExpression genBlock v it b
+genStatement (StmtLoop _ body) = genLoop genBlock body
+genStatement (StmtStop _) = genStop
+genStatement (StmtNext _) = genNext
+genStatement (StmtExpr _ expr) = genExprStmt expr
 
 --
 -- private
@@ -56,8 +56,9 @@ genStatement (StmtExpr expr) = genExprStmt expr
 genBlock :: [Statement] -> IRGen [IRInstruction]
 genBlock = fmap concat . mapM genStatement
 
+
 genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
-genVarDecl name (Just TypeF64) (ExprLitFloat f) = do
+genVarDecl name (Just TypeF64) (ExprLitFloat _ f) = do
   glName <- newFloatGlobal f IRF64
   let finalType = IRF64
       op        = IRGlobal glName IRF64
@@ -76,28 +77,32 @@ genVarDecl name maybeType expr = do
     _ -> do
       let assignInstr = IRASSIGN name op finalType
       registerVar name (IRTemp name finalType) finalType
-      pure (instrs ++ [assignInstr])
+      pure (instrs <> [assignInstr])
+
 
 genVarType :: Maybe Type -> IRType -> IRType
 genVarType (Just (TypeArray elemType)) _ = IRPtr (IRArray (astTypeToIRType elemType) 0)
 genVarType (Just t) _ = astTypeToIRType t
 genVarType Nothing inferred = inferred
 
+
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]
-genAssignment (ExprIndex target idx) rvalue = genIndexAssign genExpression target idx rvalue
+genAssignment (ExprIndex _ target idx) rvalue = genIndexAssign genExpression target idx rvalue
 genAssignment lvalue rvalue = do
   (lInstrs, lOp, _) <- genExpression lvalue
   (rInstrs, rOp, rType) <- genExpression rvalue
   case lOp of
-    IRTemp lname _ -> pure $ lInstrs ++ rInstrs ++ [IRASSIGN lname rOp rType]
-    _ -> pure $ lInstrs ++ rInstrs
+    IRTemp lname _ -> pure $ lInstrs <> rInstrs <> [IRASSIGN lname rOp rType]
+    _ -> pure $ lInstrs <> rInstrs
+
 
 genReturnExpr :: Expression -> IRGen [IRInstruction]
 genReturnExpr expr = do
   (instrs, op, opType) <- genExpression expr
   case opType of
-    IRNull -> pure (instrs ++ [IRRET Nothing])
-    _ -> pure (instrs ++ [IRRET $ Just op])
+    IRNull -> pure (instrs <> [IRRET Nothing])
+    _ -> pure (instrs <> [IRRET $ Just op])
+
 
 genExprStmt :: Expression -> IRGen [IRInstruction]
 genExprStmt expr = do

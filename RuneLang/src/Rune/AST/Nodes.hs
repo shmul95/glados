@@ -12,8 +12,22 @@ module Rune.AST.Nodes
     Parameter (..),
     Field (..),
     Block,
+    SourcePos (..),
+    getExprPos,
+    getStmtPos,
   )
 where
+
+-- | Source position information
+data SourcePos = SourcePos
+  { posFile :: String,
+    posLine :: Int,
+    posCol :: Int
+  }
+  deriving (Eq, Ord)
+
+instance Show SourcePos where
+  show (SourcePos file line col) = file <> ":" <> show line <> ":" <> show col
 
 data Type
   = TypeI8
@@ -155,7 +169,8 @@ data Statement
     -- x: i32 = 10; //<< explicit type annotation
     -- y = 20.5; //<< infer type from value
     StmtVarDecl
-      { varName :: String,
+      { stmtPos :: SourcePos,
+        varName :: String,
         varType :: Maybe Type, -- << optional type annotation, may infer from value
         varValue :: Expression
       }
@@ -163,7 +178,8 @@ data Statement
     -- x = 10;
     -- y += 5;
     StmtAssignment
-      { assignLValue :: Expression, -- << LValue (variable, field access, etc.)
+      { stmtPos :: SourcePos, -- << position of the assignment statement
+        assignLValue :: Expression, -- << LValue (variable, field access, etc.)
         assignRValue :: Expression -- << RValue (result of operation, e.g., x + 5 for x += 5)
       }
   | -- | return statement
@@ -176,7 +192,7 @@ data Statement
     -- {
     --     expression //<< implicit return of the last expression if no ';' and no explicit return
     -- }
-    StmtReturn (Maybe Expression)
+    StmtReturn SourcePos (Maybe Expression)
   | -- | if else statement
     -- {
     --     if condition {
@@ -186,7 +202,8 @@ data Statement
     --     }
     -- }
     StmtIf
-      { ifCond :: Expression,
+      { stmtPos :: SourcePos,
+        ifCond :: Expression,
         ifThen :: Block,
         ifElse :: Maybe Block
       }
@@ -203,7 +220,8 @@ data Statement
     --     }
     -- }
     StmtFor
-      { forVar :: String,
+      { stmtPos :: SourcePos,
+        forVar :: String,
         forVarType :: Maybe Type,
         forStart :: Maybe Expression, -- << optional start expression
         forEnd :: Expression,
@@ -216,7 +234,8 @@ data Statement
     --     }
     -- }
     StmtForEach
-      { forEachVar :: String,
+      { stmtPos :: SourcePos,
+        forEachVar :: String,
         forEachVarType :: Maybe Type,
         forEachIterable :: Expression,
         forEachBody :: Block
@@ -225,15 +244,15 @@ data Statement
     -- loop {
     --    ...
     -- }
-    StmtLoop Block
-  | StmtStop
-  | StmtNext
+    StmtLoop SourcePos Block
+  | StmtStop SourcePos
+  | StmtNext SourcePos
   | -- | expression statement
     -- {
     --    expression;
     --    ...
     -- }
-    StmtExpr Expression
+    StmtExpr SourcePos Expression
   deriving (Show, Eq)
 
 -- | expressions
@@ -241,51 +260,85 @@ data Statement
 data Expression
   = -- | binary operation
     -- left <op> right
-    ExprBinary BinaryOp Expression Expression
+    ExprBinary SourcePos BinaryOp Expression Expression
   | -- | unary operation
     -- <op> expr
-    ExprUnary UnaryOp Expression
+    ExprUnary SourcePos UnaryOp Expression
   | -- | function call
     -- foo(arg1, arg2, ...)
     ExprCall
-      { callName :: String,
+      { exprPos :: SourcePos,
+        callName :: String,
         callArgs :: [Expression]
       }
   | -- | struct initialization
     -- Vec2f { x: 1.0, y: 2.0 }
     ExprStructInit
-      { initStructName :: String,
+      { exprPos :: SourcePos,
+        initStructName :: String,
         initFields :: [(String, Expression)]
       }
   | -- | field access
     -- vec.x;
     -- vec.y;
     ExprAccess
-      { accessTarget :: Expression,
+      { exprPos :: SourcePos,
+        accessTarget :: Expression,
         accessField :: String
       }
   | -- | array index
     -- arr[index]
     ExprIndex
-      { indexTarget :: Expression,
+      { exprPos :: SourcePos,
+        indexTarget :: Expression,
         indexValue :: Expression
       }
   | -- | literals and variables
     -- 42
-    ExprLitInt Int
+    ExprLitInt SourcePos Int
   | -- 3.14
-    ExprLitFloat Double
+    ExprLitFloat SourcePos Double
   | -- "hello"
-    ExprLitString String
+    ExprLitString SourcePos String
   | -- 'c'
-    ExprLitChar Char
+    ExprLitChar SourcePos Char
   | -- true | false
-    ExprLitBool Bool
+    ExprLitBool SourcePos Bool
   | -- null
-    ExprLitNull
+    ExprLitNull SourcePos
   | -- variable
-    ExprVar String
+    ExprVar SourcePos String
   | -- array literal
     -- [1, 2, 3, 4]
-    ExprLitArray [Expression]
+    ExprLitArray SourcePos [Expression]
   deriving (Show, Eq)
+
+-- | Extract source position from an expression
+getExprPos :: Expression -> SourcePos
+getExprPos (ExprBinary pos _ _ _) = pos
+getExprPos (ExprUnary pos _ _) = pos
+getExprPos (ExprCall pos _ _) = pos
+getExprPos (ExprStructInit pos _ _) = pos
+getExprPos (ExprAccess pos _ _) = pos
+getExprPos (ExprIndex pos _ _) = pos
+getExprPos (ExprLitInt pos _) = pos
+getExprPos (ExprLitFloat pos _) = pos
+getExprPos (ExprLitString pos _) = pos
+getExprPos (ExprLitChar pos _) = pos
+getExprPos (ExprLitBool pos _) = pos
+getExprPos (ExprLitNull pos) = pos
+getExprPos (ExprVar pos _) = pos
+getExprPos (ExprLitArray pos _) = pos
+
+-- | Extract source position from a statement
+getStmtPos :: Statement -> SourcePos
+getStmtPos (StmtVarDecl pos _ _ _) = pos
+getStmtPos (StmtAssignment pos _ _) = pos
+getStmtPos (StmtReturn pos _) = pos
+getStmtPos (StmtIf pos _ _ _) = pos
+getStmtPos (StmtFor pos _ _ _ _ _) = pos
+getStmtPos (StmtForEach pos _ _ _ _) = pos
+getStmtPos (StmtLoop pos _) = pos
+getStmtPos (StmtStop pos) = pos
+getStmtPos (StmtNext pos) = pos
+getStmtPos (StmtExpr pos _) = pos

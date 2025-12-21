@@ -1,6 +1,7 @@
 module Rune.Semantics.Func (findFunc) where
 
 import Control.Monad (foldM)
+import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 
@@ -35,14 +36,25 @@ findDefs s (DefFunction name params rType _) =
     in case HM.lookup name s of
       Nothing -> Right $ HM.insert name [newSign] s
       Just _  -> Left $ printf msg name
+
 findDefs s (DefOverride name params rType _) =
     let paramTypes = map paramType params
         newSign = (rType, paramTypes)
         msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
+        mangledName = mangleFuncName name rType paramTypes
     in case HM.lookup name s of
-      Just list -> Right $ HM.insert name (list ++ [newSign]) s
+      Just list -> 
+        let s' = HM.insert name (list <> [newSign]) s
+        in if mangledName == name
+           then Right s'
+           else Right $ HM.insert mangledName [newSign] s'
       Nothing   -> Left $ printf msg name
 findDefs s _ = Right s
+
+mangleFuncName :: String -> Type -> [Type] -> String
+mangleFuncName fname ret args
+  | TypeAny `elem` args || ret == TypeAny = fname
+  | otherwise = intercalate "_" (show ret : fname : map show args)
 
 hasDuplicate :: (Ord a) => [a] -> Bool
 hasDuplicate xs = Set.size (Set.fromList xs) /= length xs

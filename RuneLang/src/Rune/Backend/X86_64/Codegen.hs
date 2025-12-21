@@ -1,7 +1,45 @@
+{-# OPTIONS_GHC -cpp #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Backend.X86_64.Codegen
+  ( emitAssembly,
+    emitExterns,
+    emitRoDataSection,
+    emitDataSection,
+    emitTextSection,
+    emitFunction,
+    emitFunctionPrologue,
+    emitFunctionEpilogue,
+    emitParameters,
+    emitInstruction,
+    emitAssign,
+    emitCall,
+    setupCallArgs,
+    saveCallResult,
+    emitRet,
+    emitDeref,
+    emitAllocArray,
+    emitAllocArrayOnStack,
+    emitGetElem,
+    emitSetElem,
+    emitIncDec,
+    emitIncDecHelper,
+    emitAddr,
+    emitConditionalJump,
+    emitRmWarning,
+    collectStaticArrays,
+    isStaticOperand,
+    getDataDirective,
+    showStaticOperand,
+    commaSep
+  )
+where
+#else
 module Rune.Backend.X86_64.Codegen
   ( emitAssembly,
   )
 where
+#endif
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map

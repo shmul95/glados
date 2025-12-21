@@ -2,6 +2,7 @@ module Rune.AST.ParserHelper
   ( failParse,
     withContext,
     getParserState,
+    getCurrentPos,
     tokenMap,
     peek,
     advance,
@@ -27,6 +28,7 @@ import Control.Applicative (Alternative (..))
 import Control.Monad (when)
 import Data.Bifunctor (Bifunctor (first))
 import Rune.AST.Types (Parser (..), ParserState (..))
+import Rune.AST.Nodes (SourcePos (..))
 import qualified Rune.Lexer.Tokens as T
 
 --
@@ -76,6 +78,13 @@ try (Parser p) = Parser $ \s -> case p s of
 
 getParserState :: Parser ParserState
 getParserState = Parser $ \s -> Right (s, s)
+
+-- | Get the current source position
+getCurrentPos :: Parser SourcePos
+getCurrentPos = do
+  s <- getParserState
+  let tok = currentToken s
+  return $ SourcePos (psFilePath s) (T.tokenLine tok) (T.tokenColumn tok)
 
 --
 -- context helpers

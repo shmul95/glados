@@ -12,6 +12,7 @@ import Rune.IR.Generator.Expression.Array
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..), IRGen)
 import Rune.AST.Nodes (Expression(..))
 import IR.TestUtils (runGenUnsafe, emptyState)
+import TestHelpers (dummyPos)
 
 --
 -- public
@@ -30,16 +31,16 @@ arrayExprTests = testGroup "Rune.IR.Generator.Expression.Array"
 
 -- Mock generator
 genExprMock :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprMock (ExprLitInt n) = return ([], IRConstInt n, IRI32)
-genExprMock (ExprLitBool b) = return ([], IRConstBool b, IRBool)
-genExprMock (ExprVar "arr") = return ([], IRTemp "arr" (IRPtr (IRArray IRI32 5)), IRPtr (IRArray IRI32 5))
-genExprMock (ExprVar "not_arr") = return ([], IRConstInt 0, IRI32)
+genExprMock (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
+genExprMock (ExprLitBool _ b) = return ([], IRConstBool b, IRBool)
+genExprMock (ExprVar _ "arr") = return ([], IRTemp "arr" (IRPtr (IRArray IRI32 5)), IRPtr (IRArray IRI32 5))
+genExprMock (ExprVar _ "not_arr") = return ([], IRConstInt 0, IRI32)
 genExprMock e = error $ "genExprMock: unsupported expression " ++ show e
 
 testGenLitArray :: TestTree
 testGenLitArray = testGroup "genLitArray"
   [ testCase "Generates array allocation for valid elements" $
-      let exprs = [ExprLitInt 1, ExprLitInt 2, ExprLitInt 3]
+      let exprs = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2, ExprLitInt dummyPos 3]
           (instrs, op, typ) = runGenUnsafe (genLitArray genExprMock exprs)
       in do
         -- Check type
@@ -62,8 +63,8 @@ testGenLitArray = testGroup "genLitArray"
 testGenIndex :: TestTree
 testGenIndex = testGroup "genIndex"
   [ testCase "Generates array access" $
-      let target = ExprVar "arr"
-          idx = ExprLitInt 0
+      let target = ExprVar dummyPos "arr"
+          idx = ExprLitInt dummyPos 0
           (instrs, op, typ) = runGenUnsafe (genIndex genExprMock target idx)
       in do
           typ @?= IRI32
@@ -73,8 +74,8 @@ testGenIndex = testGroup "genIndex"
               _ -> assertFailure "Expected IRTemp result"
 
   , testCase "Throws error when indexing non-array" $
-      let target = ExprVar "not_arr"
-          idx = ExprLitInt 0
+      let target = ExprVar dummyPos "not_arr"
+          idx = ExprLitInt dummyPos 0
       in case runState (runExceptT (genIndex genExprMock target idx)) emptyState of
            (Left err, _) -> assertBool ("Error message should mention array type, got: " ++ err) $ "expected array type" `isInfixOf` err
            (Right _, _) -> assertFailure "Should have thrown error"
@@ -83,9 +84,9 @@ testGenIndex = testGroup "genIndex"
 testGenIndexAssign :: TestTree
 testGenIndexAssign = testGroup "genIndexAssign"
   [ testCase "Generates array assignment" $
-      let target = ExprVar "arr"
-          idx = ExprLitInt 0
-          val = ExprLitInt 42
+      let target = ExprVar dummyPos "arr"
+          idx = ExprLitInt dummyPos 0
+          val = ExprLitInt dummyPos 42
           instrs = runGenUnsafe (genIndexAssign genExprMock target idx val)
       in do
           assertBool "Should have IRSET_ELEM" $ any isSetElem instrs

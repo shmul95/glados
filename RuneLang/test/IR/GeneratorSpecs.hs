@@ -6,6 +6,7 @@ module IR.GeneratorSpecs (generatorTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import qualified Data.HashMap.Strict as HM
+import TestHelpers (dummyPos)
 import qualified Data.Set as Set
 import Rune.IR.Generator (generateIR, initialState, getDefinedFuncName)
 import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), GenState(..), IRGlobalValue(..))
@@ -59,7 +60,7 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Generates program with external function call" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtReturn (Just (ExprCall "external_func" [])) ]
+                [ StmtReturn dummyPos (Just (ExprCall dummyPos "external_func" [])) ]
             ]
           fs = HM.singleton "external_func" [(TypeNull, [])]
           result = generateIR prog fs
@@ -96,7 +97,7 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Externs appear before other definitions" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtReturn (Just (ExprCall "ext1" [])) ]
+                [ StmtReturn dummyPos (Just (ExprCall dummyPos "ext1" [])) ]
             ]
           fs = HM.singleton "ext1" [(TypeNull, [])]
           result = generateIR prog fs
@@ -110,8 +111,8 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Global strings reversed properly" $
       let prog = Program "test"
             [ DefFunction "main" [] TypeNull 
-                [ StmtReturn (Just (ExprLitString "hello"))
-                , StmtReturn (Just (ExprLitString "world"))
+                [ StmtReturn dummyPos (Just (ExprLitString dummyPos "hello"))
+                , StmtReturn dummyPos (Just (ExprLitString dummyPos "world"))
                 ]
             ]
           fs = HM.empty
@@ -124,8 +125,8 @@ testGenerateIR = testGroup "generateIR"
 
   , testCase "Multiple functions" $
       let prog = Program "test"
-            [ DefFunction "func1" [] TypeI32 [StmtReturn (Just (ExprLitInt 1))]
-            , DefFunction "func2" [] TypeI32 [StmtReturn (Just (ExprLitInt 2))]
+            [ DefFunction "func1" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+            , DefFunction "func2" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))]
             ]
           fs = HM.empty
           result = generateIR prog fs
@@ -139,7 +140,7 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test"
             [ DefFunction "callee" [] TypeNull []
             , DefFunction "caller" [] TypeNull 
-                [ StmtExpr (ExprCall "callee" []) ]
+                [ StmtExpr dummyPos (ExprCall dummyPos "callee" []) ]
             ]
           fs = HM.singleton "callee" [(TypeNull, [])]
           result = generateIR prog fs
@@ -152,8 +153,8 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Difference between called and defined functions" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtExpr (ExprCall "ext1" [])
-                , StmtExpr (ExprCall "ext2" [])
+                [ StmtExpr dummyPos (ExprCall dummyPos "ext1" [])
+                , StmtExpr dummyPos (ExprCall dummyPos "ext2" [])
                 ]
             ]
           fs = HM.fromList [("ext1", [(TypeNull, [])]), ("ext2", [(TypeNull, [])])]

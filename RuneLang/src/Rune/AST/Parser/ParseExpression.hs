@@ -8,7 +8,7 @@ where
 import Control.Applicative ((<|>))
 import Rune.AST.Nodes (BinaryOp (..), Expression (..), UnaryOp (..))
 import Rune.AST.Parser.ParseTypes (parseIdentifier)
-import Rune.AST.ParserHelper (between, chainPostfix, chainl1, choice, expect, failParse, sepBy, sepEndBy, tokenMap, try, withContext)
+import Rune.AST.ParserHelper (between, chainPostfix, chainl1, choice, expect, failParse, getCurrentPos, sepBy, sepEndBy, tokenMap, try, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -24,49 +24,81 @@ parseExpression = parseLogicalOr
 --
 
 parseLogicalOr :: Parser Expression
-parseLogicalOr = chainl1 parseLogicalAnd (ExprBinary Or <$ expect T.OpOr)
+parseLogicalOr = chainl1 parseLogicalAnd op
+  where
+    op = do
+      pos <- getCurrentPos
+      _ <- expect T.OpOr
+      return $ ExprBinary pos Or
 
 parseLogicalAnd :: Parser Expression
-parseLogicalAnd = chainl1 parseEquality (ExprBinary And <$ expect T.OpAnd)
+parseLogicalAnd = chainl1 parseEquality op
+  where
+    op = do
+      pos <- getCurrentPos
+      _ <- expect T.OpAnd
+      return $ ExprBinary pos And
 
 parseEquality :: Parser Expression
 parseEquality = chainl1 parseComparison op
   where
-    op = (ExprBinary Eq <$ expect T.OpEq) <|> (ExprBinary Neq <$ expect T.OpNeq)
+    op = do
+      pos <- getCurrentPos
+      opType <- (Eq <$ expect T.OpEq) <|> (Neq <$ expect T.OpNeq)
+      return $ ExprBinary pos opType
 
 parseComparison :: Parser Expression
 parseComparison = chainl1 parseTerm op
   where
-    op =
-      choice
-        [ ExprBinary Lt <$ expect T.OpLt,
-          ExprBinary Lte <$ expect T.OpLte,
-          ExprBinary Gt <$ expect T.OpGt,
-          ExprBinary Gte <$ expect T.OpGte
+    op = do
+      pos <- getCurrentPos
+      opType <- choice
+        [ Lt <$ expect T.OpLt,
+          Lte <$ expect T.OpLte,
+          Gt <$ expect T.OpGt,
+          Gte <$ expect T.OpGte
         ]
+      return $ ExprBinary pos opType
 
 parseTerm :: Parser Expression
 parseTerm = chainl1 parseFactor op
   where
-    op = (ExprBinary Add <$ expect T.OpPlus) <|> (ExprBinary Sub <$ expect T.OpMinus)
+    op = do
+      pos <- getCurrentPos
+      opType <- (Add <$ expect T.OpPlus) <|> (Sub <$ expect T.OpMinus)
+      return $ ExprBinary pos opType
 
 parseFactor :: Parser Expression
 parseFactor = chainl1 parseUnary op
   where
-    op =
-      choice
-        [ ExprBinary Mul <$ expect T.OpMul,
-          ExprBinary Div <$ expect T.OpDiv,
-          ExprBinary Mod <$ expect T.OpMod
+    op = do
+      pos <- getCurrentPos
+      opType <- choice
+        [ Mul <$ expect T.OpMul,
+          Div <$ expect T.OpDiv,
+          Mod <$ expect T.OpMod
         ]
+      return $ ExprBinary pos opType
 
 parseUnary :: Parser Expression
 parseUnary =
   choice
-    [ ExprUnary Negate <$ expect T.OpMinus <*> parseUnary,
-      ExprUnary Not <$ expect T.OpNot <*> parseUnary,
-      ExprUnary PrefixInc <$ expect T.OpInc <*> parseUnary,
-      ExprUnary PrefixDec <$ expect T.OpDec <*> parseUnary,
+    [ do
+        pos <- getCurrentPos
+        _ <- expect T.OpMinus
+        ExprUnary pos Negate <$> parseUnary,
+      do
+        pos <- getCurrentPos
+        _ <- expect T.OpNot
+        ExprUnary pos Not <$> parseUnary,
+      do
+        pos <- getCurrentPos
+        _ <- expect T.OpInc
+        ExprUnary pos PrefixInc <$> parseUnary,
+      do
+        pos <- getCurrentPos
+        _ <- expect T.OpDec
+        ExprUnary pos PrefixDec <$> parseUnary,
       parsePostfix
     ]
 
@@ -85,39 +117,45 @@ parsePostfix = chainPostfix parsePrimary op
 
 parseCallPostfix :: Parser (Expression -> Expression)
 parseCallPostfix = do
+  pos <- getCurrentPos
   args <- between (expect T.LParen) (expect T.RParen) (sepBy (withContext "argument" parseExpression) (expect T.Comma))
   pure $ \e -> case e of
-    ExprAccess target field -> ExprCall field (target : args)
-    _ -> ExprCall (getExprName e) args
+    ExprAccess p target field -> ExprCall p field (target : args)
+    _ -> ExprCall pos (getExprName e) args
 
 parseFieldAccessPostfix :: Parser (Expression -> Expression)
 parseFieldAccessPostfix = do
+  pos <- getCurrentPos
   f <- expect T.Dot *> parseIdentifier
-  pure $ \e -> ExprAccess e f
+  pure $ \e -> ExprAccess pos e f
 
 parseIndexPostfix :: Parser (Expression -> Expression)
 parseIndexPostfix = do
+  pos <- getCurrentPos
   index <- between (expect T.LBracket) (expect T.RBracket) (withContext "array index" parseExpression)
-  pure $ \e -> ExprIndex e index
+  pure $ \e -> ExprIndex pos e index
 
 parseErrorPropPostfix :: Parser (Expression -> Expression)
 parseErrorPropPostfix = do
+  pos <- getCurrentPos
   _ <- expect T.OpErrorProp
-  pure $ \e -> ExprUnary PropagateError e
+  pure $ \e -> ExprUnary pos PropagateError e
 
 parseIncPostfix :: Parser (Expression -> Expression)
 parseIncPostfix = do
+  pos <- getCurrentPos
   _ <- expect T.OpInc
-  pure $ \e -> ExprUnary PostfixInc e
+  pure $ \e -> ExprUnary pos PostfixInc e
 
 parseDecPostfix :: Parser (Expression -> Expression)
 parseDecPostfix = do
+  pos <- getCurrentPos
   _ <- expect T.OpDec
-  pure $ \e -> ExprUnary PostfixDec e
+  pure $ \e -> ExprUnary pos PostfixDec e
 
 getExprName :: Expression -> String
-getExprName (ExprVar name) = name
-getExprName (ExprAccess _ field) = field
+getExprName (ExprVar _ name) = name
+getExprName (ExprAccess _ _ field) = field
 getExprName _ = ""
 
 --
@@ -133,61 +171,74 @@ parsePrimary =
       parseChar,
       parseLitBool,
       parseLitArray,
-      ExprLitNull <$ (expect T.LitNull <|> expect T.TypeNull),
+      do
+        pos <- getCurrentPos
+        _ <- expect T.LitNull <|> expect T.TypeNull
+        pure $ ExprLitNull pos,
       parseStructInitOrVar,
       between (expect T.LParen) (expect T.RParen) (withContext "parenthesized expression" parseExpression)
     ]
     <|> failParse "Expected expression (literal, variable, or '('...)"
 
 parseLitInt :: Parser Expression
-parseLitInt =
+parseLitInt = do
+  pos <- getCurrentPos
   tokenMap $ \case
-    T.LitInt n -> Just (ExprLitInt n)
+    T.LitInt n -> Just (ExprLitInt pos n)
     _ -> Nothing
 
 parseLitFloat :: Parser Expression
-parseLitFloat =
+parseLitFloat = do
+  pos <- getCurrentPos
   tokenMap $ \case
-    T.LitFloat f -> Just (ExprLitFloat f)
+    T.LitFloat f -> Just (ExprLitFloat pos f)
     _ -> Nothing
 
 parseChar :: Parser Expression
-parseChar =
+parseChar = do
+  pos <- getCurrentPos
   tokenMap $ \case
-    T.LitChar c -> Just (ExprLitChar c)
+    T.LitChar c -> Just (ExprLitChar pos c)
     _ -> Nothing
 
 parseLitString :: Parser Expression
-parseLitString =
+parseLitString = do
+  pos <- getCurrentPos
   tokenMap $ \case
-    T.LitString s -> Just (ExprLitString s)
+    T.LitString s -> Just (ExprLitString pos s)
     _ -> Nothing
 
 parseLitBool :: Parser Expression
-parseLitBool =
+parseLitBool = do
+  pos <- getCurrentPos
   tokenMap $ \case
-    T.LitBool b -> Just (ExprLitBool b)
+    T.LitBool b -> Just (ExprLitBool pos b)
     _ -> Nothing
 
 parseLitArray :: Parser Expression
 parseLitArray = do
+  pos <- getCurrentPos
   exprs <- between
     (expect T.LBracket) (expect T.RBracket)
     (sepEndBy (withContext "array element" parseExpression) (expect T.Comma))
-  pure $ ExprLitArray exprs
+  pure $ ExprLitArray pos exprs
 
 --
 -- struct
 --
 
 parseStructInitOrVar :: Parser Expression
-parseStructInitOrVar = try parseStructInit <|> (ExprVar <$> parseIdentifier)
+parseStructInitOrVar = try parseStructInit <|> do
+  pos <- getCurrentPos
+  name <- parseIdentifier
+  pure $ ExprVar pos name
 
 parseStructInit :: Parser Expression
 parseStructInit = do
+  pos <- getCurrentPos
   name <- parseIdentifier
   fields <- between (expect T.LBrace) (expect T.RBrace) parseStructFields
-  pure $ ExprStructInit name fields
+  pure $ ExprStructInit pos name fields
 
 parseStructFields :: Parser [(String, Expression)]
 parseStructFields = sepEndBy parseStructField (expect T.Comma)
@@ -196,5 +247,5 @@ parseStructField :: Parser (String, Expression)
 parseStructField = do
   name <- parseIdentifier
   _ <- expect T.Colon
-  val <- withContext ("value of field '" ++ name ++ "'") parseExpression
+  val <- withContext ("value of field '" <> name <> "'") parseExpression
   pure (name, val)
