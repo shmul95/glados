@@ -14,6 +14,7 @@ EXAMPLE_FILES = [
     "RuneLang/examples/strings.ru",
     "RuneLang/examples/maths.ru",
     "RuneLang/examples/operators.ru",
+    "RuneLang/examples/array.ru",
 ]
 
 EXPECTED_STDIN = {
@@ -25,6 +26,7 @@ EXPECTED_STDIN = {
     "RuneLang/examples/strings.ru": None,
     "RuneLang/examples/maths.ru": None,
     "RuneLang/examples/operators.ru": None,
+    "RuneLang/examples/array.ru": None,
 }
 
 EXPECTED_STDOUT = {
@@ -36,6 +38,7 @@ EXPECTED_STDOUT = {
     "RuneLang/examples/strings.ru": "Hello, Rune!\n",
     "RuneLang/examples/maths.ru": "[+] PASSED\n" * 51,
     "RuneLang/examples/operators.ru": "[+] PASSED\n" * 6,
+    "RuneLang/examples/array.ru": "[1, 10, 3, 4, 5]\n[malloc, sizeof, rune, etoile]\n[R, u, n, e]\n[1, 2, 3]\n[4, 5, 6]\n[7, 8, 9]\n",
 }
 
 EXPECTED_RETURN = {
@@ -47,6 +50,7 @@ EXPECTED_RETURN = {
     "RuneLang/examples/strings.ru": 0,
     "RuneLang/examples/maths.ru": 0,
     "RuneLang/examples/operators.ru": 0,
+    "RuneLang/examples/array.ru": 0,
 }
 
 GREEN = "\033[32m"

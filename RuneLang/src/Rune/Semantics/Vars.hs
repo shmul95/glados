@@ -206,8 +206,14 @@ verifScope vs (StmtForEach v t iter body : stmts) = do
   let s   = (fs, vs)
   e_t     <- lift $ exprType s iter
 
-  vs'     <- lift $ assignVarType vs v e_t
-  t'      <- lift $ checkMultipleType v t e_t
+  elem_t <- case e_t of
+    TypeArray inner -> pure inner
+    TypeString -> pure TypeChar
+    TypeAny -> pure TypeAny
+    _ -> pure TypeAny
+
+  vs'     <- lift $ assignVarType vs v elem_t
+  t'      <- lift $ checkMultipleType v t elem_t
 
   iter'   <- verifExpr vs' iter
   body'   <- verifScope vs' body

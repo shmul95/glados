@@ -165,6 +165,7 @@ isTypeCompatible expected actual
 checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
 checkMultipleType _ Nothing e_t         = Right e_t
 checkMultipleType _ (Just TypeAny) e_t  = Right e_t
+checkMultipleType _ (Just (TypeArray TypeAny)) (TypeArray inner) = Right (TypeArray inner)
 checkMultipleType _ (Just t) TypeAny    = Right t
 checkMultipleType _ _ TypeNull          = Right TypeNull
 checkMultipleType v (Just t) e_t

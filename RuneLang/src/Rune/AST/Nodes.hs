@@ -51,7 +51,7 @@ instance Show Type where
   show  TypeString    = "str"
   show  TypeAny       = "any"
   show  TypeNull      = "null"
-  show (TypeArray t)  = "[" <> show t <> "]"
+  show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
 
 data BinaryOp

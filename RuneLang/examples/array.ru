@@ -1,10 +1,16 @@
-def show_array(arr: any[]) -> null
+def show_array(array: any[]) -> null
 {
-    for item in arr {
-        show(item);
-        show(' ');
+    comma = true;
+
+    show('[');
+    for element in array {
+        if not comma {
+            show(", ");
+        }
+        show(element);
+        comma = false;
     }
-    show('\n');
+    show("]\n");
 }
 
 def array_string() -> null
@@ -30,6 +36,15 @@ def array_i32() -> i32[]
     arr
 }
 
+def array_of_array() -> null
+{
+    kurwa: i32[][] = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+
+    for bobr in kurwa {
+        show_array(bobr);
+    }
+}
+
 def main() -> null
 {
     arr = array_i32();
@@ -37,4 +52,5 @@ def main() -> null
 
     array_string();
     array_char();
+    array_of_array();
 }
