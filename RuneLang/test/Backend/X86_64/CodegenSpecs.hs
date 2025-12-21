@@ -37,7 +37,8 @@ codegenTests = testGroup "Rune.Backend.X86_64.Codegen"
     emitAddrTests,
     emitConditionalJumpTests,
     saveCallResultTests,
-    setupCallArgsTests
+    setupCallArgsTests,
+    emitInstructionTests
   ]
 
 --
@@ -605,4 +606,111 @@ commaSepTests = testGroup "commaSep"
   , testCase "multiple elements" $
       assertBool "should be comma separated" $
         commaSep ["a", "b", "c"] == "a, b, c"
+  ]
+
+emitInstructionTests :: TestTree
+emitInstructionTests = testGroup "emitInstruction"
+  [
+    testCase "IRASSIGN" $
+      let sm = Map.fromList [("x", -4)]
+          instr = IRASSIGN "x" (IRConstInt 42) IRI32
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitAssign" $ any (== "    mov dword [rbp-4], 42") result
+  , testCase "IRLABEL" $
+      let instr = IRLABEL (IRLabel "L1")
+          result = emitInstruction Map.empty "" "" instr
+      in assertBool "should emit label" $ result == ["L1:"]
+  , testCase "IRJUMP" $
+      let instr = IRJUMP (IRLabel "L1")
+          result = emitInstruction Map.empty "" "" instr
+      in assertBool "should emit jmp" $ result == ["    jmp L1"]
+  , testCase "IRJUMP_EQ0" $
+      let sm = Map.fromList [("c", -1)]
+          instr = IRJUMP_EQ0 (IRTemp "c" IRBool) (IRLabel "L1")
+          result = emitInstruction sm "" "" instr
+      in assertBool "should emit je" $ any (== "    je L1") result
+  , testCase "IRJUMP_FALSE" $
+      let sm = Map.fromList [("c", -1)]
+          instr = IRJUMP_FALSE (IRTemp "c" IRBool) (IRLabel "L1")
+          result = emitInstruction sm "" "" instr
+      in assertBool "should emit je" $ any (== "    je L1") result
+  , testCase "IRJUMP_TRUE" $
+      let sm = Map.fromList [("c", -1)]
+          instr = IRJUMP_TRUE (IRTemp "c" IRBool) (IRLabel "L1")
+          result = emitInstruction sm "" "" instr
+      in assertBool "should emit jne" $ any (== "    jne L1") result
+  , testCase "IRCALL" $
+      let sm = Map.fromList [("r", -8)]
+          instr = IRCALL "r" "my_func" [] (Just IRI64)
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitCall" $ any (== "    call my_func") result
+  , testCase "IRRET" $
+      let instr = IRRET Nothing
+          result = emitInstruction Map.empty "end" "" instr
+      in assertBool "should call emitRet" $ any (== "    jmp end") result
+  , testCase "IRDEREF" $
+      let sm = Map.fromList [("p", -8), ("d", -4)]
+          instr = IRDEREF "d" (IRTemp "p" (IRPtr IRI32)) IRI32
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitDeref" $ any (== "    mov eax, dword [rax]") result
+  , testCase "IRALLOC_ARRAY" $
+      let sm = Map.fromList [("a", -8)]
+          instr = IRALLOC_ARRAY "a" IRI32 [IRConstInt 1]
+          result = emitInstruction sm "" "f" instr
+      in assertBool "should call emitAllocArray" $ any (== "    mov rax, f_a_lit") result
+  , testCase "IRGET_ELEM" $
+      let sm = Map.fromList [("a", -8), ("i", -4), ("d", -4)]
+          instr = IRGET_ELEM "d" (IRTemp "a" (IRPtr (IRArray IRI32 1))) (IRTemp "i" IRI32) IRI32
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitGetElem" $ any (== "    imul rsi, 4") result
+  , testCase "IRSET_ELEM" $
+      let sm = Map.fromList [("a", -8), ("i", -4), ("v", -4)]
+          instr = IRSET_ELEM (IRTemp "a" (IRPtr (IRArray IRI32 1))) (IRTemp "i" IRI32) (IRTemp "v" IRI32)
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitSetElem" $ any (== "    mov dword [rdi + rsi], eax") result
+  , testCase "IRINC" $
+      let sm = Map.fromList [("x", -4)]
+          instr = IRINC (IRTemp "x" IRI32)
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitIncDec add" $ any (== "    add dword [rbp-4], 1") result
+  , testCase "IRDEC" $
+      let sm = Map.fromList [("x", -4)]
+          instr = IRDEC (IRTemp "x" IRI32)
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitIncDec sub" $ any (== "    sub dword [rbp-4], 1") result
+  , testCase "IRADDR" $
+      let sm = Map.fromList [("x", -4), ("p", -8)]
+          instr = IRADDR "p" "x" (IRPtr IRI32)
+          result = emitInstruction sm "" "" instr
+      in assertBool "should call emitAddr" $ any (== "    lea rax, [rbp-4]") result
+  , testCase "Binary Operators" $
+      let sm = Map.fromList [("l", -4), ("r", -4), ("d", -4)]
+          l = IRTemp "l" IRI32
+          r = IRTemp "r" IRI32
+          cases = [ (IRADD_OP "d" l r IRI32, "add")
+                  , (IRSUB_OP "d" l r IRI32, "sub")
+                  , (IRMUL_OP "d" l r IRI32, "imul")
+                  , (IRAND_OP "d" l r IRI32, "and")
+                  , (IROR_OP "d" l r IRI32, "or")
+                  ]
+      in mapM_ (\(instr, op) -> assertBool op $ any (== "    " <> op <> " eax, ebx") (emitInstruction sm "" "" instr)) cases
+  , testCase "IRDIV_OP / IRMOD_OP" $
+      let sm = Map.fromList [("l", -8), ("r", -8), ("d", -8)]
+          l = IRTemp "l" IRI64
+          r = IRTemp "r" IRI64
+          resultDiv = emitInstruction sm "" "" (IRDIV_OP "d" l r IRI64)
+          resultMod = emitInstruction sm "" "" (IRMOD_OP "d" l r IRI64)
+      in assertBool "div" (any (== "    idiv rbx") resultDiv) >> assertBool "mod" (any (== "    idiv rbx") resultMod)
+  , testCase "Comparison Operators" $
+      let sm = Map.fromList [("l", -4), ("r", -4), ("d", -1)]
+          l = IRTemp "l" IRI32
+          r = IRTemp "r" IRI32
+          cases = [ (IRCMP_EQ "d" l r, "sete")
+                  , (IRCMP_NEQ "d" l r, "setne")
+                  , (IRCMP_LT "d" l r, "setl")
+                  , (IRCMP_LTE "d" l r, "setle")
+                  , (IRCMP_GT "d" l r, "setg")
+                  , (IRCMP_GTE "d" l r, "setge")
+                  ]
+      in mapM_ (\(instr, op) -> assertBool op $ any (== "    " <> op <> " al") (emitInstruction sm "" "" instr)) cases
   ]
