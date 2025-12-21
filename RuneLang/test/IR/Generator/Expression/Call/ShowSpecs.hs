@@ -10,6 +10,7 @@ import Control.Monad.State (runState)
 import Control.Monad.Except (runExceptT)
 import Data.List (isPrefixOf)
 import qualified Data.Set as Set
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Call.Show
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..), IRTopLevel(..), IRFunction(..), IRGlobalValue(..), GenState(..), IRGen)
 import Rune.AST.Nodes (Expression(..))
@@ -61,25 +62,25 @@ isAddr (IRADDR _ _ _) = True
 isAddr _ = False
 
 genExprSimple :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprSimple (ExprLitInt n) = return ([], IRConstInt n, IRI64)
-genExprSimple (ExprLitBool b) = return ([], IRConstBool b, IRBool)
-genExprSimple (ExprLitChar c) = return ([], IRConstChar c, IRChar)
+genExprSimple (ExprLitInt _ n) = return ([], IRConstInt n, IRI64)
+genExprSimple (ExprLitBool _ b) = return ([], IRConstBool b, IRBool)
+genExprSimple (ExprLitChar _ c) = return ([], IRConstChar c, IRChar)
 genExprSimple _ = error "Unexpected expression in genExprSimple"
 
 genExprFloat :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprFloat (ExprLitFloat n) = do
+genExprFloat (ExprLitFloat _ n) = do
     gName <- newFloatGlobal n IRF64
     return ([], IRGlobal gName IRF64, IRF64)
 genExprFloat _ = error "Unexpected expression in genExprFloat"
 
 genExprString :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprString (ExprLitString _) = do
+genExprString (ExprLitString _ _) = do
     let strOp = IRPtr IRChar
     return ([], IRGlobal "str_global0" strOp, strOp)
 genExprString _ = error "Unexpected expression in genExprString"
 
 genExprStruct :: Expression -> IRGen ([IRInstruction], IROperand, IRType)
-genExprStruct (ExprVar "s") = return ([], IRTemp "s" (IRStruct "Vec"), IRStruct "Vec")
+genExprStruct (ExprVar _ "s") = return ([], IRTemp "s" (IRStruct "Vec"), IRStruct "Vec")
 genExprStruct _ = error "Unexpected expression in genExprStruct"
 
 
@@ -89,7 +90,7 @@ genExprStruct _ = error "Unexpected expression in genExprStruct"
 
 test_show_bool_generation_details :: TestTree
 test_show_bool_generation_details = testCase "Boolean generates call to show_bool and adds it to globals" $ do
-    case runState (runExceptT $ genShowCall genExprSimple (ExprLitBool True)) emptyState of
+    case runState (runExceptT $ genShowCall genExprSimple (ExprLitBool dummyPos True)) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
       (Right (instrs, _, typ), state) -> do
         typ @?= IRNull
@@ -97,8 +98,8 @@ test_show_bool_generation_details = testCase "Boolean generates call to show_boo
         assertBool "show_bool function should be added to globals" $ any isShowBoolDef (gsGlobals state)
 
 test_show_char_generation_details :: TestTree
-test_show_char_generation_details = testCase "Char generates call to putchar" $ do
-    case runState (runExceptT $ genShowCall genExprSimple (ExprLitChar 'x')) emptyState of
+test_show_char_generation_details = testCase "IRChar generates call to putchar" $ do
+    case runState (runExceptT $ genShowCall genExprSimple (ExprLitChar dummyPos 'x')) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
       (Right (instrs, _, typ), _) -> do
         typ @?= IRNull
@@ -106,7 +107,7 @@ test_show_char_generation_details = testCase "Char generates call to putchar" $ 
 
 test_show_i64_generation_details :: TestTree
 test_show_i64_generation_details = testCase "IRI64 generates printf with %ld format string" $ do
-    case runState (runExceptT $ genShowCall genExprSimple (ExprLitInt 123)) emptyState of
+    case runState (runExceptT $ genShowCall genExprSimple (ExprLitInt dummyPos 123)) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
       (Right (instrs, _, typ), state) -> do
         typ @?= IRNull
@@ -121,7 +122,7 @@ test_show_i64_generation_details = testCase "IRI64 generates printf with %ld for
 
 test_show_f64_generation_details :: TestTree
 test_show_f64_generation_details = testCase "IRF64 generates printf with %lf format string" $ do
-    case runState (runExceptT $ genShowCall genExprFloat (ExprLitFloat 3.14)) emptyState of
+    case runState (runExceptT $ genShowCall genExprFloat (ExprLitFloat dummyPos 3.14)) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
       (Right (instrs, _, typ), state) -> do
         typ @?= IRNull
@@ -132,7 +133,7 @@ test_show_f64_generation_details = testCase "IRF64 generates printf with %lf for
 
 test_show_struct_generation_details :: TestTree
 test_show_struct_generation_details = testCase "IRStruct generates call to show_Struct and IRADDR" $ do
-    case runState (runExceptT $ genShowCall genExprStruct (ExprVar "s")) emptyState of
+    case runState (runExceptT $ genShowCall genExprStruct (ExprVar dummyPos "s")) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
       (Right (instrs, _, typ), _) -> do
         typ @?= IRNull
@@ -141,7 +142,7 @@ test_show_struct_generation_details = testCase "IRStruct generates call to show_
 
 test_show_string_generation_details :: TestTree
 test_show_string_generation_details = testCase "IRPtr IRChar (string) generates printf with %s format string" $ do
-    case runState (runExceptT $ genShowCall genExprString (ExprLitString "test")) emptyState of
+    case runState (runExceptT $ genShowCall genExprString (ExprLitString dummyPos "test")) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
       (Right (instrs, _, typ), state) -> do
         typ @?= IRNull
@@ -149,6 +150,7 @@ test_show_string_generation_details = testCase "IRPtr IRChar (string) generates 
         
         let formatStrGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
         assertBool "Should register %s format string" $ any ("%s" `isPrefixOf`) formatStrGlobals
+
 
 test_get_show_func_struct :: TestTree
 test_get_show_func_struct = testCase "getShowFunc returns show_StructName for IRStruct" $

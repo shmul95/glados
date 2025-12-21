@@ -1,3 +1,6 @@
+{-# LANGUAGE CPP #-}
+#define TESTING_EXPORT
+
 module IR.Generator.Expression.CallSpecs (callExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
@@ -6,6 +9,7 @@ import Rune.IR.Generator.Expression.Call
 import Rune.IR.Nodes
 import Rune.AST.Nodes
 import IR.TestUtils (runGenUnsafe, emptyState)
+import TestHelpers (dummyPos)
 import Control.Monad.State (evalState)
 import Control.Monad.Except (runExceptT)
 import qualified Data.HashMap.Strict as HM
@@ -46,10 +50,10 @@ testGenCall = testGroup "genCall"
           _ -> assertBool "Expected IRTemp" False
 
   , testCase "Generates function call with args" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
           funcs = [("add", TypeI32, [TypeI32, TypeI32])]
-          (instrs, _, _) = runGenWithFuncStack funcs (genCall genExpr "add" [ExprLitInt 1, ExprLitInt 2])
+          (instrs, _, _) = runGenWithFuncStack funcs (genCall genExpr "add" [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2])
       in assertBool "Should have IRCALL" $ any isCall instrs
 
   , testCase "Registers function call" $
@@ -63,7 +67,7 @@ testPrepareArg = testGroup "prepareArg"
       in do
         assertBool "Should have IRADDR" $ not $ null instrs
         case op of
-          IRTemp name (IRPtr _) -> assertBool "Name should be prefixed" $ "p_" `elem` [take 2 name]
+          IRTemp name (IRPtr _) -> assertBool "Name should be prefixed" $ "p_" == take 2 name
           _ -> assertBool "Expected IRTemp with IRPtr" False
 
   , testCase "Adds IRADDR for pointer to struct" $
@@ -90,9 +94,9 @@ testPrepareArg = testGroup "prepareArg"
 testGenArgWithContext :: TestTree
 testGenArgWithContext = testGroup "genArgWithContext"
   [ testCase "Infers type for integer constant" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI32)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, op, inferredType) = runGenUnsafe $ genArgWithContext genExpr (ExprLitInt 42) TypeI64
+          (instrs, op, inferredType) = runGenUnsafe $ genArgWithContext genExpr (ExprLitInt dummyPos 42) TypeI64
       in do
         length instrs @?= 1
         case op of
@@ -100,9 +104,9 @@ testGenArgWithContext = testGroup "genArgWithContext"
           _ -> assertBool "Expected IRTemp" False
         inferredType @?= IRI64
   , testCase "Does not infer type when not needed" $
-      let genExpr (ExprLitInt n) = return ([], IRConstInt n, IRI64)
+      let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI64)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, op, inferredType) = runGenUnsafe $ genArgWithContext genExpr (ExprLitInt 42) TypeI64
+          (instrs, op, inferredType) = runGenUnsafe $ genArgWithContext genExpr (ExprLitInt dummyPos 42) TypeI64
       in do
         length instrs @?= 0
         op @?= IRConstInt 42

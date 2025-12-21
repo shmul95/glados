@@ -1,6 +1,5 @@
 module Rune.Semantics.Helper
   ( checkParamType
-  , checkParamTypeWithReturnContext
   , mangleName
   , exprType
   , assignVarType
@@ -8,6 +7,8 @@ module Rune.Semantics.Helper
   , selectSignature
   , checkEachParam
   , isTypeCompatible
+  , SemanticError(..)
+  , formatSemanticError
   ) where
 
 import Data.Maybe (fromMaybe)
@@ -17,82 +18,59 @@ import qualified Data.HashMap.Strict as HM
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
-import Rune.Semantics.OpType (iHTBinary, sameType, isIntegerType, isFloatType)
 
 import Rune.Semantics.Type
   ( VarStack
   , FuncStack
   , Stack
   )
+import Rune.Semantics.OpType (isIntegerType, isFloatType, iHTBinary, sameType)
 
-data Mangling = NoMangle | DoMangle
+-- | Semantic error with location information
+data SemanticError = SemanticError
+  { seFile     :: String
+  , seLine     :: Int
+  , seCol      :: Int
+  , seExpected :: String
+  , seGot      :: String
+  , seContext  :: [String]
+  } deriving (Show, Eq)
 
---
--- public
---
 
-checkParamType :: Stack -> String -> [Expression] -> Either String String
-checkParamType = checkParamTypeWithReturnContext Nothing
+-- | Format semantic error to match AST parser convention
+formatSemanticError :: SemanticError -> String
+formatSemanticError (SemanticError file line col expected got ctx) =
+  let header = printf "[ERROR]: %s:%d:%d: error:" file line col
+      expectedLine = "  Expected: " <> expected
+      gotLine = "  Got: " <> got
+      contexts = map (\c -> "  ... in " <> c) ctx
+  in intercalate "\n" ([header, expectedLine, gotLine] <> contexts)
 
-checkParamTypeWithReturnContext :: Maybe Type -> Stack -> String -> [Expression] -> Either String String
-checkParamTypeWithReturnContext returnContext s@(fs, _) fname es =
-  case HM.lookup fname fs of
-    Nothing     -> unknown
-    Just []     -> unknown
-    Just [sig]  -> checkSingle sig
-    Just sigs   -> select sigs
+
+checkParamType :: Stack -> String -> String -> Int -> Int -> [Expression] -> Either SemanticError String
+checkParamType s@(fs, _) fname file line col es =
+  let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
+  in case HM.lookup fname fs of
+    Nothing         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
+    Just []         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
+    Just [sig]      -> checkSingle sig
+    Just (sig:sigs) -> case checkSingle sig of
+                         Left _ -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
+                         Right r  -> Right r
   where
-    unknown :: Either String String
-    unknown =
-      Left $ printf "\n\tUnknownFunction: %s is not known" fname
-
-    noMatch :: [(Type, [Type])] -> Either String String
-    noMatch sigs =
-      Left $
-        printf
-          "\n\tNoMatchingSignature: %s doesn't have any signature like this %s"
-          fname
-          (show sigs)
-
-    checkSingle :: (Type, [Type]) -> Either String String
+    checkSingle :: (Type, [Type]) -> Either SemanticError String
     checkSingle (_, at) =
-      case checkEachParam s 0 es at of
+      case checkEachParam s file line col 0 es at of
         Nothing  -> Right fname
         Just err -> Left err
 
-    select :: [(Type, [Type])] -> Either String String
-    select sigs =
-      case returnContext of
-        Just expectedRet ->
-          case filter ((== expectedRet) . fst) sigs of
-            [] -> checkAll sigs
-            rs -> checkPreferred rs `orElse` checkAll sigs
-        Nothing -> checkAll sigs
-
-    checkAll :: [(Type, [Type])] -> Either String String
-    checkAll sigs =
-      case findValid DoMangle sigs of
-        Just name -> Right name
-        Nothing   -> noMatch sigs
-
-    checkPreferred :: [(Type, [Type])] -> Either String String
-    checkPreferred sigs =
-      case findValid DoMangle sigs of
-        Just name -> Right name
-        Nothing   -> Left "No matching return type"
-
-    findValid :: Mangling -> [(Type, [Type])] -> Maybe String
-    findValid _ [] = Nothing
-    findValid m ((ret, at):rest) =
-      case checkEachParam s 0 es at of
-        Nothing -> Just $ case m of
-              NoMangle -> fname
-              DoMangle -> mangleName fname ret at
-        Just _ -> findValid m rest
-
-    orElse :: Either String r -> Either String r -> Either String r
-    orElse (Right r) _ = Right r
-    orElse (Left _) f = f
+    -- if multiple signature so mangle name
+    checkAll :: SemanticError -> [(Type, [Type])] -> Either SemanticError String
+    checkAll err_msg [] = Left err_msg
+    checkAll err_msg ((ret, at):rest) =
+      case checkEachParam s file line col 0 es at of
+        Nothing  -> Right $ mangleName fname ret at
+        Just _   -> checkAll err_msg rest
 
 
 mangleName :: String -> Type -> [Type] -> String
@@ -100,36 +78,37 @@ mangleName fname ret args
   | TypeAny `elem` args || ret == TypeAny = fname
   | otherwise = intercalate "_" (show ret : fname : map show args)
 
-exprType :: Stack -> Expression -> Either String Type
-exprType _ (ExprLitInt _)         = Right TypeI32
-exprType _ (ExprLitFloat  _)      = Right TypeF32
-exprType _ (ExprLitString  _)     = Right TypeString
-exprType _ (ExprLitChar _ )       = Right TypeChar
-exprType _ (ExprLitBool  _)       = Right TypeBool
-exprType _ (ExprStructInit st _)  = Right $ TypeCustom st
-exprType _ ExprLitNull            = Right TypeNull
-exprType _ (ExprAccess _ _)       = Right TypeAny -- don't know how to use struct
 
-exprType s (ExprBinary op a b)    = do 
+exprType :: Stack -> Expression -> Either String Type
+exprType _ (ExprLitInt _ _)         = Right TypeI32
+exprType _ (ExprLitFloat _ _)       = Right TypeF32
+exprType _ (ExprLitString _ _)      = Right TypeString
+exprType _ (ExprLitChar _ _)        = Right TypeChar
+exprType _ (ExprLitBool _ _)        = Right TypeBool
+exprType _ (ExprStructInit _ st _)  = Right $ TypeCustom st
+exprType _ (ExprLitNull _)          = Right TypeNull
+exprType _ (ExprAccess _ _ _)       = Right TypeAny -- don't know how to use struct
+
+exprType s (ExprBinary _ op a b)    = do 
   a' <- exprType s a
   b' <- exprType s b
   iHTBinary op a' b'
 
-exprType s (ExprUnary _ expr)     = exprType s expr -- assume the op don't change the type
-exprType (_, vs) (ExprVar name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+exprType s (ExprUnary _ _ expr)     = exprType s expr -- assume the op don't change the type
+exprType (_, vs) (ExprVar _ name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
 
-exprType s@(fs, _) (ExprCall fn args) = do
-  argTypes <- sequence $ map (exprType s) args
+exprType s@(fs, _) (ExprCall _ fn args) = do
+  argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 
-exprType s (ExprIndex target _) = exprType s target >>= extractArrayType
+exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
   where
     extractArrayType (TypeArray inner) = Right inner
     extractArrayType TypeAny = Right TypeAny
     extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
 
-exprType _ (ExprLitArray []) = Right $ TypeArray TypeAny
-exprType s (ExprLitArray (e:es)) = do
+exprType _ (ExprLitArray _ []) = Right $ TypeArray TypeAny
+exprType s (ExprLitArray _ (e:es)) = do
   firstType <- exprType s e
   allTypes <- mapM (exprType s) es
   checkArray firstType allTypes
@@ -139,17 +118,16 @@ exprType s (ExprLitArray (e:es)) = do
       | otherwise = Left $ printf "\n\tIncompatibleArrayElements: array elements have incompatible types, first is %s" (show t)
 
 
-assignVarType :: VarStack -> String -> Type -> Either String VarStack
-assignVarType vs _ TypeAny = Right vs
-assignVarType vs v t =
-  let msg = "\n\tTypeOverwrite: %s has already %s but %s were given"
-      updated = Right $ HM.insert v t vs
+assignVarType :: VarStack -> String -> String -> Int -> Int -> Type -> Either SemanticError VarStack
+assignVarType vs _ _ _ _ TypeAny = Right vs
+assignVarType vs v file line col t =
+  let updated = Right $ HM.insert v t vs
   in case HM.lookup v vs of
     Nothing       -> updated
     Just TypeAny  -> updated
     Just TypeNull -> updated
-    Just t' | sameType t t' -> updated
-            | otherwise     -> Left $ printf msg v (show t') (show t)
+    Just t' | isTypeCompatible t t' -> updated
+            | otherwise -> Left $ SemanticError file line col (printf "variable '%s' to have type %s" v (show t')) (printf "type %s" (show t)) ["variable assignment", "global context"]
 
 
 isTypeCompatible :: Type -> Type -> Bool
@@ -162,35 +140,38 @@ isTypeCompatible expected actual
   | otherwise = False
 
 
-checkMultipleType :: String -> Maybe Type -> Type -> Either String Type
-checkMultipleType _ Nothing e_t         = Right e_t
-checkMultipleType _ (Just TypeAny) e_t  = Right e_t
-checkMultipleType _ (Just (TypeArray TypeAny)) (TypeArray inner) = Right (TypeArray inner)
-checkMultipleType _ (Just t) TypeAny    = Right t
-checkMultipleType _ _ TypeNull          = Right TypeNull
-checkMultipleType v (Just t) e_t
+checkMultipleType :: String -> String -> Int -> Int -> Maybe Type -> Type -> Either SemanticError Type
+checkMultipleType _ _ _ _ Nothing e_t         = Right e_t
+checkMultipleType _ _ _ _ (Just TypeAny) e_t  = Right e_t
+checkMultipleType _ _ _ _ (Just (TypeArray TypeAny)) (TypeArray inner) = Right (TypeArray inner)
+checkMultipleType _ _ _ _ (Just t) TypeAny    = Right t
+checkMultipleType _ _ _ _ _ TypeNull          = Right TypeNull
+checkMultipleType v file line col (Just t) e_t
   | isTypeCompatible t e_t = Right t
-  | otherwise =
-      let msg = "\n\tMultipleType: %s is already %s and %s is trying to be assigned"
-      in Left $ printf msg v (show t) (show e_t)
+  | otherwise = Left $ SemanticError file line col (printf "variable '%s' to have type %s" v (show t)) (printf "type %s being assigned" (show e_t)) ["type check", "global context"]
 
 
-checkEachParam :: Stack -> Int -> [Expression] -> [Type] -> Maybe String
-checkEachParam s i (_:es) (TypeAny:at) = checkEachParam s (i + 1) es at
-checkEachParam s i (e:es) (t:at) =
-  let wrong_type = "\n\tWrongType: arg%d exp %s but have %s"
-      next = checkEachParam s (i + 1) es at
-  in case exprType s e of
-    Left err -> Just err
-    Right t'
-      | isTypeCompatible t t' -> next
-      | otherwise ->
-          Just (printf wrong_type i (show t) (show t')) <> next
+checkEachParam :: Stack -> String -> Int -> Int -> Int -> [Expression] -> [Type] -> Maybe SemanticError
+checkEachParam s file line col i (e:es) (t:at) =
+  case exprType s e of
+    Left err -> Just $ SemanticError file line col ("valid expression type") err ["parameter check", "function call"]
+    Right t' ->
+      if isTypeCompatible t t'
+      then checkEachParam s file line col (i + 1) es at
+      else 
+        let expected = printf "argument %d to have type %s" i (show t)
+            got = printf "type %s" (show t')
+        in Just $ SemanticError file line col expected got ["parameter check", "function call", "global context"]
 
-
-checkEachParam _ _ [] [] = Nothing
-checkEachParam _ i [] at = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too few)") (length at + i) (i)
-checkEachParam _ i es [] = Just $ printf ("\n\tWrongNbArgs: exp %d but %d were given (too many)") (i) (length es + i)
+checkEachParam _ _ _ _ _ [] [] = Nothing
+checkEachParam _ file line col i [] at =
+  let expected = printf "%d arguments" (length at + i)
+      got = printf "%d arguments (too few)" i
+  in Just $ SemanticError file line col expected got ["parameter count", "function call", "global context"]
+checkEachParam _ file line col i es [] =
+  let expected = printf "%d arguments" i
+      got = printf "%d arguments (too many)" (length es + i)
+  in Just $ SemanticError file line col expected got ["parameter count", "function call", "global context"]
 
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
@@ -203,16 +184,12 @@ selectSignature fs name at =
         [(rt, _)] -> Just rt
         matches@(_:_) -> Just . fst $ mostSpecific matches
         _         -> Nothing
-  where 
+  where
     match :: [Type] -> (Type, [Type]) -> Bool
     match act (_, expec) =
       length act == length expec &&
-      and (zipWith compat expec act)
+      and (zipWith isTypeCompatible expec act)
 
-    compat TypeAny _ = True
-    compat (TypeArray TypeAny) (TypeArray _) = True
-    compat a b = a == b
-    
     mostSpecific :: [(Type, [Type])] -> (Type, [Type])
     mostSpecific = foldr1 moreSpecific
     

@@ -27,7 +27,7 @@ import Rune.AST.Nodes (Block, Statement (..), Type (..))
 import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.Parser.ParseVariable (parseVariable)
-import Rune.AST.ParserHelper (advance, check, checkLoopDepth, expect, failParse, incLoopDepth, peek, withContext)
+import Rune.AST.ParserHelper (advance, check, checkLoopDepth, expect, failParse, getCurrentPos, incLoopDepth, peek, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -73,21 +73,25 @@ parseStatement = do
 --
 
 parseReturn :: Parser Statement
-parseReturn =
-  expect T.KwReturn
-    *> (StmtReturn <$> optional (withContext "return value" parseExpression))
-    <* expect T.Semicolon
+parseReturn = do
+  pos <- getCurrentPos
+  _ <- expect T.KwReturn
+  expr <- optional (withContext "return value" parseExpression)
+  _ <- expect T.Semicolon
+  pure $ StmtReturn pos expr
 
 --
 -- conditionals
 --
 
 parseIf :: Parser Statement
-parseIf =
-  StmtIf
-    <$> (expect T.KwIf *> withContext "if condition" parseExpression)
-    <*> withContext "if block" parseBlock
-    <*> optional (expect T.KwElse *> (withContext "else block" (parseBlock <|> (pure <$> parseIf))))
+parseIf = do
+  pos <- getCurrentPos
+  _ <- expect T.KwIf
+  cond <- withContext "if condition" parseExpression
+  thenBlock <- withContext "if block" parseBlock
+  elseBlock <- optional (expect T.KwElse *> (withContext "else block" (parseBlock <|> (pure <$> parseIf))))
+  pure $ StmtIf pos cond thenBlock elseBlock
 
 --
 -- loops
@@ -108,30 +112,36 @@ parseFor = do
 
 parseForRangeRest :: String -> Maybe Type -> Parser Statement
 parseForRangeRest var typeAnnot = do
+  pos <- getCurrentPos
   _ <- expect T.OpAssign
   start <- withContext "start index" parseExpression
   _ <- expect T.KwTo
   end <- withContext "end index" parseExpression
   body <- incLoopDepth (withContext "for block" parseBlock)
-  pure $ StmtFor var typeAnnot (Just start) end body
+  pure $ StmtFor pos var typeAnnot (Just start) end body
 
 parseForRangeRestNoInit :: String -> Maybe Type -> Parser Statement
 parseForRangeRestNoInit var typeAnnot = do
+  pos <- getCurrentPos
   _ <- expect T.KwTo
   end <- withContext "end index" parseExpression
   body <- incLoopDepth (withContext "for block" parseBlock)
-  pure $ StmtFor var typeAnnot Nothing end body
+  pure $ StmtFor pos var typeAnnot Nothing end body
 
 parseForEachRest :: String -> Maybe Type -> Parser Statement
 parseForEachRest var typeAnnot = do
+  pos <- getCurrentPos
   _ <- expect T.KwIn
   iterable <- withContext "iterable expression" parseExpression
   body <- incLoopDepth (withContext "for-each block" parseBlock)
-  pure $ StmtForEach var typeAnnot iterable body
+  pure $ StmtForEach pos var typeAnnot iterable body
 
 parseLoop :: Parser Statement
-parseLoop =
-  StmtLoop <$> (expect T.KwLoop *> incLoopDepth (withContext "loop block" parseBlock))
+parseLoop = do
+  pos <- getCurrentPos
+  _ <- expect T.KwLoop
+  body <- incLoopDepth (withContext "loop block" parseBlock)
+  pure $ StmtLoop pos body
 
 --
 -- control flow
@@ -139,12 +149,18 @@ parseLoop =
 
 parseStop :: Parser Statement
 parseStop = do
+  pos <- getCurrentPos
   inLoop <- checkLoopDepth
   unless inLoop $ failParse "The 'stop' statement can only be used inside a loop or for block"
-  expect T.KwStop *> expect T.Semicolon *> pure StmtStop
+  _ <- expect T.KwStop
+  _ <- expect T.Semicolon
+  pure $ StmtStop pos
 
 parseNext :: Parser Statement
 parseNext = do
+  pos <- getCurrentPos
   inLoop <- checkLoopDepth
   unless inLoop $ failParse "The 'next' statement can only be used inside a loop or for block"
-  expect T.KwNext *> expect T.Semicolon *> pure StmtNext
+  _ <- expect T.KwNext
+  _ <- expect T.Semicolon
+  pure $ StmtNext pos

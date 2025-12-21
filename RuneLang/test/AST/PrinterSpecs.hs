@@ -5,6 +5,7 @@ import Test.Tasty.HUnit (testCase, assertEqual)
 import Rune.AST.Nodes
 import Rune.AST.Printer
 import Control.Monad.State.Strict (execState)
+import TestHelpers (dummyPos)
 
 --
 -- public
@@ -106,87 +107,89 @@ expressionPrinterTests :: TestTree
 expressionPrinterTests = testGroup "Expression Printer Tests"
   [ testCase "ExprBinary" $
       assertEqual "Binary" "ExprBinary +\n  ExprLitInt 1\n  ExprLitInt 2" 
-        (runPrinter $ visitExpression (ExprBinary Add (ExprLitInt 1) (ExprLitInt 2)))
+        (runPrinter $ visitExpression (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2)))
   , testCase "ExprUnary" $
-      assertEqual "Unary" "ExprUnary -\n  ExprLitInt 1" 
-        (runPrinter $ visitExpression (ExprUnary Negate (ExprLitInt 1)))
+      assertEqual "Unary" "ExprUnary -\n  ExprLitInt 1"
+        (runPrinter $ visitExpression (ExprUnary dummyPos Negate (ExprLitInt dummyPos 1)))
   , testCase "ExprCall" $
       assertEqual "Call" "ExprCall f\nArguments:\n  ExprLitInt 1" 
-        (runPrinter $ visitExpression (ExprCall "f" [ExprLitInt 1]))
+        (runPrinter $ visitExpression (ExprCall dummyPos "f" [ExprLitInt dummyPos 1]))
   , testCase "ExprStructInit" $
-      assertEqual "StructInit" "ExprStructInit P\nFields:\n  x:\n  \n    ExprLitInt 1" 
-        (runPrinter $ visitExpression (ExprStructInit "P" [("x", ExprLitInt 1)]))
+      assertEqual "StructInit" "ExprStructInit P\nFields:\n  x:\n  \n    ExprLitInt 1"
+        (runPrinter $ visitExpression (ExprStructInit dummyPos "P" [("x", ExprLitInt dummyPos 1)]))
   , testCase "ExprAccess" $
       assertEqual "Access" "ExprAccess .x\n  ExprVar p" 
-        (runPrinter $ visitExpression (ExprAccess (ExprVar "p") "x"))
-  , testCase "ExprLitInt" $      assertEqual "Int" "ExprLitInt 1" (runPrinter $ visitExpression (ExprLitInt 1))
-  , testCase "ExprLitFloat" $ 
-      assertEqual "Float" "ExprLitFloat 1.5" (runPrinter $ visitExpression (ExprLitFloat 1.5))
-  , testCase "ExprLitString" $ 
-      assertEqual "String" "ExprLitString \"s\"" (runPrinter $ visitExpression (ExprLitString "s"))
-  , testCase "ExprLitChar" $ 
-      assertEqual "Char" "ExprLitChar 'c'" (runPrinter $ visitExpression (ExprLitChar 'c'))
-  , testCase "ExprLitBool" $ 
-      assertEqual "Bool" "ExprLitBool True" (runPrinter $ visitExpression (ExprLitBool True))
-  , testCase "ExprLitNull" $ 
-      assertEqual "Null" "ExprLitNull" (runPrinter $ visitExpression ExprLitNull)
-  , testCase "ExprVar" $ 
-      assertEqual "Var" "ExprVar x" (runPrinter $ visitExpression (ExprVar "x"))
+        (runPrinter $ visitExpression (ExprAccess dummyPos (ExprVar dummyPos "p") "x"))
+  , testCase "ExprLitInt" $      assertEqual "Int" "ExprLitInt 1" (runPrinter $ visitExpression (ExprLitInt dummyPos 1))
+  , testCase "ExprLitFloat" $
+      assertEqual "Float" "ExprLitFloat 1.5" (runPrinter $ visitExpression (ExprLitFloat dummyPos 1.5))
+  , testCase "ExprLitString" $
+      assertEqual "String" "ExprLitString \"s\"" (runPrinter $ visitExpression (ExprLitString dummyPos "s"))
+  , testCase "ExprLitChar" $
+      assertEqual "Char" "ExprLitChar 'c'" (runPrinter $ visitExpression (ExprLitChar dummyPos 'c'))
+  , testCase "ExprLitBool" $
+      assertEqual "Bool" "ExprLitBool True" (runPrinter $ visitExpression (ExprLitBool dummyPos True))
+  , testCase "ExprLitNull" $
+      assertEqual "Null" "ExprLitNull" (runPrinter $ visitExpression (ExprLitNull dummyPos))
+  , testCase "ExprVar" $
+      assertEqual "Var" "ExprVar x" (runPrinter $ visitExpression (ExprVar dummyPos "x"))
   ]
 
 statementPrinterTests :: TestTree
-statementPrinterTests = testGroup "Statement Printer Tests"
-  [ testCase "StmtVarDecl (Full)" $
-      let stmt = StmtVarDecl "x" (Just TypeI32) (ExprLitInt 1)
-      in assertEqual "VarDecl Full" "StmtVarDecl x : i32\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
-  , testCase "StmtVarDecl (Inferred)" $
-      let stmt = StmtVarDecl "x" Nothing (ExprLitInt 1)
-      in assertEqual "VarDecl Inferred" "StmtVarDecl x\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
+statementPrinterTests =
+  testGroup
+    "Statement Printer Tests"
+    [ testCase "StmtVarDecl (Full)" $
+        let stmt = StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 1)
+         in assertEqual "VarDecl Full" "StmtVarDecl x : i32\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
+    , testCase "StmtVarDecl (Inferred)" $
+        let stmt = StmtVarDecl dummyPos "x" Nothing (ExprLitInt dummyPos 1)
+         in assertEqual "VarDecl Inferred" "StmtVarDecl x\nValue:\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
   
   , testCase "StmtAssignment" $
-      let stmt = StmtAssignment (ExprVar "x") (ExprLitInt 1)
+      let stmt = StmtAssignment dummyPos (ExprVar dummyPos "x") (ExprLitInt dummyPos 1)
       in assertEqual "Assignment" "StmtAssignment\n  LValue:\n    ExprVar x\n  RValue:\n    ExprLitInt 1" (runPrinter $ visitStatement stmt)
 
   , testCase "StmtReturn (Just)" $
-      let stmt = StmtReturn (Just (ExprLitInt 1))
+      let stmt = StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))
       in assertEqual "Return Just" "StmtReturn\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
   , testCase "StmtReturn (Nothing)" $
-      let stmt = StmtReturn Nothing
+      let stmt = StmtReturn dummyPos Nothing
       in assertEqual "Return Nothing" "StmtReturn" (runPrinter $ visitStatement stmt)
 
   , testCase "StmtIf (With Else)" $
-      let stmt = StmtIf (ExprLitBool True) [StmtStop] (Just [StmtNext])
+      let stmt = StmtIf dummyPos (ExprLitBool dummyPos True) [StmtStop dummyPos] (Just [StmtNext dummyPos])
       in assertEqual "If Else" "StmtIf\n  Condition:\n    ExprLitBool True\n  Then:\n    StmtStop\n  Else:\n    StmtNext" (runPrinter $ visitStatement stmt)
   , testCase "StmtIf (No Else)" $
-      let stmt = StmtIf (ExprLitBool True) [StmtStop] Nothing
+      let stmt = StmtIf dummyPos (ExprLitBool dummyPos True) [StmtStop dummyPos] Nothing
       in assertEqual "If No Else" "StmtIf\n  Condition:\n    ExprLitBool True\n  Then:\n    StmtStop" (runPrinter $ visitStatement stmt)
 
   , testCase "StmtFor (Full)" $
-      let stmt = StmtFor "i" (Just TypeI32) (Just (ExprLitInt 0)) (ExprLitInt 10) [StmtNext]
+      let stmt = StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [StmtNext dummyPos]
       in assertEqual "For Full" "StmtFor i : i32\n  Start:\n    ExprLitInt 0\n  End:\n    ExprLitInt 10\n  Body:\n    StmtNext" (runPrinter $ visitStatement stmt)
   , testCase "StmtFor (Implicit Start/Type)" $
-      let stmt = StmtFor "i" Nothing Nothing (ExprLitInt 10) [StmtNext]
+      let stmt = StmtFor dummyPos "i" Nothing Nothing (ExprLitInt dummyPos 10) [StmtNext dummyPos]
       in assertEqual "For Implicit" "StmtFor i\n  Start: <Implicit>\n  End:\n    ExprLitInt 10\n  Body:\n    StmtNext" (runPrinter $ visitStatement stmt)
 
   , testCase "StmtForEach (Full)" $
-      let stmt = StmtForEach "x" (Just TypeI32) (ExprVar "xs") [StmtNext]
+      let stmt = StmtForEach dummyPos "x" (Just TypeI32) (ExprVar dummyPos "xs") [StmtNext dummyPos]
       in assertEqual "ForEach Full" "StmtForEach x : i32\n  Iterable:\n    ExprVar xs\n  Body:\n    StmtNext" (runPrinter $ visitStatement stmt)
   , testCase "StmtForEach (Inferred)" $
-      let stmt = StmtForEach "x" Nothing (ExprVar "xs") [StmtNext]
+      let stmt = StmtForEach dummyPos "x" Nothing (ExprVar dummyPos "xs") [StmtNext dummyPos]
       in assertEqual "ForEach Inferred" "StmtForEach x\n  Iterable:\n    ExprVar xs\n  Body:\n    StmtNext" (runPrinter $ visitStatement stmt)
 
   , testCase "StmtLoop" $
-      let stmt = StmtLoop [StmtStop]
+      let stmt = StmtLoop dummyPos [StmtStop dummyPos]
       in assertEqual "Loop" "StmtLoop\n  Body:\n    StmtStop" (runPrinter $ visitStatement stmt)
 
   , testCase "StmtStop" $
-      assertEqual "Stop" "StmtStop" (runPrinter $ visitStatement StmtStop)
+      assertEqual "Stop" "StmtStop" (runPrinter $ visitStatement (StmtStop dummyPos))
 
   , testCase "StmtNext" $
-      assertEqual "Next" "StmtNext" (runPrinter $ visitStatement StmtNext)
+      assertEqual "Next" "StmtNext" (runPrinter $ visitStatement (StmtNext dummyPos))
 
   , testCase "StmtExpr" $
-      let stmt = StmtExpr (ExprLitInt 1)
+      let stmt = StmtExpr dummyPos (ExprLitInt dummyPos 1)
       in assertEqual "Expr" "StmtExpr\n  ExprLitInt 1" (runPrinter $ visitStatement stmt)
   ]
 

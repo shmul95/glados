@@ -49,7 +49,7 @@ functionTests = testGroup "Function Tests"
   [ testCase "Function (no params)" $
       assertParse "def main() -> i32 { return 0; }"
         [tok T.KwDef, tok (T.Identifier "main"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeI32, tok T.LBrace, tok T.KwReturn, tok (T.LitInt 0), tok T.Semicolon, tok T.RBrace]
-        [DefFunction "main" [] TypeI32 [StmtReturn (Just (ExprLitInt 0))]]
+        [DefFunction "main" [] TypeI32 [StmtReturn (SourcePos "test" 1 1) (Just (ExprLitInt (SourcePos "test" 1 1) 0))]]
 
   , testCase "Function (params)" $
       assertParse "def add(x: i32, y: i32) -> i32 {}"

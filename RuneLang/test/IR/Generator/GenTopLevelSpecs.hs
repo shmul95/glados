@@ -5,8 +5,11 @@ module IR.Generator.GenTopLevelSpecs (genTopLevelTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure)
+import TestHelpers (dummyPos)
+
 import Control.Monad.State (evalState, gets)
 import Control.Monad.Except (runExceptT)
+
 import Rune.IR.Generator.GenTopLevel
 import Rune.IR.Nodes (GenState(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..))
 import Rune.AST.Nodes (TopLevelDef(..), Parameter(..), Field(..), Type(..), Statement(..))
@@ -82,7 +85,7 @@ testGenFunction = testGroup "genFunction"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Generates function with body" $
-      let def = DefFunction "test" [] TypeNull [StmtReturn Nothing]
+      let def = DefFunction "test" [] TypeNull [StmtReturn dummyPos Nothing]
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> do
