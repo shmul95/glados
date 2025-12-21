@@ -287,17 +287,17 @@ emitCall sm dest funcName args mbType =
    in argSetup <> printfFixup <> callInstr <> retSave
   where
     printfFixupHelp (Just IRF32) (floatReg:_)
-      | funcName == "printf" =
+      | funcName == "printf" || funcName == "fprintf" =
         [ emit 1 $ "cvtss2sd " <> floatReg <> ", " <> floatReg
         , emit 1   "mov eax, 1"
         ]
     printfFixupHelp (Just IRF64) (_:_) 
-      | funcName == "printf" =
+      | funcName == "printf" || funcName == "fprintf" =
         [ emit 1 "mov eax, 1" ]
     printfFixupHelp Nothing _
-      | funcName == "printf" = [emit 1 "xor eax, eax"]
+      | funcName == "printf" || funcName == "fprintf" = [emit 1 "xor eax, eax"]
     printfFixupHelp _ _
-      | funcName == "printf" = []
+      | funcName == "printf" || funcName == "fprintf" = []
     printfFixupHelp _ _ = []
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
