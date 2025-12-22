@@ -1,5 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TupleSections #-}
 
 #if defined(TESTING_EXPORT)
@@ -35,7 +34,13 @@ where
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (IOException, try, bracket)
 import Control.Monad ((>=>), when)
+
+import Data.Functor ((<&>))
+import Data.List (partition)
+import Data.Maybe (catMaybes)
+
 import Logger (logError)
+
 import Rune.AST.Nodes (Program)
 import Rune.AST.Parser (parseRune)
 import Rune.Backend.X86_64.Codegen (emitAssembly)
@@ -48,15 +53,15 @@ import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
 import Rune.Semantics.Type (FuncStack)
+
 import Lib (fixpoint)
+
 import Text.Megaparsec (errorBundlePretty)
 import System.Process (rawSystem)
 import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.FilePath (takeExtension, dropExtension)
 import System.IO (hPutStr, hClose, openTempFile)
 import System.Directory (removeFile, getTemporaryDirectory)
-import Data.List (partition)
-import Data.Maybe (catMaybes)
 
 data CompileMode
   = ToObject
@@ -103,7 +108,7 @@ compileToObject inFile outFile =
     ".ru" -> runPipelineAction inFile $ \ir ->
               let asmContent = emitAssembly ir
                in compileAsmToObject asmContent outFile
-    ".asm" -> safeRead inFile >>= either logError (\asmContent -> compileAsmToObject asmContent outFile)
+    ".asm" -> safeRead inFile >>= either logError (`compileAsmToObject` outFile)
     ext -> logError $ "Unsupported file extension: " <> ext
 
 -- | rune build <file1.ru> <file2.ru> ... -o output
@@ -179,7 +184,9 @@ verifAndGenIR p = do
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
-  performSanityChecks >>= either (pure . Left) (\() -> safeRead fp >>= pure . (>>= (pipeline . (fp,))))
+  performSanityChecks >>= either (pure . Left)
+    (\() -> safeRead fp <&> (>>= (pipeline . (fp,))))
+
 
 runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
 runPipelineAction inFile onSuccess =
@@ -201,7 +208,7 @@ compileAsmToObject asmContent objFile = do
                 logError $ "Assembly to object compilation failed with exit code: " <> show exitCode)
 
 compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
-compileObjectIntoExecutable objFile exeFile = linkObjectsIntoExecutable [objFile] exeFile
+compileObjectIntoExecutable objFile = linkObjectsIntoExecutable [objFile]
 
 linkObjectsIntoExecutable :: [FilePath] -> FilePath -> IO ()
 linkObjectsIntoExecutable objFiles exeFile = do
@@ -229,4 +236,4 @@ parseLexer :: (FilePath, String) -> Either String (FilePath, [Token])
 parseLexer (fp, content) = either (Left . errorBundlePretty) (Right . (fp,)) (lexer fp content)
 
 parseAST :: (FilePath, [Token]) -> Either String Program
-parseAST (fp, tokens) = either Left Right (parseRune fp tokens)
+parseAST (fp, tokens) = Right =<< parseRune fp tokens
