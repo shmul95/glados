@@ -8,7 +8,8 @@ module IR.IRHelpersSpecs (irHelpersTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertFailure)
-import Control.Monad.State (runState, execState)
+import Control.Monad.State (runState)
+import Control.Monad.Except (runExceptT)
 import qualified Data.Map.Strict as Map
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
@@ -17,6 +18,7 @@ import Rune.IR.IRHelpers
 import Rune.IR.Nodes (GenState(..), IRType(..), IROperand(..), IRInstruction(..), IRLabel(..), IRTopLevel(..), IRGlobalValue(..))
 import Rune.AST.Nodes (Type(..))
 import Data.List (isInfixOf)
+import IR.TestUtils (runGen, runGenUnsafe)
 
 --
 -- public
@@ -175,27 +177,33 @@ testSymbolTableHelpers :: TestTree
 testSymbolTableHelpers = testGroup "Symbol Table Helpers"
   [ testCase "registerVar adds to symbol table" $
       let op = IRTemp "t1" IRI32
-          state = execState (registerVar "x" op IRI32) emptyState
-      in Map.lookup "x" (gsSymTable state) @?= Just (op, IRI32)
+          (result, state) = runState (runExceptT (registerVar "x" op IRI32)) emptyState
+      in case result of
+        Left err -> assertFailure $ "Unexpected error: " ++ err
+        Right _ -> Map.lookup "x" (gsSymTable state) @?= Just (op, IRI32)
   
   , testCase "registerCall adds to called funcs set" $
-      let state = execState (registerCall "myFunc") emptyState
-      in Set.member "myFunc" (gsCalledFuncs state) @?= True
+      let (result, state) = runState (runExceptT (registerCall "myFunc")) emptyState
+      in case result of
+        Left err -> assertFailure $ "Unexpected error: " ++ err
+        Right _ -> Set.member "myFunc" (gsCalledFuncs state) @?= True
   ]
 
 testNamingHelpers :: TestTree
 testNamingHelpers = testGroup "Naming Helpers"
   [ testCase "newTemp increments counter and returns name" $
-      let (name, state) = runState (newTemp "tmp" IRI32) emptyState
-      in do
-        name @?= "tmp0"
-        gsTempCounter state @?= 1
+      case runState (runExceptT (newTemp "tmp" IRI32)) emptyState of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right name, state) -> do
+          name @?= "tmp0"
+          gsTempCounter state @?= 1
 
   , testCase "nextLabelIndex increments counter" $
-      let (idx, state) = runState nextLabelIndex emptyState
-      in do
-        idx @?= 0
-        gsLabelCounter state @?= 1
+      case runState (runExceptT nextLabelIndex) emptyState of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right idx, state) -> do
+          idx @?= 0
+          gsLabelCounter state @?= 1
 
   , testCase "makeLabel formats correctly" $
       makeLabel "loop" 42 @?= IRLabel ".L.loop42"
@@ -207,30 +215,32 @@ testNamingHelpers = testGroup "Naming Helpers"
 testStringGlobalHelpers :: TestTree
 testStringGlobalHelpers = testGroup "String Global Helpers"
   [ testCase "newStringGlobal creates new global if not exists" $
-      let (name, state) = runState (newStringGlobal "hello") (emptyState { gsCurrentFunc = Just "main" })
-      in do
-        name @?= "str_main0"
-        gsStringCounter state @?= 1
-        Map.lookup "hello" (gsStringMap state) @?= Just "str_main0"
-        length (gsGlobals state) @?= 1
-        case gsGlobals state of
-          (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
-            n @?= "str_main0"
-            v @?= "hello"
-          _ -> assertFailure "Expected IRGlobalDef with string value"
+      case runState (runExceptT (newStringGlobal "hello")) (emptyState { gsCurrentFunc = Just "main" }) of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right name, state) -> do
+          name @?= "str_main0"
+          gsStringCounter state @?= 1
+          Map.lookup "hello" (gsStringMap state) @?= Just "str_main0"
+          length (gsGlobals state) @?= 1
+          case gsGlobals state of
+            (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
+              n @?= "str_main0"
+              v @?= "hello"
+            _ -> assertFailure "Expected IRGlobalDef with string value"
 
   , testCase "newStringGlobal returns existing name if exists" $
       let state0 = emptyState { gsStringMap = Map.singleton "hello" "str_existing" }
-          (name, state) = runState (newStringGlobal "hello") state0
-      in do
-        name @?= "str_existing"
-        gsStringCounter state @?= 0
-        length (gsGlobals state) @?= 0
+      in case runState (runExceptT (newStringGlobal "hello")) state0 of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right name, state) -> do
+          name @?= "str_existing"
+          gsStringCounter state @?= 0
+          length (gsGlobals state) @?= 0
 
   , testCase "genFormatString wraps newStringGlobal" $
-      let (result, _) = runState (genFormatString "fmt") (emptyState { gsCurrentFunc = Just "main" })
-      in case result of
-        (instrs, op) -> do
+      case runState (runExceptT (genFormatString "fmt")) (emptyState { gsCurrentFunc = Just "main" }) of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right (instrs, op), _) -> do
           instrs @?= []
           case op of
             IRGlobal name typ -> do
@@ -239,31 +249,33 @@ testStringGlobalHelpers = testGroup "String Global Helpers"
             _ -> assertFailure "Expected IRGlobal operand"
 
   , testCase "newStringGlobal uses 'global' prefix when outside a function" $
-      let (name, state) = runState (newStringGlobal "top") emptyState
-      in do
-        name @?= "str_global0"
-        Map.lookup "top" (gsStringMap state) @?= Just "str_global0"
-        case gsGlobals state of
-          (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
-            n @?= "str_global0"
-            v @?= "top"
-          _ -> assertFailure "Expected IRGlobalDef with string value for top-level string"
+      case runState (runExceptT (newStringGlobal "top")) emptyState of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right name, state) -> do
+          name @?= "str_global0"
+          Map.lookup "top" (gsStringMap state) @?= Just "str_global0"
+          case gsGlobals state of
+            (IRGlobalDef n (IRGlobalStringVal v) : _) -> do
+              n @?= "str_global0"
+              v @?= "top"
+            _ -> assertFailure "Expected IRGlobalDef with string value for top-level string"
   ]
 
 testFloatGlobalHelpers :: TestTree
 testFloatGlobalHelpers = testGroup "Float Global Helpers"
   [ testCase "newFloatGlobal creates new global when not interned" $
-      let (name, state) = runState (newFloatGlobal 3.14 IRF32) emptyState
-      in do
-        name @?= "f32_global0"
-        gsFloatCounter state @?= 1
-        Map.lookup (3.14, IRF32) (gsFloatMap state) @?= Just "f32_global0"
-        case gsGlobals state of
-          (IRGlobalDef n (IRGlobalFloatVal v t) : _) -> do
-            n @?= "f32_global0"
-            v @?= 3.14
-            t @?= IRF32
-          _ -> assertFailure "Expected IRGlobalDef with float value"
+      case runState (runExceptT (newFloatGlobal 3.14 IRF32)) emptyState of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right name, state) -> do
+          name @?= "f32_global0"
+          gsFloatCounter state @?= 1
+          Map.lookup (3.14, IRF32) (gsFloatMap state) @?= Just "f32_global0"
+          case gsGlobals state of
+            (IRGlobalDef n (IRGlobalFloatVal v t) : _) -> do
+              n @?= "f32_global0"
+              v @?= 3.14
+              t @?= IRF32
+            _ -> assertFailure "Expected IRGlobalDef with float value"
 
   , testCase "newFloatGlobal reuses existing label when value interned" $
       let initial =
@@ -272,11 +284,12 @@ testFloatGlobalHelpers = testGroup "Float Global Helpers"
               , gsFloatMap = Map.singleton (2.71, IRF32) "f32_global0"
               , gsGlobals = [IRGlobalDef "f32_global0" (IRGlobalFloatVal 2.71 IRF32)]
               }
-          (name, state) = runState (newFloatGlobal 2.71 IRF32) initial
-      in do
-        name @?= "f32_global0"
-        gsFloatCounter state @?= 1
-        gsGlobals state @?= gsGlobals initial
+      in case runState (runExceptT (newFloatGlobal 2.71 IRF32)) initial of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right name, state) -> do
+          name @?= "f32_global0"
+          gsFloatCounter state @?= 1
+          gsGlobals state @?= gsGlobals initial
   ]
 
 testControlFlowHelpers :: TestTree
@@ -299,10 +312,11 @@ testControlFlowHelpers = testGroup "Control Flow Helpers"
             popLoopContext
             curr2 <- getCurrentLoop
             return (curr1, curr2)
-          ((l1, l2), _) = runState op emptyState
-      in do
-        l1 @?= Just (startLbl, endLbl)
-        l2 @?= Nothing
+      in case runState (runExceptT op) emptyState of
+        (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+        (Right (l1, l2), _) -> do
+          l1 @?= Just (startLbl, endLbl)
+          l2 @?= Nothing
   ]
 
 testOperandHelpers :: TestTree
@@ -412,30 +426,29 @@ testSelectReturnType = testGroup "selectReturnType"
   [ testCase "Returns correct return type for existing function" $
       let fs = HM.fromList [("f", [(TypeI32, [TypeI32, TypeF32])])]
           args = [IRI32, IRF32]
-      in selectReturnType fs "f" args @?= IRI32
+      in runGenUnsafe (selectReturnType fs "f" args) @?= IRI32
   
   , testCase "Maps IR types back to AST types correctly" $
       let fs = HM.fromList [("g", [(TypeU32, [TypeU32, TypeAny, TypeCustom "S"])])]
           args = [IRU32, IRPtr IRI32, IRPtr (IRStruct "S")]
-      in selectReturnType fs "g" args @?= IRU32 
+      in runGenUnsafe (selectReturnType fs "g" args) @?= IRU32 
   , testCase "Select signature Nothing" $
       let fs = HM.fromList [("h", [(TypeF64, [TypeF32])])]
           args = [IRF32]
-      in selectReturnType fs "h" args @?= IRF64
-  , testCase "Throws error and checks message content for coverage" $ do
+      in runGenUnsafe (selectReturnType fs "h" args) @?= IRF64
+  , testCase "Returns Left for no matching signature" $ do
         let fs = HM.fromList [("mismatched", [(TypeI32, [TypeI32, TypeF32])])]
             funcName = "mismatched"
             args = [IRI32, IRU64, IRI8]
-            criticalMsg = "Semantic error: No matching signature found for function call: mismatched with arguments: [i32,u64,i8]"
-        
-        result <- try @SomeException (evaluate $ selectReturnType fs funcName args)
+            result = runGen (selectReturnType fs funcName args)
+            expectedMsg = "Semantic error: No matching signature found for function call: mismatched with arguments: [i32,u64,i8]"
         
         case result of
-          Left (SomeException e) -> 
-            if criticalMsg `isInfixOf` show e
+          Left errMsg -> 
+            if expectedMsg `isInfixOf` errMsg
               then return ()
-              else assertFailure $ "Exception message did not contain critical part: " ++ criticalMsg ++ ". Full message: " ++ show e
-          Right _ -> assertFailure "Expected a semantic error for no matching signature, but no exception was thrown"
+              else assertFailure $ "Error message did not contain expected part: " ++ expectedMsg ++ ". Got: " ++ errMsg
+          Right _ -> assertFailure "Expected a Left with error message, but got Right"
     ]
 
 testIsFloatType :: TestTree

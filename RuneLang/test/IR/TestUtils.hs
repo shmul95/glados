@@ -1,10 +1,12 @@
 module IR.TestUtils
   ( emptyState,
-    runGen
+    runGen,
+    runGenUnsafe
   )
 where
 
 import Control.Monad.State (evalState)
+import Control.Monad.Except (runExceptT)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.HashMap.Strict as HM
@@ -31,5 +33,10 @@ emptyState = GenState
     gsFuncStack = HM.empty
   }
 
-runGen :: IRGen a -> a
-runGen action = evalState action emptyState
+runGen :: IRGen a -> Either String a
+runGen action = evalState (runExceptT action) emptyState
+
+runGenUnsafe :: IRGen a -> a
+runGenUnsafe action = case runGen action of
+  Right val -> val
+  Left err -> error $ "IR Generation failed: " ++ err

@@ -7,7 +7,7 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import Rune.IR.Generator.Expression.Literals
 import Rune.IR.Nodes (IRType(..), IROperand(..))
-import IR.TestUtils (runGen)
+import IR.TestUtils (runGenUnsafe)
 
 --
 -- public
@@ -30,21 +30,21 @@ literalsTests = testGroup "Rune.IR.Generator.Expression.Literals"
 testGenLitInt :: TestTree
 testGenLitInt = testGroup "genLitInt"
   [ testCase "Generates int constant" $
-      let (instrs, op, typ) = runGen (genLitInt 42)
+      let (instrs, op, typ) = runGenUnsafe (genLitInt 42)
       in do
         instrs @?= []
         op @?= IRConstInt 42
         typ @?= IRI32
 
   , testCase "Handles negative int" $
-      let (_, op, _) = runGen (genLitInt (-10))
+      let (_, op, _) = runGenUnsafe (genLitInt (-10))
       in op @?= IRConstInt (-10)
   ]
 
 testGenLitFloat :: TestTree
 testGenLitFloat = testGroup "genLitFloat"
   [ testCase "Generates float constant" $
-      let (instrs, op, typ) = runGen (genLitFloat 3.14)
+      let (instrs, op, typ) = runGenUnsafe (genLitFloat 3.14)
       in do
         instrs @?= []
         op @?= IRGlobal "f32_global0" IRF32
@@ -54,7 +54,7 @@ testGenLitFloat = testGroup "genLitFloat"
 testGenLitChar :: TestTree
 testGenLitChar = testGroup "genLitChar"
   [ testCase "Generates char constant" $
-      let (instrs, op, typ) = runGen (genLitChar 'a')
+      let (instrs, op, typ) = runGenUnsafe (genLitChar 'a')
       in do
         instrs @?= []
         op @?= IRConstChar 'a'
@@ -64,21 +64,21 @@ testGenLitChar = testGroup "genLitChar"
 testGenLitBool :: TestTree
 testGenLitBool = testGroup "genLitBool"
   [ testCase "Generates bool true" $
-      let (instrs, op, typ) = runGen (genLitBool True)
+      let (instrs, op, typ) = runGenUnsafe (genLitBool True)
       in do
         instrs @?= []
         op @?= IRConstBool True
         typ @?= IRBool
 
   , testCase "Generates bool false" $
-      let (_, op, _) = runGen (genLitBool False)
+      let (_, op, _) = runGenUnsafe (genLitBool False)
       in op @?= IRConstBool False
   ]
 
 testGenLitNull :: TestTree
 testGenLitNull = testGroup "genLitNull"
   [ testCase "Generates null constant" $
-      let (instrs, op, typ) = runGen genLitNull
+      let (instrs, op, typ) = runGenUnsafe genLitNull
       in do
         instrs @?= []
         op @?= IRConstNull
@@ -88,7 +88,7 @@ testGenLitNull = testGroup "genLitNull"
 testGenLitString :: TestTree
 testGenLitString = testGroup "genLitString"
   [ testCase "Generates global string" $
-      let (_, op, typ) = runGen (genLitString "hello")
+      let (_, op, typ) = runGenUnsafe (genLitString "hello")
       in do
         case op of
           IRGlobal _ (IRPtr IRChar) -> return ()
@@ -96,6 +96,6 @@ testGenLitString = testGroup "genLitString"
         typ @?= IRPtr IRChar
 
   , testCase "Handles empty string" $
-      let (_, _, typ) = runGen (genLitString "")
+      let (_, _, typ) = runGenUnsafe (genLitString "")
       in typ @?= IRPtr IRChar
   ]

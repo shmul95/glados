@@ -33,25 +33,29 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test" []
           fs = HM.empty
           result = generateIR prog fs
-      in do
-        irProgramName result @?= "test"
-        irProgramDefs result @?= []
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          irProgramName irProg @?= "test"
+          irProgramDefs irProg @?= []
   
   , testCase "Generates program with function" $
       let prog = Program "test" 
             [ DefFunction "main" [] TypeNull [] ]
           fs = HM.empty
           result = generateIR prog fs
-      in do
-        irProgramName result @?= "test"
-        length (irProgramDefs result) @?= 1
-        case irProgramDefs result of
-          [IRFunctionDef func] -> do
-            irFuncName func @?= "main"
-            irFuncParams func @?= []
-            irFuncRetType func @?= Just IRNull
-            irFuncBody func @?= [IRRET Nothing]
-          _ -> fail "Expected IRFunctionDef"
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          irProgramName irProg @?= "test"
+          length (irProgramDefs irProg) @?= 1
+          case irProgramDefs irProg of
+            [IRFunctionDef func] -> do
+              irFuncName func @?= "main"
+              irFuncParams func @?= []
+              irFuncRetType func @?= Just IRNull
+              irFuncBody func @?= [IRRET Nothing]
+            _ -> fail "Expected IRFunctionDef"
   
   , testCase "Generates program with external function call" $
       let prog = Program "test"
@@ -60,13 +64,15 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.singleton "external_func" [(TypeNull, [])]
           result = generateIR prog fs
-      in do
-        irProgramName result @?= "test"
-        let defs = irProgramDefs result
-        assertBool "Should have extern" $ any isExtern defs
-        case filter isExtern defs of
-          [IRExtern name] -> name @?= "external_func"
-          _ -> return ()
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          irProgramName irProg @?= "test"
+          let defs = irProgramDefs irProg
+          assertBool "Should have extern" $ any isExtern defs
+          case filter isExtern defs of
+            [IRExtern name] -> name @?= "external_func"
+            _ -> return ()
 
   , testCase "Generates program with struct" $
       let prog = Program "test"
@@ -78,13 +84,15 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.empty
           result = generateIR prog fs
-      in do
-        irProgramName result @?= "test"
-        case filter isStructDef (irProgramDefs result) of
-          [IRStructDef name fields] -> do
-            name @?= "Point"
-            fields @?= [("x", IRI32), ("y", IRI32)]
-          _ -> fail "Expected IRStructDef"
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          irProgramName irProg @?= "test"
+          case filter isStructDef (irProgramDefs irProg) of
+            [IRStructDef name fields] -> do
+              name @?= "Point"
+              fields @?= [("x", IRI32), ("y", IRI32)]
+            _ -> fail "Expected IRStructDef"
   
   , testCase "Externs appear before other definitions" $
       let prog = Program "test"
@@ -93,10 +101,12 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.singleton "ext1" [(TypeNull, [])]
           result = generateIR prog fs
-      in do
-        case irProgramDefs result of
-          (IRExtern _ : _) -> return ()
-          _ -> fail "Expected extern to appear first"
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg ->
+          case irProgramDefs irProg of
+            (IRExtern _ : _) -> return ()
+            _ -> fail "Expected extern to appear first"
   
   , testCase "Global strings reversed properly" $
       let prog = Program "test"
@@ -107,9 +117,11 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.empty
           result = generateIR prog fs
-      in do
-        irProgramName result @?= "test"
-        assertBool "Should have function and globals" $ length (irProgramDefs result) >= 1
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          irProgramName irProg @?= "test"
+          assertBool "Should have function and globals" $ length (irProgramDefs irProg) >= 1
 
   , testCase "Multiple functions" $
       let prog = Program "test"
@@ -118,9 +130,11 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.empty
           result = generateIR prog fs
-      in do
-        let funcDefs = filter isFunctionDef (irProgramDefs result)
-        length funcDefs @?= 2
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          let funcDefs = filter isFunctionDef (irProgramDefs irProg)
+          length funcDefs @?= 2
 
   , testCase "Calls to defined functions are not extern" $
       let prog = Program "test"
@@ -130,9 +144,11 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.singleton "callee" [(TypeNull, [])]
           result = generateIR prog fs
-      in do
-        let externs = filter isExtern (irProgramDefs result)
-        length externs @?= 0
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          let externs = filter isExtern (irProgramDefs irProg)
+          length externs @?= 0
 
   , testCase "Difference between called and defined functions" $
       let prog = Program "test"
@@ -143,9 +159,11 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.fromList [("ext1", [(TypeNull, [])]), ("ext2", [(TypeNull, [])])]
           result = generateIR prog fs
-      in do
-        let externs = filter isExtern (irProgramDefs result)
-        length externs @?= 2
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          let externs = filter isExtern (irProgramDefs irProg)
+          length externs @?= 2
 
   , testCase "Override function generates mangled name" $
       let prog = Program "test"
@@ -153,10 +171,12 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.empty
           result = generateIR prog fs
-      in do
-        case filter isFunctionDef (irProgramDefs result) of
-          [IRFunctionDef func] -> irFuncName func @?= "show_Point"
-          _ -> fail "Expected mangled function"
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg ->
+          case filter isFunctionDef (irProgramDefs irProg) of
+            [IRFunctionDef func] -> irFuncName func @?= "show_Point"
+            _ -> fail "Expected mangled function"
 
   , testCase "Struct with methods" $
       let prog = Program "test"
@@ -166,14 +186,16 @@ testGenerateIR = testGroup "generateIR"
             ]
           fs = HM.empty
           result = generateIR prog fs
-      in do
-        let structDefs = filter isStructDef (irProgramDefs result)
-        let funcDefs = filter isFunctionDef (irProgramDefs result)
-        length structDefs @?= 1
-        length funcDefs @?= 1
-        case funcDefs of
-          [IRFunctionDef func] -> irFuncName func @?= "Vec2_magnitude"
-          _ -> fail "Expected mangled method"
+      in case result of
+        Left err -> fail $ "Unexpected error: " ++ err
+        Right irProg -> do
+          let structDefs = filter isStructDef (irProgramDefs irProg)
+          let funcDefs = filter isFunctionDef (irProgramDefs irProg)
+          length structDefs @?= 1
+          length funcDefs @?= 1
+          case funcDefs of
+            [IRFunctionDef func] -> irFuncName func @?= "Vec2_magnitude"
+            _ -> fail "Expected mangled method"
   ]
 
 testInitialState :: TestTree

@@ -9,7 +9,7 @@ import TestHelpers (dummyPos)
 import Rune.IR.Generator.Statement.Loops
 import Rune.IR.Nodes (IRInstruction(..), IRType(..), IROperand(..))
 import Rune.AST.Nodes (Expression(..))
-import IR.TestUtils (runGen)
+import IR.TestUtils (runGenUnsafe)
 
 --
 -- public
@@ -32,7 +32,7 @@ testGenForTo = testGroup "genForTo"
       let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
           genBlock _ = return []
-          instrs = runGen (genForTo genExpr genBlock "i" (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [])
+          instrs = runGenUnsafe (genForTo genExpr genBlock "i" (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [])
       in do
         assertBool "Should have labels" $ any isLabel instrs
         assertBool "Should have comparison" $ any isCmp instrs
@@ -42,7 +42,7 @@ testGenForTo = testGroup "genForTo"
       let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
           genBlock _ = return []
-          instrs = runGen (genForTo genExpr genBlock "i" Nothing (ExprLitInt dummyPos 10) [])
+          instrs = runGenUnsafe (genForTo genExpr genBlock "i" Nothing (ExprLitInt dummyPos 10) [])
       in assertBool "Should generate loop" $ not $ null instrs
   ]
 
@@ -52,7 +52,7 @@ testGenForEach = testGroup "genForEach"
       let genExpr (ExprLitString _ s) = return ([], IRGlobal s (IRPtr IRChar), IRPtr IRChar)
           genExpr _ = return ([], IRConstNull, IRNull)
           genBlock _ = return []
-          instrs = runGen (genForEach genExpr genBlock "ch" (ExprLitString dummyPos "str") [])
+          instrs = runGenUnsafe (genForEach genExpr genBlock "ch" (ExprLitString dummyPos "str") [])
       in do
         assertBool "Should have labels" $ any isLabel instrs
         assertBool "Should have IRDEREF" $ any isDeref instrs
@@ -63,7 +63,7 @@ testGenLoop :: TestTree
 testGenLoop = testGroup "genLoop"
   [ testCase "Generates infinite loop" $
       let genBlock _ = return []
-          instrs = runGen (genLoop genBlock [])
+          instrs = runGenUnsafe (genLoop genBlock [])
       in do
         assertBool "Should have header label" $ any isLabel instrs
         assertBool "Should have jump back" $ any isJump instrs

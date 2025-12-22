@@ -8,7 +8,7 @@ where
 
 import Control.Applicative ((<|>))
 import Rune.AST.Nodes (Type (..))
-import Rune.AST.ParserHelper (choice, failParse, tokenMap)
+import Rune.AST.ParserHelper (choice, failParse, tokenMap, chainPostfix, expect)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -17,18 +17,28 @@ import qualified Rune.Lexer.Tokens as T
 --
 
 parseType :: Parser Type
-parseType =
-  choice
-    [ tokenMap tokenToType,
-      TypeCustom <$> parseIdentifier
-    ]
-    <|> failParse "Expected type"
+parseType = chainPostfix parseBaseType parseArraySuffix
 
 parseIdentifier :: Parser String
 parseIdentifier =
   tokenMap $ \case
     T.Identifier s -> Just s
     _ -> Nothing
+
+parseBaseType :: Parser Type
+parseBaseType =
+  choice
+    [ tokenMap tokenToType,
+      TypeCustom <$> parseIdentifier
+    ]
+    <|> failParse "Expected type"
+
+parseArraySuffix :: Parser (Type -> Type)
+parseArraySuffix = do
+  _ <- expect T.LBracket
+  _ <- expect T.RBracket
+  pure TypeArray
+
 
 --
 -- private helpers

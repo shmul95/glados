@@ -24,7 +24,6 @@ import Rune.Pipelines
     runPipeline,
     runPipelineAction,
     optimizeIR,
-    genIR,
     checkSemantics,
     safeRead,
     parseLexer,
@@ -32,6 +31,7 @@ import Rune.Pipelines
   )
 import Rune.AST.Nodes (Program(..))
 import Rune.IR.Nodes (IRProgram (..))
+import Rune.IR.Generator (generateIR)
 
 --
 -- public
@@ -45,6 +45,7 @@ pipelinesTests =
     , pipelinesValidTests
     , pipelinesInvalidTests
     , pipelinePrivateTests
+    , pipelineCoverageTests
     ]
 
 --
@@ -110,6 +111,9 @@ compileModeDerivingTests =
         assertEqual "Show ToExecutable" "ToExecutable" (show mode2)
         assertEqual "Show ToAssembly" "ToAssembly" (show mode3)
         assertEqual "Show FullCompile" "FullCompile" (show mode4)
+    , testCase "ShowList coverage for CompileMode" $ do
+        let modes = [ToObject, ToExecutable]
+        assertBool "Show list" (length (show modes) > 0)
     , testCase "Eq coverage for CompileMode" $ do
         let obj1 = ToObject
             obj2 = ToObject
@@ -156,7 +160,7 @@ pipelinePrivateTests =
     , testCase "parseAST_failure" test_parseAST_failure
     , testCase "checkSemantics_success" test_checkSemantics_success
     , testCase "checkSemantics_failure" test_checkSemantics_failure
-    , testCase "genIR_success" test_genIR_success
+    , testCase "generateIR_success" test_generateIR_success
     , testCase "optimizeIR_success" test_optimizeIR_success
     , testCase "verifAndGenIR_success" test_verifAndGenIR_success
     , testCase "verifAndGenIR_failure" test_verifAndGenIR_failure
@@ -171,6 +175,16 @@ pipelinePrivateTests =
     , testCase "compileAsmToObject_failure" test_compileAsmToObject_failure
     , testCase "compileAsmToObject_injection_safe" test_compileAsmToObject_injection_safe
     , testCase "compileObjectIntoExecutable_injection_safe" test_compileObjectIntoExecutable_injection_safe
+    ]
+
+pipelineCoverageTests :: TestTree
+pipelineCoverageTests =
+  testGroup
+    "Coverage Gap Tests"
+    [ testCase "compilePipeline_asm_success" test_compilePipeline_asm_success
+    , testCase "compilePipeline_asm_read_failure" test_compilePipeline_asm_read_failure
+    , testCase "compilePipeline_unsupported_ext" test_compilePipeline_unsupported_ext
+    , testCase "compileObjectIntoExecutable_success" test_compileObjectIntoExecutable_success
     ]
 
 --
@@ -251,8 +265,9 @@ test_parseLexer_failure :: IO ()
 test_parseLexer_failure = do
   let invalidLex = "@" 
   case parseLexer (validFile, invalidLex) of
-    Left _ -> return ()
-    Right _ -> return ()
+    Left err -> do
+        assertBool "Error message should not be empty" (not (null err))
+    Right _ -> assertFailure "Lexer should have failed on invalid input"
 
 test_parseAST_success :: IO ()
 test_parseAST_success = do
@@ -290,17 +305,17 @@ test_checkSemantics_failure = do
       Left _ -> assertFailure "Parser failed (prerequisite for checkSemantics_failure)"
     Left _ -> assertFailure "Lexer failed (prerequisite for checkSemantics_failure)"
 
-test_genIR_success :: IO ()
-test_genIR_success = do
+test_generateIR_success :: IO ()
+test_generateIR_success = do
   case parseLexer (validFile, validRuneCode) of
     Right (fp, tokens) -> case parseAST (fp, tokens) of
       Right ast -> case checkSemantics ast of
-        Right (checkedAST, fs) -> case genIR checkedAST fs of
+        Right (checkedAST, fs) -> case generateIR checkedAST fs of
           Right _ -> return ()
-          Left err -> assertFailure $ "genIR failed: " ++ err
-        Left _ -> assertFailure "checkSemantics failed (prerequisite for genIR_success)"
-      Left _ -> assertFailure "Parser failed (prerequisite for genIR_success)"
-    Left _ -> assertFailure "Lexer failed (prerequisite for genIR_success)"
+          Left err -> assertFailure $ "generateIR failed: " ++ err
+        Left _ -> assertFailure "checkSemantics failed (prerequisite for generateIR_success)"
+      Left _ -> assertFailure "Parser failed (prerequisite for generateIR_success)"
+    Left _ -> assertFailure "Lexer failed (prerequisite for generateIR_success)"
 
 test_optimizeIR_success :: IO ()
 test_optimizeIR_success = do
@@ -371,18 +386,18 @@ test_translateRuneInAsm_success = do
     case parseLexer (validFile, validRuneCode) of
       Right (fp, tokens) -> case parseAST (fp, tokens) of
         Right ast -> case checkSemantics ast of
-          Right (checkedAST, fs) -> case genIR checkedAST fs of
+          Right (checkedAST, fs) -> case generateIR checkedAST fs of
             Right irProg -> do
               let asmContent = translateRuneInAsm irProg
               assertBool "ASM content should not be empty" (not (null asmContent))
-            Left err -> assertFailure $ "genIR failed: " ++ err
+            Left err -> assertFailure $ "generateIR failed: " ++ err
           Left _ -> assertFailure "checkSemantics failed"
         Left _ -> assertFailure "Parser failed"
       Left _ -> assertFailure "Lexer failed"
 
 test_compileAsmToObject_success :: IO ()
 test_compileAsmToObject_success = do
-  let asmContent = "mov rax, 60\nmov rdi, 0\nsyscall\n"
+  let asmContent = "section .text\nglobal main\nmain:\n mov rax, 60\n xor rdi, rdi\n syscall"
   tmpDir <- getTemporaryDirectory
   bracket (openTempFile tmpDir "test.o")
     (\(objFile, _) -> removeFileIfExists objFile)
@@ -409,7 +424,7 @@ test_compileAsmToObject_failure = do
 
 test_compileAsmToObject_injection_safe :: IO ()
 test_compileAsmToObject_injection_safe = do
-  let asmContent = "mov rax, 60\nmov rdi, 0\nsyscall\n"
+  let asmContent = "section .text\nglobal main\nmain:\n mov rax, 60\n xor rdi, rdi\n syscall"
   caught <- catch (compileAsmToObject asmContent "/tmp/test.o; echo pwned > /tmp/pwned.txt" >> return False)
     (\case ExitFailure 84 -> return True; _ -> return False)
   assertBool "compileAsmToObject should reject injection" caught
@@ -419,7 +434,7 @@ test_compileAsmToObject_injection_safe = do
 
 test_compileObjectIntoExecutable_injection_safe :: IO ()
 test_compileObjectIntoExecutable_injection_safe = do
-  let asmContent = "mov rax, 60\nmov rdi, 0\nsyscall\n"
+  let asmContent = "section .text\nglobal main\nmain:\n mov rax, 60\n xor rdi, rdi\n syscall"
   tmpDir <- getTemporaryDirectory
   bracket (openTempFile tmpDir "test.o")
     (\(objFile, _) -> removeFileIfExists objFile)
@@ -432,3 +447,53 @@ test_compileObjectIntoExecutable_injection_safe = do
       pwned <- doesFileExist "/tmp/pwned2.txt"
       assertBool "Injection should not execute" (not pwned)
       removeFileIfExists "/tmp/pwned2.txt")
+
+--
+-- Coverage Gap Tests
+--
+
+test_compilePipeline_asm_success :: IO ()
+test_compilePipeline_asm_success = do
+    let asmContent = "section .text\nglobal main\nmain:\n mov rax, 60\n xor rdi, rdi\n syscall"
+    tmpDir <- getTemporaryDirectory
+    bracket (openTempFile tmpDir "test.asm")
+        (\(fp, h) -> hClose h >> removeFileIfExists fp)
+        (\(fp, h) -> do
+            hPutStr h asmContent
+            hClose h
+            let objFile = fp ++ ".o"
+            res <- catchExitCode (compilePipeline fp objFile ToObject)
+            exists <- doesFileExist objFile
+            removeFileIfExists objFile
+            assertEqual "compilePipeline .asm success" ExitSuccess res
+            assertBool "Object file created" exists)
+
+test_compilePipeline_asm_read_failure :: IO ()
+test_compilePipeline_asm_read_failure = do
+    res <- catchExitCode (compilePipeline "non_existent.asm" "out.o" ToObject)
+    assertEqual "compilePipeline .asm read failure" (ExitFailure 84) res
+
+test_compilePipeline_unsupported_ext :: IO ()
+test_compilePipeline_unsupported_ext = do
+    withTempFile "content" $ \fp -> do
+        let badFile = fp ++ ".xyz"
+        writeFile badFile "content"
+        res <- catchExitCode (compilePipeline badFile "out.o" ToObject)
+        removeFileIfExists badFile
+        assertEqual "compilePipeline unsupported ext" (ExitFailure 84) res
+
+test_compileObjectIntoExecutable_success :: IO ()
+test_compileObjectIntoExecutable_success = do
+    let asmContent = "section .text\nglobal main\nmain:\n mov rax, 60\n xor rdi, rdi\n syscall"
+    tmpDir <- getTemporaryDirectory
+    bracket (openTempFile tmpDir "test.o")
+        (\(obj, h) -> hClose h >> removeFileIfExists obj)
+        (\(obj, h) -> do
+            hClose h
+            compileAsmToObject asmContent obj
+            let exe = obj ++ ".exe"
+            res <- catchExitCode (compileObjectIntoExecutable obj exe)
+            exists <- doesFileExist exe
+            removeFileIfExists exe
+            assertEqual "compileObjectIntoExecutable success" ExitSuccess res
+            assertBool "Executable created" exists)

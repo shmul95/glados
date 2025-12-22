@@ -13,8 +13,9 @@ module Rune.IR.Generator.Expression.Call (genCall) where
 
 import Control.Monad (zipWithM)
 import Control.Monad.State (gets)
+import Control.Monad.Except (throwError)
 import qualified Data.HashMap.Strict as HM
-import Rune.AST.Nodes (Expression, Type)
+import Rune.AST.Nodes (Expression, Type(..))
 import Rune.IR.IRHelpers (registerCall, newTemp, astTypeToIRType, isFloatType)
 import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
@@ -53,8 +54,10 @@ genCall genExpr funcName args = do
   -- INFO: determine return type (should always succeed)
   -- NOTE: otherwise should never happen due to semantic analysis
   retType <- case funcSignature of
-    Just (rt, _) -> pure $ astTypeToIRType rt
-    Nothing -> error $ "IR error: Function " <> funcName <> " not found in function stack"
+    Just (rt, _) -> pure $ case rt of
+                             TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                             t -> astTypeToIRType t
+    Nothing -> throwError $ "IR error: Function " <> funcName <> " not found in function stack"
 
   registerCall funcName
   retTemp <- newTemp "t" retType
@@ -67,7 +70,9 @@ genCall genExpr funcName args = do
 genArgWithContext :: GenExprCallback -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genArgWithContext genExpr expr expectedType = do
   (instrs, op, inferredType) <- genExpr expr
-  let targetType = astTypeToIRType expectedType
+  let targetType = case expectedType of
+                     TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                     t -> astTypeToIRType t
   
   inferIfNeeded instrs op inferredType targetType
   where

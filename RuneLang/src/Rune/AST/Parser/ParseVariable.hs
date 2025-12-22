@@ -3,11 +3,11 @@ module Rune.AST.Parser.ParseVariable
   )
 where
 
-import Control.Applicative (optional)
+import Control.Applicative (optional, (<|>))
 import Rune.AST.Nodes (BinaryOp (..), Expression (..), Statement (..), getExprPos)
 import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
-import Rune.AST.ParserHelper (chainPostfix, check, choice, expect, failParse, getCurrentPos, match, peek, try, withContext)
+import Rune.AST.ParserHelper (between, chainPostfix, check, choice, expect, failParse, getCurrentPos, match, peek, try, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
 
@@ -66,11 +66,19 @@ parseAccessOrVar = chainPostfix parseBase op
       pos <- getCurrentPos
       name <- parseIdentifier
       pure (ExprVar pos name)
-    op = do
-      pos <- getCurrentPos
-      _ <- expect T.Dot
-      f <- parseIdentifier
-      pure $ \e -> ExprAccess pos e f
+        <|> failParse "Expected L-Value (variable or field access)"
+    op =
+      choice
+        [ do
+            pos <- getCurrentPos
+            _ <- expect T.Dot
+            f <- parseIdentifier
+            pure $ \e -> ExprAccess pos e f,
+          do
+            pos <- getCurrentPos
+            index <- between (expect T.LBracket) (expect T.RBracket) (withContext "array index" parseExpression)
+            pure $ \e -> ExprIndex pos e index
+        ]
 
 parseAssignment :: Parser Statement
 parseAssignment = do

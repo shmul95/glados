@@ -89,16 +89,16 @@ parseUnary =
         ExprUnary pos Negate <$> parseUnary,
       do
         pos <- getCurrentPos
+        _ <- expect T.OpNot
+        ExprUnary pos Not <$> parseUnary,
+      do
+        pos <- getCurrentPos
         _ <- expect T.OpInc
         ExprUnary pos PrefixInc <$> parseUnary,
       do
         pos <- getCurrentPos
         _ <- expect T.OpDec
         ExprUnary pos PrefixDec <$> parseUnary,
-      do
-        pos <- getCurrentPos
-        _ <- expect T.OpNot
-        ExprUnary pos Not <$> parseUnary,
       parsePostfix
     ]
 
@@ -109,6 +109,7 @@ parsePostfix = chainPostfix parsePrimary op
       choice
         [ parseCallPostfix,
           parseFieldAccessPostfix,
+          parseIndexPostfix,
           parseErrorPropPostfix,
           parseIncPostfix,
           parseDecPostfix
@@ -119,15 +120,20 @@ parseCallPostfix = do
   pos <- getCurrentPos
   args <- between (expect T.LParen) (expect T.RParen) (sepBy (withContext "argument" parseExpression) (expect T.Comma))
   pure $ \e -> case e of
-    ExprAccess _ target field -> ExprCall pos field (target : args)
+    ExprAccess p target field -> ExprCall p field (target : args)
     _ -> ExprCall pos (getExprName e) args
 
 parseFieldAccessPostfix :: Parser (Expression -> Expression)
 parseFieldAccessPostfix = do
   pos <- getCurrentPos
-  _ <- expect T.Dot
-  f <- parseIdentifier
+  f <- expect T.Dot *> parseIdentifier
   pure $ \e -> ExprAccess pos e f
+
+parseIndexPostfix :: Parser (Expression -> Expression)
+parseIndexPostfix = do
+  pos <- getCurrentPos
+  index <- between (expect T.LBracket) (expect T.RBracket) (withContext "array index" parseExpression)
+  pure $ \e -> ExprIndex pos e index
 
 parseErrorPropPostfix :: Parser (Expression -> Expression)
 parseErrorPropPostfix = do
@@ -164,6 +170,7 @@ parsePrimary =
       parseLitString,
       parseChar,
       parseLitBool,
+      parseLitArray,
       do
         pos <- getCurrentPos
         _ <- expect T.LitNull <|> expect T.TypeNull
@@ -208,6 +215,14 @@ parseLitBool = do
     T.LitBool b -> Just (ExprLitBool pos b)
     _ -> Nothing
 
+parseLitArray :: Parser Expression
+parseLitArray = do
+  pos <- getCurrentPos
+  exprs <- between
+    (expect T.LBracket) (expect T.RBracket)
+    (sepEndBy (withContext "array element" parseExpression) (expect T.Comma))
+  pure $ ExprLitArray pos exprs
+
 --
 -- struct
 --
@@ -232,5 +247,5 @@ parseStructField :: Parser (String, Expression)
 parseStructField = do
   name <- parseIdentifier
   _ <- expect T.Colon
-  val <- withContext ("value of field '" ++ name ++ "'") parseExpression
+  val <- withContext ("value of field '" <> name <> "'") parseExpression
   pure (name, val)

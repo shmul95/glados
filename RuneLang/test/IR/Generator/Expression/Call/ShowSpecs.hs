@@ -7,6 +7,7 @@ module IR.Generator.Expression.Call.ShowSpecs (showCallTests) where
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure)
 import Control.Monad.State (runState)
+import Control.Monad.Except (runExceptT)
 import Data.List (isPrefixOf)
 import qualified Data.Set as Set
 import TestHelpers (dummyPos)
@@ -89,60 +90,67 @@ genExprStruct _ = error "Unexpected expression in genExprStruct"
 
 test_show_bool_generation_details :: TestTree
 test_show_bool_generation_details = testCase "Boolean generates call to show_bool and adds it to globals" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprSimple (ExprLitBool dummyPos True)) emptyState
-    
-    typ @?= IRNull
-    assertBool "Should contain call to show_bool" $ any (isCall "show_bool") instrs
-    assertBool "show_bool function should be added to globals" $ any isShowBoolDef (gsGlobals state)
+    case runState (runExceptT $ genShowCall genExprSimple (ExprLitBool dummyPos True)) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), state) -> do
+        typ @?= IRNull
+        assertBool "Should contain call to show_bool" $ any (isCall "show_bool") instrs
+        assertBool "show_bool function should be added to globals" $ any isShowBoolDef (gsGlobals state)
 
 test_show_char_generation_details :: TestTree
 test_show_char_generation_details = testCase "IRChar generates call to putchar" $ do
-    let ((instrs, _, typ), _) = runState (genShowCall genExprSimple (ExprLitChar dummyPos 'x')) emptyState
-    
-    typ @?= IRNull
-    assertBool "Should contain call to putchar" $ any (isCall "putchar") instrs
+    case runState (runExceptT $ genShowCall genExprSimple (ExprLitChar dummyPos 'x')) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), _) -> do
+        typ @?= IRNull
+        assertBool "Should contain call to putchar" $ any (isCall "putchar") instrs
 
 test_show_i64_generation_details :: TestTree
 test_show_i64_generation_details = testCase "IRI64 generates printf with %ld format string" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprSimple (ExprLitInt dummyPos 123)) emptyState
-    
-    typ @?= IRNull
-    assertBool "Should contain call to printf" $ any (isCall "printf") instrs
-    
-    let formatStrGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
-    assertBool "Should register %ld format string" $ any ("%ld" `isPrefixOf`) formatStrGlobals
-    
-    case filter (isCall "printf") instrs of
-      [IRCALL _ _ args _] -> assertBool "Should have 2 arguments in CALL (fmt, val)" $ length args == 2
-      _ -> assertFailure "Expected exactly one printf call"
+    case runState (runExceptT $ genShowCall genExprSimple (ExprLitInt dummyPos 123)) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), state) -> do
+        typ @?= IRNull
+        assertBool "Should contain call to printf" $ any (isCall "printf") instrs
+        
+        let formatStrGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
+        assertBool "Should register %ld format string" $ any ("%ld" `isPrefixOf`) formatStrGlobals
+        
+        case filter (isCall "printf") instrs of
+          [IRCALL _ _ args _] -> assertBool "Should have 2 arguments in CALL (fmt, val)" $ length args == 2
+          _ -> assertFailure "Expected exactly one printf call"
 
 test_show_f64_generation_details :: TestTree
 test_show_f64_generation_details = testCase "IRF64 generates printf with %lf format string" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprFloat (ExprLitFloat dummyPos 3.14)) emptyState
-    
-    typ @?= IRNull
-    assertBool "Should contain call to printf" $ any (isCall "printf") instrs
-    
-    let formatStrGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
-    assertBool "Should register %lf format string" $ any ("%lf" `isPrefixOf`) formatStrGlobals
+    case runState (runExceptT $ genShowCall genExprFloat (ExprLitFloat dummyPos 3.14)) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), state) -> do
+        typ @?= IRNull
+        assertBool "Should contain call to printf" $ any (isCall "printf") instrs
+        
+        let formatStrGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
+        assertBool "Should register %lf format string" $ any ("%lf" `isPrefixOf`) formatStrGlobals
 
 test_show_struct_generation_details :: TestTree
 test_show_struct_generation_details = testCase "IRStruct generates call to show_Struct and IRADDR" $ do
-    let ((instrs, _, typ), _) = runState (genShowCall genExprStruct (ExprVar dummyPos "s")) emptyState
-    
-    typ @?= IRNull
-    assertBool "Should contain IRADDR for struct pointer" $ any isAddr instrs
-    assertBool "Should contain call to show_Vec" $ any (isCall "show_Vec") instrs
+    case runState (runExceptT $ genShowCall genExprStruct (ExprVar dummyPos "s")) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), _) -> do
+        typ @?= IRNull
+        assertBool "Should contain IRADDR for struct pointer" $ any isAddr instrs
+        assertBool "Should contain call to show_Vec" $ any (isCall "show_Vec") instrs
 
 test_show_string_generation_details :: TestTree
 test_show_string_generation_details = testCase "IRPtr IRChar (string) generates printf with %s format string" $ do
-    let ((instrs, _, typ), state) = runState (genShowCall genExprString (ExprLitString dummyPos "test")) emptyState
-    
-    typ @?= IRNull
-    assertBool "Should contain call to printf" $ any (isCall "printf") instrs
-    
-    let formatStrGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
-    assertBool "Should register %s format string" $ any ("%s" `isPrefixOf`) formatStrGlobals
+    case runState (runExceptT $ genShowCall genExprString (ExprLitString dummyPos "test")) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), state) -> do
+        typ @?= IRNull
+        assertBool "Should contain call to printf" $ any (isCall "printf") instrs
+        
+        let formatStrGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
+        assertBool "Should register %s format string" $ any ("%s" `isPrefixOf`) formatStrGlobals
+
 
 test_get_show_func_struct :: TestTree
 test_get_show_func_struct = testCase "getShowFunc returns show_StructName for IRStruct" $
@@ -212,10 +220,11 @@ test_prepare_addr_non_struct = testCase "prepareAddr passes through non-struct o
 
 test_ensure_show_bool_func_definition :: TestTree
 test_ensure_show_bool_func_definition = testCase "ensureShowBoolFunc adds show_bool definition and registers printf" $ do
-    let state = runState ensureShowBoolFunc emptyState
-
-    assertBool "show_bool should be in globals" $ any isShowBoolDef (gsGlobals (snd state))
-    assertBool "printf should be registered as external" $ Set.member "printf" (gsCalledFuncs (snd state))
+    case runState (runExceptT ensureShowBoolFunc) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right _, state) -> do
+        assertBool "show_bool should be in globals" $ any isShowBoolDef (gsGlobals state)
+        assertBool "printf should be registered as external" $ Set.member "printf" (gsCalledFuncs state)
 
 test_override_exists :: TestTree
 test_override_exists = testCase "overrideExists detects if IRTopLevel is a function with the target name" $ do
@@ -229,5 +238,7 @@ test_override_exists = testCase "overrideExists detects if IRTopLevel is a funct
 
 test_mk_show_bool_func_content :: TestTree
 test_mk_show_bool_func_content = testCase "mkShowBoolFunc" $ do
-  let (_, state) = runState mkShowBoolFunc emptyState
-  assertBool "printf should be registered as external" $ Set.member "printf" (gsCalledFuncs state)
+  case runState (runExceptT mkShowBoolFunc) emptyState of
+    (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+    (Right _, state) ->
+      assertBool "printf should be registered as external" $ Set.member "printf" (gsCalledFuncs state)

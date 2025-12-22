@@ -36,6 +36,7 @@ findDefs s (DefFunction name params rType _) =
     in case HM.lookup name s of
       Nothing -> Right $ HM.insert name [newSign] s
       Just _  -> Left $ printf msg name
+
 findDefs s (DefOverride name params rType _) =
     let paramTypes = map paramType params
         newSign = (rType, paramTypes)
@@ -43,7 +44,7 @@ findDefs s (DefOverride name params rType _) =
         mangledName = mangleFuncName name rType paramTypes
     in case HM.lookup name s of
       Just list -> 
-        let s' = HM.insert name (list ++ [newSign]) s
+        let s' = HM.insert name (list <> [newSign]) s
         in if mangledName == name
            then Right s'
            else Right $ HM.insert mangledName [newSign] s'

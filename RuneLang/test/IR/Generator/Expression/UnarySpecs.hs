@@ -1,11 +1,15 @@
+{-# LANGUAGE CPP #-}
+#define TESTING_EXPORT
+
 module IR.Generator.Expression.UnarySpecs (unaryExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool, assertFailure, assertEqual)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Unary
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
-import Rune.AST.Nodes (UnaryOp(..), Expression(..), SourcePos(..))
-import IR.TestUtils (runGen)
+import Rune.AST.Nodes (UnaryOp(..), Expression(..))
+import IR.TestUtils (runGenUnsafe)
 
 --
 -- public
@@ -33,7 +37,7 @@ testGenUnary = testGroup "genUnary"
   [ testCase "Generates negate operation" $
       let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, _, typ) = runGen (genUnary genExpr Negate (ExprLitInt (SourcePos "test.ru" 0 0) 5))
+          (instrs, _, typ) = runGenUnsafe (genUnary genExpr Negate (ExprLitInt dummyPos 5))
       in do
         assertBool "Should have instructions" $ not $ null instrs
         typ @?= IRI32
@@ -44,37 +48,37 @@ testGenUnaryExpr = testGroup "genUnaryExpr"
   [ testCase "Routes to correct handler for each op" $
       assertBool "Routes correctly" True
     , testCase "Generates negate operation" $
-      let (instrs, _, typ) = runGen (genUnaryExpr Negate [] (IRConstInt 5) IRI32)
+      let (instrs, _, typ) = runGenUnsafe (genUnaryExpr Negate [] (IRConstInt 5) IRI32)
       in do
       assertBool "Should have instructions" $ not $ null instrs
       typ @?= IRI32
     , testCase "Generates not operation" $
-      let (instrs, _, typ) = runGen (genUnaryExpr Not [] (IRConstBool True) IRBool)
+      let (instrs, _, typ) = runGenUnsafe (genUnaryExpr Not [] (IRConstBool True) IRBool)
       in do
       assertBool "Should have instructions" $ not $ null instrs
       typ @?= IRBool
     , testCase "Generates prefix inc operation" $
-      let (instrs, _, typ) = runGen (genUnaryExpr PrefixInc [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, _, typ) = runGenUnsafe (genUnaryExpr PrefixInc [] (IRTemp "x" IRI32) IRI32)
       in do
       assertBool "Should have instructions" $ not $ null instrs
       typ @?= IRI32
     , testCase "Generates prefix dec operation" $
-      let (instrs, _, typ) = runGen (genUnaryExpr PrefixDec [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, _, typ) = runGenUnsafe (genUnaryExpr PrefixDec [] (IRTemp "x" IRI32) IRI32)
       in do
       assertBool "Should have instructions" $ not $ null instrs
       typ @?= IRI32
     , testCase "Generates postfix inc operation" $
-      let (instrs, _, typ) = runGen (genUnaryExpr PostfixInc [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, _, typ) = runGenUnsafe (genUnaryExpr PostfixInc [] (IRTemp "x" IRI32) IRI32)
       in do
       assertBool "Should have instructions" $ not $ null instrs
       typ @?= IRI32
     , testCase "Generates postfix dec operation" $
-      let (instrs, _, typ) = runGen (genUnaryExpr PostfixDec [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, _, typ) = runGenUnsafe (genUnaryExpr PostfixDec [] (IRTemp "x" IRI32) IRI32)
       in do
       assertBool "Should have instructions" $ not $ null instrs
       typ @?= IRI32
     , testCase "Generates propagate error operation" $
-      let (instrs, _, typ) = runGen (genUnaryExpr PropagateError [IRALLOC "x" IRI32] (IRTemp "x" IRI32) IRI32)
+      let (instrs, _, typ) = runGenUnsafe (genUnaryExpr PropagateError [IRALLOC "x" IRI32] (IRTemp "x" IRI32) IRI32)
       in do
       assertBool "Should have instructions" $ not $ null instrs
       typ @?= IRI32
@@ -83,7 +87,7 @@ testGenUnaryExpr = testGroup "genUnaryExpr"
 testGenUnaryNegate :: TestTree
 testGenUnaryNegate = testGroup "genUnaryNegate"
   [ testCase "Generates IRSUB_OP with zero" $ do
-      let (instrs, resultOperand, _) = runGen (genUnaryNegate [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, resultOperand, _) = runGenUnsafe (genUnaryNegate [] (IRTemp "x" IRI32) IRI32)
       case instrs of
         [IRSUB_OP _ (IRConstInt 0) op typ] -> do
           assertEqual "Operand should be x" (IRTemp "x" IRI32) op
@@ -97,7 +101,7 @@ testGenUnaryNegate = testGroup "genUnaryNegate"
 testGenUnaryNot :: TestTree
 testGenUnaryNot = testGroup "genUnaryNot"
   [ testCase "Generates IRCMP_EQ comparing to False" $ do
-      let (instrs, resultOperand, typ) = runGen (genUnaryNot [] (IRConstBool True) IRBool)
+      let (instrs, resultOperand, typ) = runGenUnsafe (genUnaryNot [] (IRConstBool True) IRBool)
       case instrs of
         [IRCMP_EQ _ op (IRConstBool False)] -> do
           assertEqual "Operand should be True" (IRConstBool True) op
@@ -110,7 +114,7 @@ testGenUnaryNot = testGroup "genUnaryNot"
 testGenUnaryPrefixInc :: TestTree
 testGenUnaryPrefixInc = testGroup "genUnaryPrefixInc"
   [ testCase "Generates IRINC instruction" $
-      let (instrs, op, _) = runGen (genUnaryPrefixInc [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, op, _) = runGenUnsafe (genUnaryPrefixInc [] (IRTemp "x" IRI32) IRI32)
       in do
         case last instrs of
           IRINC _ -> return ()
@@ -121,7 +125,7 @@ testGenUnaryPrefixInc = testGroup "genUnaryPrefixInc"
 testGenUnaryPrefixDec :: TestTree
 testGenUnaryPrefixDec = testGroup "genUnaryPrefixDec"
   [ testCase "Generates IRDEC instruction" $
-      let (instrs, op, _) = runGen (genUnaryPrefixDec [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, op, _) = runGenUnsafe (genUnaryPrefixDec [] (IRTemp "x" IRI32) IRI32)
       in do
         case last instrs of
           IRDEC _ -> return ()
@@ -132,7 +136,7 @@ testGenUnaryPrefixDec = testGroup "genUnaryPrefixDec"
 testGenUnaryPostfixInc :: TestTree
 testGenUnaryPostfixInc = testGroup "genUnaryPostfixInc"
   [ testCase "Generates IRASSIGN then IRINC with correct temp" $ do
-      let (instrs, resultOperand, _) = runGen (genUnaryPostfixInc [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, resultOperand, _) = runGenUnsafe (genUnaryPostfixInc [] (IRTemp "x" IRI32) IRI32)
       case reverse instrs of
         (IRINC op : _) -> assertEqual "IRINC operand should be x" (IRTemp "x" IRI32) op
         _ -> assertFailure "Expected IRINC as last instruction"
@@ -149,7 +153,7 @@ testGenUnaryPostfixInc = testGroup "genUnaryPostfixInc"
 testGenUnaryPostfixDec :: TestTree
 testGenUnaryPostfixDec = testGroup "genUnaryPostfixDec"
   [ testCase "Generates IRASSIGN then IRDEC with correct temp" $ do
-      let (instrs, resultOperand, _) = runGen (genUnaryPostfixDec [] (IRTemp "x" IRI32) IRI32)
+      let (instrs, resultOperand, _) = runGenUnsafe (genUnaryPostfixDec [] (IRTemp "x" IRI32) IRI32)
       case reverse instrs of
         (IRDEC op : _) -> assertEqual "IRDEC operand should be x" (IRTemp "x" IRI32) op
         _ -> assertFailure "Expected IRDEC as last instruction"
@@ -167,7 +171,7 @@ testGenUnaryPostfixDec = testGroup "genUnaryPostfixDec"
 testGenUnaryPropagate :: TestTree
 testGenUnaryPropagate = testGroup "genUnaryPropagate"
   [ testCase "Returns operand unchanged" $
-      let (instrs, op, typ) = runGen (genUnaryPropagate [IRALLOC "x" IRI32] (IRTemp "x" IRI32) IRI32)
+      let (instrs, op, typ) = runGenUnsafe (genUnaryPropagate [IRALLOC "x" IRI32] (IRTemp "x" IRI32) IRI32)
       in do
         length instrs @?= 1
         op @?= IRTemp "x" IRI32

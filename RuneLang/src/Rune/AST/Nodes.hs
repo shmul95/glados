@@ -27,7 +27,7 @@ data SourcePos = SourcePos
   deriving (Eq, Ord)
 
 instance Show SourcePos where
-  show (SourcePos file line col) = file ++ ":" ++ show line ++ ":" ++ show col
+  show (SourcePos file line col) = file <> ":" <> show line <> ":" <> show col
 
 data Type
   = TypeI8
@@ -46,6 +46,7 @@ data Type
   | TypeAny
   | TypeNull
   | TypeCustom String
+  | TypeArray Type
   deriving (Eq, Ord)
 
 instance Show Type where
@@ -64,6 +65,7 @@ instance Show Type where
   show  TypeString    = "str"
   show  TypeAny       = "any"
   show  TypeNull      = "null"
+  show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
 
 data BinaryOp
@@ -284,6 +286,13 @@ data Expression
         accessTarget :: Expression,
         accessField :: String
       }
+  | -- | array index
+    -- arr[index]
+    ExprIndex
+      { exprPos :: SourcePos,
+        indexTarget :: Expression,
+        indexValue :: Expression
+      }
   | -- | literals and variables
     -- 42
     ExprLitInt SourcePos Int
@@ -299,6 +308,9 @@ data Expression
     ExprLitNull SourcePos
   | -- variable
     ExprVar SourcePos String
+  | -- array literal
+    -- [1, 2, 3, 4]
+    ExprLitArray SourcePos [Expression]
   deriving (Show, Eq)
 
 -- | Extract source position from an expression
@@ -308,6 +320,7 @@ getExprPos (ExprUnary pos _ _) = pos
 getExprPos (ExprCall pos _ _) = pos
 getExprPos (ExprStructInit pos _ _) = pos
 getExprPos (ExprAccess pos _ _) = pos
+getExprPos (ExprIndex pos _ _) = pos
 getExprPos (ExprLitInt pos _) = pos
 getExprPos (ExprLitFloat pos _) = pos
 getExprPos (ExprLitString pos _) = pos
@@ -315,6 +328,7 @@ getExprPos (ExprLitChar pos _) = pos
 getExprPos (ExprLitBool pos _) = pos
 getExprPos (ExprLitNull pos) = pos
 getExprPos (ExprVar pos _) = pos
+getExprPos (ExprLitArray pos _) = pos
 
 -- | Extract source position from a statement
 getStmtPos :: Statement -> SourcePos

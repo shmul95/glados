@@ -22,6 +22,7 @@ import Rune.AST.Nodes (Expression(..), Statement (..), Type(..))
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Generator.Statement.ControlFlow (genIfElse, genIfNoElse, genNext, genStop)
 import Rune.IR.Generator.Statement.Loops (genForEach, genForTo, genLoop)
+import Rune.IR.Generator.Expression.Array (genIndexAssign)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar, newFloatGlobal)
 import Rune.IR.Nodes
   ( IRGen,
@@ -55,6 +56,7 @@ genStatement (StmtExpr _ expr) = genExprStmt expr
 genBlock :: [Statement] -> IRGen [IRInstruction]
 genBlock = fmap concat . mapM genStatement
 
+
 genVarDecl :: String -> Maybe Type -> Expression -> IRGen [IRInstruction]
 genVarDecl name (Just TypeF64) (ExprLitFloat _ f) = do
   glName <- newFloatGlobal f IRF64
@@ -75,26 +77,32 @@ genVarDecl name maybeType expr = do
     _ -> do
       let assignInstr = IRASSIGN name op finalType
       registerVar name (IRTemp name finalType) finalType
-      pure (instrs ++ [assignInstr])
+      pure (instrs <> [assignInstr])
+
 
 genVarType :: Maybe Type -> IRType -> IRType
+genVarType (Just (TypeArray elemType)) _ = IRPtr (IRArray (astTypeToIRType elemType) 0)
 genVarType (Just t) _ = astTypeToIRType t
 genVarType Nothing inferred = inferred
 
+
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]
+genAssignment (ExprIndex _ target idx) rvalue = genIndexAssign genExpression target idx rvalue
 genAssignment lvalue rvalue = do
   (lInstrs, lOp, _) <- genExpression lvalue
   (rInstrs, rOp, rType) <- genExpression rvalue
   case lOp of
-    IRTemp lname _ -> pure $ lInstrs ++ rInstrs ++ [IRASSIGN lname rOp rType]
-    _ -> pure $ lInstrs ++ rInstrs
+    IRTemp lname _ -> pure $ lInstrs <> rInstrs <> [IRASSIGN lname rOp rType]
+    _ -> pure $ lInstrs <> rInstrs
+
 
 genReturnExpr :: Expression -> IRGen [IRInstruction]
 genReturnExpr expr = do
   (instrs, op, opType) <- genExpression expr
   case opType of
-    IRNull -> pure (instrs ++ [IRRET Nothing])
-    _ -> pure (instrs ++ [IRRET $ Just op])
+    IRNull -> pure (instrs <> [IRRET Nothing])
+    _ -> pure (instrs <> [IRRET $ Just op])
+
 
 genExprStmt :: Expression -> IRGen [IRInstruction]
 genExprStmt expr = do

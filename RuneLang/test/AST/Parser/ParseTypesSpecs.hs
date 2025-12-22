@@ -18,6 +18,7 @@ parseTypesTests =
     [ primitiveTypeTests
     , customTypeTests
     , identifierTests
+    , arrayTypeTests
     ]
 
 --
@@ -91,4 +92,37 @@ customTypeTests = testGroup "Custom Type Tests"
 identifierTests :: TestTree
 identifierTests = testGroup "Identifier Tests"
   [ testCase "Valid Identifier" $ assertParseIdent "x" "x"
+  ]
+
+arrayTypeTests :: TestTree
+arrayTypeTests = testGroup "Array Type Tests"
+  [ testCase "i32[]" $
+      case runType [tok T.TypeI32, tok T.LBracket, tok T.RBracket] of
+        Right actual -> assertEqual "i32[]" (TypeArray TypeI32) actual
+        Left err -> assertBool ("Parse failed: " ++ err) False
+  
+  , testCase "string[]" $
+      case runType [tok T.TypeString, tok T.LBracket, tok T.RBracket] of
+        Right actual -> assertEqual "string[]" (TypeArray TypeString) actual
+        Left err -> assertBool ("Parse failed: " ++ err) False
+  
+  , testCase "char[]" $
+      case runType [tok T.TypeChar, tok T.LBracket, tok T.RBracket] of
+        Right actual -> assertEqual "char[]" (TypeArray TypeChar) actual
+        Left err -> assertBool ("Parse failed: " ++ err) False
+  
+  , testCase "any[]" $
+      case runType [tok T.TypeAny, tok T.LBracket, tok T.RBracket] of
+        Right actual -> assertEqual "any[]" (TypeArray TypeAny) actual
+        Left err -> assertBool ("Parse failed: " ++ err) False
+  
+  , testCase "Custom[]" $
+      case runType [tok (T.Identifier "MyType"), tok T.LBracket, tok T.RBracket] of
+        Right actual -> assertEqual "MyType[]" (TypeArray (TypeCustom "MyType")) actual
+        Left err -> assertBool ("Parse failed: " ++ err) False
+  
+  , testCase "bool[]" $
+      case runType [tok T.TypeBool, tok T.LBracket, tok T.RBracket] of
+        Right actual -> assertEqual "bool[]" (TypeArray TypeBool) actual
+        Left err -> assertBool ("Parse failed: " ++ err) False
   ]

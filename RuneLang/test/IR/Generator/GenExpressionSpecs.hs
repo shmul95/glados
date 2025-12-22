@@ -9,11 +9,11 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
 import TestHelpers (dummyPos)
 import Control.Monad.State (evalState)
-import Control.Exception (evaluate, try, SomeException)
+import Control.Monad.Except (runExceptT)
 import Rune.IR.Generator.GenExpression
 import Rune.IR.Nodes (IRType(..), IROperand(..), GenState(..))
 import Rune.AST.Nodes (Expression(..))
-import IR.TestUtils (emptyState, runGen)
+import IR.TestUtils (emptyState, runGenUnsafe, runGen)
 import qualified Data.Map.Strict as Map
 
 --
@@ -33,42 +33,42 @@ genExpressionTests = testGroup "Rune.IR.Generator.GenExpression"
 testGenExpression :: TestTree
 testGenExpression = testGroup "genExpression"
   [ testCase "Generates int literal" $
-      let (instrs, op, typ) = runGen (genExpression (ExprLitInt dummyPos 42))
+      let (instrs, op, typ) = runGenUnsafe (genExpression (ExprLitInt dummyPos 42))
       in do
         instrs @?= []
         op @?= IRConstInt 42
         typ @?= IRI32
 
   , testCase "Generates float literal" $
-      let (instrs, op, typ) = runGen (genExpression (ExprLitFloat dummyPos 3.14))
+      let (instrs, op, typ) = runGenUnsafe (genExpression (ExprLitFloat dummyPos 3.14))
       in do
         instrs @?= []
         op @?= IRGlobal "f32_global0" IRF32
         typ @?= IRF32
 
   , testCase "Generates char literal" $
-      let (instrs, op, typ) = runGen (genExpression (ExprLitChar dummyPos 'a'))
+      let (instrs, op, typ) = runGenUnsafe (genExpression (ExprLitChar dummyPos 'a'))
       in do
         instrs @?= []
         op @?= IRConstChar 'a'
         typ @?= IRChar
 
   , testCase "Generates bool literal" $
-      let (instrs, op, typ) = runGen (genExpression (ExprLitBool dummyPos True))
+      let (instrs, op, typ) = runGenUnsafe (genExpression (ExprLitBool dummyPos True))
       in do
         instrs @?= []
         op @?= IRConstBool True
         typ @?= IRBool
 
   , testCase "Generates null literal" $
-      let (instrs, op, typ) = runGen (genExpression (ExprLitNull dummyPos))
+      let (instrs, op, typ) = runGenUnsafe (genExpression (ExprLitNull dummyPos))
       in do
         instrs @?= []
         op @?= IRConstNull
         typ @?= IRNull
 
   , testCase "Generates string literal" $
-      let (_, op, typ) = runGen (genExpression (ExprLitString dummyPos "hello"))
+      let (_, op, typ) = runGenUnsafe (genExpression (ExprLitString dummyPos "hello"))
       in do
         case op of
           IRGlobal _ (IRPtr IRChar) -> return ()
@@ -80,16 +80,15 @@ testGenVar :: TestTree
 testGenVar = testGroup "genVar"
   [ testCase "Looks up variable in symbol table" $
       let state = emptyState { gsSymTable = Map.singleton "x" (IRTemp "x" IRI32, IRI32) }
-          (instrs, op, typ) = evalState (genVar "x") state
-      in do
-        instrs @?= []
-        op @?= IRTemp "x" IRI32
-        typ @?= IRI32
+      in case evalState (runExceptT (genVar "x")) state of
+        Left err -> assertBool ("Unexpected error: " ++ err) False
+        Right (instrs, op, typ) -> do
+          instrs @?= []
+          op @?= IRTemp "x" IRI32
+          typ @?= IRI32
 
-  , testCase "Errors on undefined variable" $
-      do
-        result <- try @SomeException (evaluate $ runGen (genVar "undefined"))
-        case result of
-          Left _ -> return ()
-          Right _ -> assertBool "Expected error for undefined variable" False
+  , testCase "Returns Left for undefined variable" $
+      case runGen (genVar "undefined") of
+        Left _ -> return ()
+        Right _ -> assertBool "Expected Left for undefined variable" False
   ]

@@ -12,6 +12,7 @@ module Rune.IR.Generator (generateIR) where
 #endif
 
 import Control.Monad.State (runState)
+import Control.Monad.Except (runExceptT)
 import Data.Map (empty)
 import qualified Data.Set as Set
 import Rune.AST.Nodes (Program (..))
@@ -27,27 +28,29 @@ import Rune.Semantics.Type (FuncStack)
 -- public
 --
 
-generateIR :: Program -> FuncStack -> IRProgram
+generateIR :: Program -> FuncStack -> Either String IRProgram
 generateIR (Program name defs) fs =
   -- NOTE: uncomment for debugging
   -- trace ("AST: " <> prettyPrint (Program name defs)) $
-  let (irDefs, finalState) = runState (mapM genTopLevel defs) (initialState fs)
+  let (result, finalState) = runState (runExceptT (mapM genTopLevel defs)) (initialState fs)
+   in case result of
+        Left err -> Left err
+        Right irDefs -> 
+          let -- INFO: gather all generated definitions (globals & functions)
+              generatedDefs = reverse (gsGlobals finalState) ++ concat irDefs
 
-      -- INFO: gather all generated definitions (globals & functions)
-      generatedDefs = reverse (gsGlobals finalState) ++ concat irDefs
+              -- INFO: only function definitions contribute to defined functions
+              definedFuncs = Set.fromList $ concatMap getDefinedFuncName generatedDefs
 
-      -- INFO: only function definitions contribute to defined functions
-      definedFuncs = Set.fromList $ concatMap getDefinedFuncName generatedDefs
+              -- INFO: gather all called functions
+              calledFuncs = gsCalledFuncs finalState
 
-      -- INFO: gather all called functions
-      calledFuncs = gsCalledFuncs finalState
+              -- INFO: determine external functions (called but not defined)
+              externs = Set.difference calledFuncs definedFuncs
+              externDefs = map IRExtern (Set.toList externs)
 
-      -- INFO: determine external functions (called but not defined)
-      externs = Set.difference calledFuncs definedFuncs
-      externDefs = map IRExtern (Set.toList externs)
-
-      allDefs = externDefs ++ generatedDefs
-   in IRProgram name allDefs
+              allDefs = externDefs ++ generatedDefs
+           in Right $ IRProgram name allDefs
 
 --
 -- private

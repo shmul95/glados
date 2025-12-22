@@ -82,6 +82,16 @@ collectVars acc (IRALLOC n t) = Map.insert n t acc
 collectVars acc (IRLOAD n _ t) = Map.insert n t acc
 collectVars acc (IRDEREF n _ t) = Map.insert n t acc
 collectVars acc (IRGET_FIELD n _ _ _ t) = Map.insert n t acc
+collectVars acc (IRGET_ELEM n _ _ t) = Map.insert n t acc
+
+-- | collect vars for array stack allocation
+-- -> length elements + 1 (for the null terminator)
+-- -> array are ptr of their data
+collectVars acc (IRALLOC_ARRAY n t elems) =
+  let arrType = IRArray t (length elems + 1)
+      ptrType = IRPtr arrType
+   in Map.insert (n <> "_data") arrType (Map.insert n ptrType acc)
+
 collectVars acc (IRADD_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRSUB_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRMUL_OP n _ _ t) = Map.insert n t acc

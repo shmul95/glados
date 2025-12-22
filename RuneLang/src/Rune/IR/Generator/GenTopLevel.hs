@@ -23,6 +23,7 @@ where
 #endif
 
 import Control.Monad.State (modify)
+import Control.Monad.Except (throwError)
 import Data.Map (empty, insert)
 import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.IR.Generator.GenStatement (genStatement)
@@ -60,13 +61,15 @@ genFunction (DefFunction name params retType body) = do
   irParams <- mapM genParam params
   bodyInstrs <- concat <$> mapM genStatement body
 
-  let irRetType = astTypeToIRType retType
+  let irRetType = case retType of
+                    TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                    t -> astTypeToIRType t
       cleaned = ensureReturn irRetType bodyInstrs
       func = IRFunction name irParams (Just irRetType) cleaned
 
   clearFunctionState
   pure [IRFunctionDef func]
-genFunction x = error $ "genFunction called on non-function: received " ++ show x
+genFunction x = throwError $ "genFunction called on non-function: received " ++ show x
 
 -- | generate IR for an override function
 -- show(Vec2f) -> show_Vec2f
@@ -76,7 +79,7 @@ genOverride (DefOverride name params retType body) = do
         (Parameter _ (TypeCustom s) : _) -> mangleMethodName name s
         _ -> name
   genFunction (DefFunction mangledName params retType body)
-genOverride _ = error "genOverride called on non-override"
+genOverride _ = throwError "genOverride called on non-override"
 
 -- | generate IR for a struct definition and its methods
 -- struct Vec2f { x: f32, y: f32 }
@@ -105,14 +108,14 @@ genStructMethod _ _ = pure []
 -- | generate IR for a function parameter and register it in the symbol table
 genParam :: Parameter -> IRGen (String, IRType)
 genParam (Parameter name typ) = do
-  let irType = astTypeToIRType typ
-      finalType = case irType of
-        IRStruct s -> IRPtr (IRStruct s)
-        _ -> irType
+  let irType = case typ of
+                 TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                 TypeCustom s -> IRPtr (IRStruct s)
+                 t -> astTypeToIRType t
       irName = "p_" ++ name
 
-  registerVar name (IRParam irName finalType) finalType
-  pure (irName, finalType)
+  registerVar name (IRParam irName irType) irType
+  pure (irName, irType)
 
 -- | self: *StructType
 fixSelfParam :: String -> Parameter -> Parameter

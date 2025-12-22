@@ -14,7 +14,6 @@ module Rune.Pipelines
     verifAndGenIR,
     runPipeline,
     runPipelineAction,
-    genIR,
     optimizeIR,
     checkSemantics,
     safeRead,
@@ -103,7 +102,7 @@ pipeline =
 verifAndGenIR :: Program -> Either String IRProgram
 verifAndGenIR p = do
   (checkedAST, funcStack) <- checkSemantics p
-  genIR checkedAST funcStack
+  generateIR checkedAST funcStack
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = do
@@ -151,9 +150,6 @@ compileObjectIntoExecutable objFile exeFile = do
 
 optimizeIR :: IRProgram -> Either String IRProgram
 optimizeIR = Right . fixpoint runIROptimizer
-
-genIR :: Program -> FuncStack -> Either String IRProgram
-genIR p fs = Right $ generateIR p fs
 
 checkSemantics :: Program -> Either String (Program, FuncStack)
 checkSemantics = verifVars

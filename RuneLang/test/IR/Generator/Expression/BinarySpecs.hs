@@ -5,10 +5,11 @@ module IR.Generator.Expression.BinarySpecs (binaryExprTests) where
 
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=), assertBool)
+import TestHelpers (dummyPos)
 import Rune.IR.Generator.Expression.Binary
 import Rune.IR.Nodes (IRType(..), IROperand(..), IRInstruction(..))
-import Rune.AST.Nodes (BinaryOp(..), Expression(..), SourcePos(..))
-import IR.TestUtils (runGen)
+import Rune.AST.Nodes (BinaryOp(..), Expression(..))
+import IR.TestUtils (runGenUnsafe)
 
 --
 -- public
@@ -30,7 +31,7 @@ testGenBinary = testGroup "genBinary"
   [ testCase "Generates ADD operation" $
       let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, _, typ) = runGen (genBinary genExpr Add (ExprLitInt (SourcePos "test.ru" 0 0) 1) (ExprLitInt (SourcePos "test.ru" 0 0) 2))
+          (instrs, _, typ) = runGenUnsafe (genBinary genExpr Add (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2))
       in do
         assertBool "Should have ADD instruction" $ not $ null instrs
         case last instrs of
@@ -41,7 +42,7 @@ testGenBinary = testGroup "genBinary"
   , testCase "Generates comparison operation" $
       let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
-          (instrs, _, typ) = runGen (genBinary genExpr Eq (ExprLitInt (SourcePos "test.ru" 0 0) 1) (ExprLitInt (SourcePos "test.ru" 0 0) 2))
+          (instrs, _, typ) = runGenUnsafe (genBinary genExpr Eq (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 2))
       in do
         typ @?= IRBool
         case last instrs of

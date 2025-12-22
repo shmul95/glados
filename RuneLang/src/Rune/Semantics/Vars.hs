@@ -14,12 +14,14 @@ module Rune.Semantics.Vars (
 module Rune.Semantics.Vars (verifVars) where
 #endif
 
+import Control.Monad (unless)
 import Control.Monad.State.Strict
+
+import Text.Printf (printf)
+
 import Data.Maybe (fromMaybe)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
-
-import Text.Printf (printf)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
@@ -37,6 +39,7 @@ import Rune.Semantics.Helper
   , exprType
   , assignVarType
   , checkMultipleType
+  , isTypeCompatible
   , SemanticError(..)
   , formatSemanticError
   )
@@ -84,14 +87,22 @@ verifVars (Program n defs) = do
 --
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _) = ret == TypeAny || any ((== TypeAny) . paramType) params
-isGeneric (DefOverride _ params ret _) = ret == TypeAny || any ((== TypeAny) . paramType) params
+isGeneric (DefFunction _ params ret _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefOverride _ _ _ _) = False
 isGeneric _ = False
+
+
+hasAny :: Type -> Bool
+hasAny TypeAny = True
+hasAny (TypeArray t) = hasAny t
+hasAny _ = False
+
 
 getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _) = n
 getDefName (DefOverride n _ _ _) = n
 getDefName (DefStruct n _ _) = n
+
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
@@ -141,7 +152,9 @@ verifScope vs (StmtVarDecl pos v t e : stmts) = do
 
   e'      <- verifExprWithContext t vs e
 
-  let e_t = exprType s e'
+  e_t     <- lift $ either 
+               (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["variable declaration"]) 
+               Right $ exprType s e'
 
   t'      <- lift $ either (Left . formatSemanticError) Right $ checkMultipleType v file line col t e_t
   vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs v file line col t'
@@ -180,12 +193,15 @@ verifScope vs (StmtFor pos v t (Just start) end body : stmts) = do
   fs      <- gets stFuncs
   let s   = (fs, vs)
       SourcePos file line col = pos
-      e_t = exprType s start
+  
+  start'  <- verifExpr vs start
+  e_t     <- lift $ either 
+               (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["for loop start"]) 
+               Right $ exprType s start'
 
   vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs v file line col e_t
   t'      <- lift $ either (Left . formatSemanticError) Right $ checkMultipleType v file line col t e_t
 
-  start'  <- verifExpr vs' start
   end'    <- verifExpr vs' end
   body'   <- verifScope vs' body
   stmts'  <- verifScope vs stmts
@@ -205,12 +221,21 @@ verifScope vs (StmtForEach pos v t iter body : stmts) = do
   fs      <- gets stFuncs
   let s   = (fs, vs)
       SourcePos file line col = pos
-      e_t = exprType s iter
+  
+  iter'   <- verifExpr vs iter
+  e_t     <- lift $ either 
+               (\msg -> Left . formatSemanticError $ SemanticError file line col "valid iterable" msg ["for-each iterable"]) 
+               Right $ exprType s iter'
 
-  vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs v file line col e_t
-  t'      <- lift $ either (Left . formatSemanticError) Right $ checkMultipleType v file line col t e_t
+  elem_t <- case e_t of
+    TypeArray inner -> pure inner
+    TypeString -> pure TypeChar
+    TypeAny -> pure TypeAny
+    _ -> pure TypeAny 
 
-  iter'   <- verifExpr vs' iter
+  vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs v file line col elem_t
+  t'      <- lift $ either (Left . formatSemanticError) Right $ checkMultipleType v file line col t elem_t
+
   body'   <- verifScope vs' body
   stmts'  <- verifScope vs stmts
   pure $ StmtForEach pos v (Just t') iter' body' : stmts'
@@ -226,14 +251,34 @@ verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
       SourcePos file line col = pos
 
   rv'     <- verifExpr vs rv
-  let e_t = exprType s rv'
-  vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs lv file line col e_t
+  rv_t    <- lift $ either 
+               (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["assignment RHS"]) 
+               Right $ exprType s rv'
+  
+  vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs lv file line col rv_t
   stmts'  <- verifScope vs' stmts
   pure $ StmtAssignment pos (ExprVar pv lv) rv' : stmts'
 
 verifScope vs (StmtAssignment pos lhs rv : stmts) = do
+  fs      <- gets stFuncs
+  let s   = (fs, vs)
+      SourcePos file line col = pos
+
   lhs'    <- verifExpr vs lhs
   rv'     <- verifExpr vs rv
+  
+  lhs_t   <- lift $ either 
+               (\msg -> Left . formatSemanticError $ SemanticError file line col "valid lhs type" msg ["assignment LHS"]) 
+               Right $ exprType s lhs'
+  rv_t    <- lift $ either 
+               (\msg -> Left . formatSemanticError $ SemanticError file line col "valid rhs type" msg ["assignment RHS"]) 
+               Right $ exprType s rv'
+  
+  unless (isTypeCompatible lhs_t rv_t) $
+    lift $ Left $ formatSemanticError $ SemanticError file line col 
+      (printf "expression of type %s" (show lhs_t)) 
+      (printf "type %s" (show rv_t)) ["assignment", "global context"]
+  
   stmts'  <- verifScope vs stmts
   pure $ StmtAssignment pos lhs' rv' : stmts'
 
@@ -247,9 +292,11 @@ verifScope vs (StmtNext pos : stmts) = do
 
 verifScope _ [] = pure []
 
+
 -- | expression verification
 verifExpr :: VarStack -> Expression -> SemM Expression
 verifExpr = verifExprWithContext Nothing
+
 
 verifExprWithContext :: Maybe Type -> VarStack -> Expression -> SemM Expression
 
@@ -261,16 +308,20 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
   l' <- verifExprWithContext hint vs l
   r' <- verifExprWithContext hint vs r
   
-  -- Verify type compatibility for binary operations
   fs <- gets stFuncs
   let s = (fs, vs)
       SourcePos file line col = pos
-      leftType = exprType s l'
-      rightType = exprType s r'
+  
+  leftType  <- lift $ either 
+                 (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary left operand"]) 
+                 Right $ exprType s l'
+  rightType <- lift $ either 
+                 (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary right operand"]) 
+                 Right $ exprType s r'
   
   case iHTBinary op leftType rightType of
-    Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation", "global context"]
-    Right _ -> pure $ ExprBinary pos op l' r'
+    Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
+    Right _  -> pure $ ExprBinary pos op l' r'
 
 verifExprWithContext hint vs (ExprCall pos name args) = do
   fs <- gets stFuncs
@@ -278,17 +329,19 @@ verifExprWithContext hint vs (ExprCall pos name args) = do
       SourcePos file line col = pos
 
   args' <- mapM (verifExpr vs) args
-  let argTypes = map (exprType s) args'
-
-  let match = checkParamType s name file line col args'
-
-  case match of
-    Right foundName -> pure $ ExprCall pos foundName args'
-    Left err -> do
-        templates <- gets stTemplates
-        case HM.lookup name templates of
-            Nothing -> lift $ Left $ formatSemanticError err
-            Just templateDef -> tryInstantiateTemplate templateDef name args' argTypes hint
+  
+  let argTypesResult = mapM (exprType s) args'
+  case argTypesResult of
+    Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "valid argument types" err ["function call"]
+    Right argTypes -> do
+      let match = checkParamType s name file line col args'
+      case match of
+        Right foundName -> pure $ ExprCall pos foundName args'
+        Left err -> do
+            templates <- gets stTemplates
+            case HM.lookup name templates of
+                Nothing -> lift $ Left $ formatSemanticError err
+                Just templateDef -> tryInstantiateTemplate templateDef name args' argTypes hint
 
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
@@ -298,9 +351,18 @@ verifExprWithContext hint vs (ExprAccess pos target field) = do
   target' <- verifExprWithContext hint vs target
   pure $ ExprAccess pos target' field
 
+verifExprWithContext hint vs (ExprIndex pos target idx) = do
+  target' <- verifExprWithContext hint vs target
+  idx'    <- verifExpr vs idx
+  pure $ ExprIndex pos target' idx'
+
+verifExprWithContext hint vs (ExprLitArray pos elems) = do
+  elems' <- mapM (verifExprWithContext hint vs) elems
+  pure $ ExprLitArray pos elems'
+
 verifExprWithContext _ vs (ExprVar pos var)
   | HM.member var vs = pure (ExprVar pos var)
-  | otherwise       = lift $ Left $ formatSemanticError $ SemanticError (posFile pos) (posLine pos) (posCol pos) ("Undefined variable '" ++ var ++ "'") "undefined variable" ["variable reference", "global context"]
+  | otherwise       = lift $ Left $ formatSemanticError $ SemanticError (posFile pos) (posLine pos) (posCol pos) (printf "Undefined variable '%s'" var) "undefined variable" ["variable reference"]
 
 verifExprWithContext _ _ expr = pure expr
 
@@ -323,6 +385,7 @@ tryInstantiateTemplate def originalName args argTypes contextRetType = do
       registerInstantiation mangled verified retTy argTypes
       pure $ ExprCall pos mangled args
 
+
 resolveReturnType :: String -> [Type] -> Maybe Type -> SemM Type
 resolveReturnType originalName argTypes mCtx =
   case mCtx of
@@ -336,8 +399,10 @@ resolveReturnType originalName argTypes mCtx =
           "Generic function '%s' cannot be instantiated: no arguments provided and no return type context."
           originalName
 
+
 alreadyInstantiated :: String -> SemM Bool
 alreadyInstantiated name = HM.member name <$> gets stInstantiated
+
 
 registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
 registerInstantiation name def retTy argTys =
@@ -346,4 +411,3 @@ registerInstantiation name def retTy argTys =
     , stFuncs        = HM.insertWith (<>) name [(retTy, argTys)] (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
-

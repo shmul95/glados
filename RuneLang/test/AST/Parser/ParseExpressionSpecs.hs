@@ -22,6 +22,7 @@ parseExpressionTests =
     , postfixTests
     , structInitTests
     , parenthesesTests
+    , arrayLiteralTests
     ]
 
 --
@@ -114,16 +115,27 @@ postfixTests = testGroup "Postfix Tests"
         (ExprCall (SourcePos "test" 1 1) "f" [ExprLitInt (SourcePos "test" 1 1) 1, ExprLitInt (SourcePos "test" 1 1) 2])
   
   , testCase "Method Call (x.f())" $
-      -- x.f() parses as (x.f)() -> ExprCall "f" [x]
-      -- Wait, parseCallPostfix implementation:
-      -- pure $ \e -> case e of
-      --   ExprAccess target field -> ExprCall field (target : args)
       assertParse "x.f()"
         [tok (T.Identifier "x"), tok T.Dot, tok (T.Identifier "f"), tok T.LParen, tok T.RParen]
         (ExprCall (SourcePos "test" 1 1) "f" [ExprVar (SourcePos "test" 1 1) "x"])
 
   , testCase "Postfix Inc" $
       assertParse "x++" [tok (T.Identifier "x"), tok T.OpInc] (ExprUnary (SourcePos "test" 1 1) PostfixInc (ExprVar (SourcePos "test" 1 1) "x"))
+
+  , testCase "Array Index" $
+      assertParse "arr[1]"
+        [tok (T.Identifier "arr"), tok T.LBracket, tok (T.LitInt 1), tok T.RBracket]
+        (ExprIndex (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "arr") (ExprLitInt (SourcePos "test" 1 1) 1))
+
+  , testCase "Array Index Field Access" $
+      assertParse "arr[1].x"
+        [tok (T.Identifier "arr"), tok T.LBracket, tok (T.LitInt 1), tok T.RBracket, tok T.Dot, tok (T.Identifier "x")]
+        (ExprAccess (SourcePos "test" 1 1) (ExprIndex (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "arr") (ExprLitInt (SourcePos "test" 1 1) 1)) "x")
+
+  , testCase "Array Index Chained" $
+      assertParse "arr[x][y]"
+        [tok (T.Identifier "arr"), tok T.LBracket, tok (T.Identifier "x"), tok T.RBracket, tok T.LBracket, tok (T.Identifier "y"), tok T.RBracket]
+        (ExprIndex (SourcePos "test" 1 1) (ExprIndex (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "arr") (ExprVar (SourcePos "test" 1 1) "x")) (ExprVar (SourcePos "test" 1 1) "y"))
   ]
 
 structInitTests :: TestTree
@@ -145,4 +157,37 @@ parenthesesTests = testGroup "Parentheses Tests"
       assertParse "(1 + 2)"
         [tok T.LParen, tok (T.LitInt 1), tok T.OpPlus, tok (T.LitInt 2), tok T.RParen]
         (ExprBinary (SourcePos "test" 1 1) Add (ExprLitInt (SourcePos "test" 1 1) 1) (ExprLitInt (SourcePos "test" 1 1) 2))
+  ]
+
+arrayLiteralTests :: TestTree
+arrayLiteralTests = testGroup "Array Literal Tests"
+  [ testCase "Empty array []" $
+      assertParse "[]"
+        [tok T.LBracket, tok T.RBracket]
+        (ExprLitArray (SourcePos "test" 1 1) [])
+  
+  , testCase "Array with single int [1]" $
+      assertParse "[1]"
+        [tok T.LBracket, tok (T.LitInt 1), tok T.RBracket]
+        (ExprLitArray (SourcePos "test" 1 1) [ExprLitInt (SourcePos "test" 1 1) 1])
+  
+  , testCase "Array with multiple ints [1, 2, 3]" $
+      assertParse "[1, 2, 3]"
+        [tok T.LBracket, tok (T.LitInt 1), tok T.Comma, tok (T.LitInt 2), tok T.Comma, tok (T.LitInt 3), tok T.RBracket]
+        (ExprLitArray (SourcePos "test" 1 1) [ExprLitInt (SourcePos "test" 1 1) 1, ExprLitInt (SourcePos "test" 1 1) 2, ExprLitInt (SourcePos "test" 1 1) 3])
+  
+  , testCase "Array with strings" $
+      assertParse "[\"hello\", \"world\"]"
+        [tok T.LBracket, tok (T.LitString "hello"), tok T.Comma, tok (T.LitString "world"), tok T.RBracket]
+        (ExprLitArray (SourcePos "test" 1 1) [ExprLitString (SourcePos "test" 1 1) "hello", ExprLitString (SourcePos "test" 1 1) "world"])
+  
+  , testCase "Array with chars ['a', 'b', 'c']" $
+      assertParse "['a', 'b', 'c']"
+        [tok T.LBracket, tok (T.LitChar 'a'), tok T.Comma, tok (T.LitChar 'b'), tok T.Comma, tok (T.LitChar 'c'), tok T.RBracket]
+        (ExprLitArray (SourcePos "test" 1 1) [ExprLitChar (SourcePos "test" 1 1) 'a', ExprLitChar (SourcePos "test" 1 1) 'b', ExprLitChar (SourcePos "test" 1 1) 'c'])
+  
+  , testCase "Array with expressions [1 + 2, 3 * 4]" $
+      assertParse "[1 + 2, 3 * 4]"
+        [tok T.LBracket, tok (T.LitInt 1), tok T.OpPlus, tok (T.LitInt 2), tok T.Comma, tok (T.LitInt 3), tok T.OpMul, tok (T.LitInt 4), tok T.RBracket]
+        (ExprLitArray (SourcePos "test" 1 1) [ExprBinary (SourcePos "test" 1 1) Add (ExprLitInt (SourcePos "test" 1 1) 1) (ExprLitInt (SourcePos "test" 1 1) 2), ExprBinary (SourcePos "test" 1 1) Mul (ExprLitInt (SourcePos "test" 1 1) 3) (ExprLitInt (SourcePos "test" 1 1) 4)])
   ]

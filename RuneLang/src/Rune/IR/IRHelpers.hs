@@ -54,6 +54,7 @@ where
 #endif
 
 import Control.Monad.State (gets, modify)
+import Control.Monad.Except (throwError)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
@@ -66,12 +67,14 @@ import Rune.Semantics.Helper (selectSignature)
 -- type conversion
 --
 
-selectReturnType :: FuncStack -> String -> [IRType] -> IRType
+selectReturnType :: FuncStack -> String -> [IRType] -> IRGen IRType
 selectReturnType fs funcName actualIRTypes =
   let actualASTTypes = map irTypeToASTType actualIRTypes
    in case selectSignature fs funcName actualASTTypes of
-        Just retASTType -> astTypeToIRType retASTType
-        Nothing -> error $ "Semantic error: No matching signature found for function call: " ++ funcName
+        Just retASTType -> pure $ case retASTType of
+                                    TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
+                                    t -> astTypeToIRType t
+        Nothing -> throwError $ "Semantic error: No matching signature found for function call: " ++ funcName
                             ++ " with arguments: " ++ show actualASTTypes
 
 -- TODO: handle more types
@@ -91,7 +94,8 @@ astTypeToIRType TypeBool = IRBool
 astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
-astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR, got TypeAny"
+astTypeToIRType (TypeArray elemType) = IRPtr (IRArray (astTypeToIRType elemType) 0)
+astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR: TypeAny"
 
 irTypeToASTType :: IRType -> Type
 irTypeToASTType IRI8 = TypeI8
@@ -110,6 +114,8 @@ irTypeToASTType IRNull = TypeNull
 irTypeToASTType (IRStruct s) = TypeCustom s
 irTypeToASTType (IRPtr IRChar) = TypeString
 irTypeToASTType (IRPtr (IRStruct s)) = TypeCustom s
+irTypeToASTType (IRArray t _) = TypeArray (irTypeToASTType t)
+irTypeToASTType (IRPtr (IRArray t _)) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr _) = TypeAny
 
 -- TODO: treat struct properly
@@ -129,6 +135,7 @@ sizeOfIRType IRU64 = 8
 sizeOfIRType IRBool = 1
 sizeOfIRType (IRPtr _) = 8 -- Ô_ö
 sizeOfIRType (IRStruct _) = 8 -- ö_Ô
+sizeOfIRType (IRArray t len) = sizeOfIRType t * len
 sizeOfIRType IRNull = 8
 
 

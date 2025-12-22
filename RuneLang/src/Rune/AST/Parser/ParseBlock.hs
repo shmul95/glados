@@ -49,9 +49,9 @@ parseBlock = expect T.LBrace *> parseBlockLoop
 parseBlockLoop :: Parser Block
 parseBlockLoop = do
   isEnd <- check T.RBrace
-  if isEnd
-    then advance >> pure []
-    else do
+  case isEnd of
+    True -> advance >> pure []
+    False -> do
       stmt <- parseStatement
       stmts <- parseBlockLoop
       pure (stmt : stmts)

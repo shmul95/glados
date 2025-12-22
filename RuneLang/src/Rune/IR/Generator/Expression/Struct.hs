@@ -14,6 +14,7 @@ module Rune.IR.Generator.Expression.Struct (genStructInit, genAccess) where
 #endif
 
 import Control.Monad.State (gets)
+import Control.Monad.Except (throwError)
 import qualified Data.Map.Strict as Map
 import Rune.AST.Nodes (Expression)
 import Rune.IR.IRHelpers (newTemp)
@@ -35,7 +36,7 @@ genAccess :: GenExprCallback -> Expression -> String -> IRGen ([IRInstruction], 
 genAccess genExpr target field = do
   (tInstrs, tOp, tType) <- genExpr target
 
-  let (structName, ptrOp, setupInstrs) = resolveStructPtr tOp tType
+  (structName, ptrOp, setupInstrs) <- resolveStructPtr tOp tType
 
   fieldType <- lookupFieldType structName field
   resTemp <- newTemp ("f_" ++ field) fieldType
@@ -58,12 +59,12 @@ genStructInit genExpr name fields = do
 -- private
 --
 
-resolveStructPtr :: IROperand -> IRType -> (String, IROperand, [IRInstruction])
+resolveStructPtr :: IROperand -> IRType -> IRGen (String, IROperand, [IRInstruction])
 resolveStructPtr op (IRStruct s) = case op of
-  IRTemp n t -> (s, IRTemp ("p_" ++ n) (IRPtr t), [IRADDR ("p_" ++ n) n (IRPtr t)])
-  _ -> (s, op, [])
-resolveStructPtr op (IRPtr (IRStruct s)) = (s, op, [])
-resolveStructPtr _ tType = error $ "Access on non-struct type: " ++ show tType
+  IRTemp n t -> pure (s, IRTemp ("p_" ++ n) (IRPtr t), [IRADDR ("p_" ++ n) n (IRPtr t)])
+  _ -> pure (s, op, [])
+resolveStructPtr op (IRPtr (IRStruct s)) = pure (s, op, [])
+resolveStructPtr _ tType = throwError $ "Access on non-struct type: " ++ show tType
 
 lookupFieldType :: String -> String -> IRGen IRType
 lookupFieldType sName fName = do
@@ -72,8 +73,8 @@ lookupFieldType sName fName = do
     Just fields ->
       case lookup fName fields of
         Just typ -> return typ
-        Nothing -> error $ "Struct '" ++ sName ++ "' has no field named '" ++ fName ++ "'"
-    Nothing -> error $ "Struct '" ++ sName ++ "' is not defined"
+        Nothing -> throwError $ "Struct '" ++ sName ++ "' has no field named '" ++ fName ++ "'"
+    Nothing -> throwError $ "Struct '" ++ sName ++ "' is not defined"
 
 genInitField :: GenExprCallback -> String -> String -> IRType -> (String, Expression) -> IRGen [IRInstruction]
 genInitField genExpr sName resName sType (fName, fExpr) = do

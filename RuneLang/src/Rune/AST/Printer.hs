@@ -67,7 +67,7 @@ prettyPrint prog =
 
 visitProgram :: Program -> Printer ()
 visitProgram (Program name defs) = do
-  emit $ "Program: " ++ name
+  emit $ "Program: " <> name
   indent
   mapM_ (\d -> newLine >> visitTopLevel d) defs
   dedent
@@ -79,33 +79,33 @@ visitTopLevel d@DefOverride {} = visitOverride d
 
 visitFunction :: TopLevelDef -> Printer ()
 visitFunction (DefFunction name params retType body) = do
-  emit $ "DefFunction " ++ name
+  emit $ "DefFunction " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine
-  emit $ "ReturnType: " ++ showType retType
+  emit $ "ReturnType: " <> showType retType
   emitBlock "Body:" (visitBody body)
   dedent
 visitFunction _ = return ()
 
 visitStruct :: TopLevelDef -> Printer ()
 visitStruct (DefStruct name fields methods) = do
-  emit $ "DefStruct " ++ name
+  emit $ "DefStruct " <> name
   indent
   emitBlock "Fields:" (mapM_ emitField fields)
   emitBlock "Methods:" (mapM_ (\m -> newLine >> visitTopLevel m) methods)
   dedent
   where
-    emitField (Field n t) = newLine >> emit (n ++ ": " ++ showType t)
+    emitField (Field n t) = newLine >> emit (n <> ": " <> showType t)
 visitStruct _ = return ()
 
 visitOverride :: TopLevelDef -> Printer ()
 visitOverride (DefOverride name params retType body) = do
-  emit $ "DefOverride " ++ name
+  emit $ "DefOverride " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine
-  emit $ "ReturnType: " ++ showType retType
+  emit $ "ReturnType: " <> showType retType
   emitBlock "Body:" (visitBody body)
   dedent
 visitOverride _ = return ()
@@ -129,9 +129,9 @@ visitStatement (StmtExpr _ expr) = do
 
 visitVarDecl :: String -> Maybe Type -> Expression -> Printer ()
 visitVarDecl name maybeType expr = do
-  emit $ "StmtVarDecl " ++ name
+  emit $ "StmtVarDecl " <> name
   case maybeType of
-    Just t -> emit $ " : " ++ showType t
+    Just t -> emit $ " : " <> showType t
     Nothing -> return ()
   emitBlock "Value:" (newLine >> visitExpression expr)
 
@@ -167,9 +167,9 @@ visitIf cond thenB elseB = do
 
 visitFor :: String -> Maybe Type -> Maybe Expression -> Expression -> Block -> Printer ()
 visitFor name maybeType mStart end body = do
-  emit $ "StmtFor " ++ name
+  emit $ "StmtFor " <> name
   case maybeType of
-    Just t -> emit $ " : " ++ showType t
+    Just t -> emit $ " : " <> showType t
     Nothing -> return ()
   indent
   case mStart of
@@ -181,9 +181,9 @@ visitFor name maybeType mStart end body = do
 
 visitForEach :: String -> Maybe Type -> Expression -> Block -> Printer ()
 visitForEach name maybeType iterable body = do
-  emit $ "StmtForEach " ++ name
+  emit $ "StmtForEach " <> name
   case maybeType of
-    Just t -> emit $ " : " ++ showType t
+    Just t -> emit $ " : " <> showType t
     Nothing -> return ()
   indent
   emitBlock "Iterable:" (newLine >> visitExpression iterable)
@@ -205,7 +205,7 @@ visitNext = emit "StmtNext"
 
 visitExpression :: Expression -> Printer ()
 visitExpression (ExprBinary _ op l r) = do
-  emit $ "ExprBinary " ++ showBinaryOp op
+  emit $ "ExprBinary " <> showBinaryOp op
   indent
   newLine
   visitExpression l
@@ -213,35 +213,44 @@ visitExpression (ExprBinary _ op l r) = do
   visitExpression r
   dedent
 visitExpression (ExprUnary _ op val) = do
-  emit $ "ExprUnary " ++ showUnaryOp op
+  emit $ "ExprUnary " <> showUnaryOp op
   indent
   newLine
   visitExpression val
   dedent
 visitExpression (ExprCall _ name args) = do
-  emit $ "ExprCall " ++ name
+  emit $ "ExprCall " <> name
   emitBlock "Arguments:" (mapM_ (\a -> newLine >> visitExpression a) args)
 visitExpression (ExprStructInit _ name fields) = do
-  emit $ "ExprStructInit " ++ name
+  emit $ "ExprStructInit " <> name
   emitBlock "Fields:" (mapM_ emitInitField fields)
   where
     emitInitField (n, e) = do
       newLine
-      emit $ n ++ ":"
+      emit $ n <> ":"
       emitBlock "" (newLine >> visitExpression e)
 visitExpression (ExprAccess _ target field) = do
-  emit $ "ExprAccess ." ++ field
+  emit $ "ExprAccess ." <> field
   indent
   newLine
   visitExpression target
   dedent
-visitExpression (ExprLitInt _ i) = emit $ "ExprLitInt " ++ show i
-visitExpression (ExprLitFloat _ f) = emit $ "ExprLitFloat " ++ show f
-visitExpression (ExprLitString _ s) = emit $ "ExprLitString " ++ show s
-visitExpression (ExprLitChar _ c) = emit $ "ExprLitChar " ++ show c
-visitExpression (ExprLitBool _ b) = emit $ "ExprLitBool " ++ show b
+visitExpression (ExprIndex _ target index) = do
+  emit "ExprIndex"
+  indent
+  emitBlock "Target:" (newLine >> visitExpression target)
+  emitBlock "Index:" (newLine >> visitExpression index)
+  dedent
+visitExpression (ExprLitArray _ elems) = do
+  emit "ExprArrayLiteral"
+  emitBlock "Elements:" (mapM_ (\e -> newLine >> visitExpression e) elems)
+visitExpression (ExprLitInt _ i) = emit $ "ExprLitInt " <> show i
+visitExpression (ExprLitFloat _ f) = emit $ "ExprLitFloat " <> show f
+visitExpression (ExprLitString _ s) = emit $ "ExprLitString " <> show s
+visitExpression (ExprLitChar _ c) = emit $ "ExprLitChar " <> show c
+visitExpression (ExprLitBool _ b) = emit $ "ExprLitBool " <> show b
 visitExpression (ExprLitNull _) = emit "ExprLitNull"
-visitExpression (ExprVar _ v) = emit $ "ExprVar " ++ v
+visitExpression (ExprVar _ v) = emit $ "ExprVar " <> v
 
 --
 -- private helpers
@@ -274,7 +283,7 @@ dedent :: Printer ()
 dedent = modify (\s -> s {psIndent = psIndent s - 1})
 
 emitParam :: Parameter -> Printer ()
-emitParam p = newLine >> emit (paramName p ++ ": " ++ showType (paramType p))
+emitParam p = newLine >> emit (paramName p <> ": " <> showType (paramType p))
 
 showType :: Type -> String
 showType TypeI8 = "i8"
@@ -293,6 +302,7 @@ showType TypeString = "string"
 showType TypeAny = "any"
 showType TypeNull = "null"
 showType (TypeCustom s) = s
+showType (TypeArray t) = "[" <> showType t <> "]"
 
 showBinaryOp :: BinaryOp -> String
 showBinaryOp Add = "+"

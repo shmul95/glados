@@ -246,5 +246,10 @@ testExpressionAccessors =
                 ExprLitNull dummyPos,
                 ExprVar dummyPos "x"
               ]
-         in length exprs @?= 9
+         in length exprs @?= 9,
+      testCase "ExprIndex accessors" $
+        let expr = ExprIndex {exprPos = dummyPos, indexTarget = ExprVar dummyPos "arr", indexValue = dummyExpr}
+         in do
+          indexTarget expr @?= ExprVar dummyPos "arr"
+          indexValue expr @?= dummyExpr
     ]

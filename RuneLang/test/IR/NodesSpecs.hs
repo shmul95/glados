@@ -1,6 +1,7 @@
 module IR.NodesSpecs (irNodesTests) where
 
 import Control.Monad.State (evalState)
+import Control.Monad.Except (runExceptT)
 import Data.Map (empty, insert)
 import qualified Data.Set as Set
 import Rune.IR.Nodes
@@ -139,7 +140,7 @@ testGenState =
               gsSymTable initialState @?= symTable
               gsStructs initialState @?= structTable
               gsLoopStack initialState @?= loopStack
-              evalState dummyOp initialState @?= 10,
+              evalState (runExceptT dummyOp) initialState @?= Right 10,
       testCase "Deriving Show/Eq" $
         let state1 =
               GenState
