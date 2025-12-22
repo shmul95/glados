@@ -161,16 +161,17 @@ findOutputFile [] = Right (Nothing, [])
 findOutputFile args =
   case break (\x -> x `elem` ["-o", "--output"]) args of
     (before, []) -> Right (Nothing, before)
-    (_, "-o":[]) -> Left "-o flag requires an output file."
+    (_, ["-o"]) -> Left "-o flag requires an output file."
     (before, "-o":file:after) -> Right (Just file, before ++ after)
-    (_, "--output":[]) -> Left "--output flag requires an output file."
+    (_, ["--output"]) -> Left "--output flag requires an output file."
     (before, "--output":file:after) -> Right (Just file, before ++ after)
     (before, _:after) -> findOutputFile (before ++ after)
 
 isSourceFile :: FilePath -> Maybe FilePath -> Action
-isSourceFile inFile outFile = case takeExtension inFile == ".ru" of
-  True -> CompileAll inFile outFile
-  False -> CompileObjToExec inFile outFile
+isSourceFile inFile outFile =
+  case takeExtension inFile of
+    ".ru" -> CompileAll inFile outFile
+    _     -> CompileObjToExec inFile outFile
 
 determineCompileRule :: [String] -> Either String (CompileRule, [String])
 determineCompileRule args =
