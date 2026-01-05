@@ -1,6 +1,30 @@
+{-# LANGUAGE CPP #-}
+
 module Rune.AST.Parser.ParseTopLevel
+#if defined(TESTING_EXPORT)
   ( parseTopLevels,
+    parseTopLevelDef,
+    parseExportedDef,
+    parseFunction,
+    parseStruct,
+    parseStructBody,
+    parseStructItem,
+    parseOverride,
+    parseParams,
+    parseParameter,
+    parseSelfParam,
+    parseTypedParam,
+    parseReturnType,
+    parseField,
+    parseSomewhere,
+    parseFunctionSignatures,
+    parseFunctionSignature,
+    parseParamTypeInSignature
   )
+#else
+  ( parseTopLevels
+  )
+#endif
 where
 
 import Control.Applicative ((<|>))
@@ -89,7 +113,7 @@ parseStructItemsLoop = do
 
 parseStructItem :: Parser (Either Field TopLevelDef)
 parseStructItem = do
-  t <- peek
+  t<- peek
   case T.tokenKind t of
     T.KwDef -> Right <$> parseFunction False
     T.Identifier _ -> Left <$> parseField <* expect T.Semicolon
