@@ -21,7 +21,9 @@ astNodesTests =
       testTopLevelDefAccessors,
       testStatementAccessors,
       testConditionalAndLoopAccessors,
-      testExpressionAccessors
+      testExpressionAccessors,
+      testGetExprPos,
+      testGetStmtPos
     ]
 
 --
@@ -254,4 +256,43 @@ testExpressionAccessors =
          in do
           indexTarget expr @?= ExprVar dummyPos "arr"
           indexValue expr @?= dummyExpr
+    ]
+
+testGetExprPos :: TestTree
+testGetExprPos =
+  testGroup
+    "getExprPos"
+    [ testCase "All Expression constructors" $ do
+        getExprPos (ExprBinary dummyPos Add dummyExpr dummyExpr) @?= dummyPos
+        getExprPos (ExprUnary dummyPos Negate dummyExpr) @?= dummyPos
+        getExprPos (ExprCall dummyPos "f" []) @?= dummyPos
+        getExprPos (ExprStructInit dummyPos "S" []) @?= dummyPos
+        getExprPos (ExprAccess dummyPos dummyExpr "x") @?= dummyPos
+        getExprPos (ExprIndex dummyPos dummyExpr dummyExpr) @?= dummyPos
+        getExprPos (ExprCast dummyPos dummyExpr TypeI32) @?= dummyPos
+        getExprPos (ExprLitInt dummyPos 1) @?= dummyPos
+        getExprPos (ExprLitFloat dummyPos 1.0) @?= dummyPos
+        getExprPos (ExprLitString dummyPos "s") @?= dummyPos
+        getExprPos (ExprLitChar dummyPos 'c') @?= dummyPos
+        getExprPos (ExprLitBool dummyPos True) @?= dummyPos
+        getExprPos (ExprLitNull dummyPos) @?= dummyPos
+        getExprPos (ExprVar dummyPos "v") @?= dummyPos
+        getExprPos (ExprLitArray dummyPos []) @?= dummyPos
+    ]
+
+testGetStmtPos :: TestTree
+testGetStmtPos =
+  testGroup
+    "getStmtPos"
+    [ testCase "All Statement constructors" $ do
+        getStmtPos (StmtVarDecl dummyPos "x" Nothing dummyExpr) @?= dummyPos
+        getStmtPos (StmtAssignment dummyPos dummyExpr dummyExpr) @?= dummyPos
+        getStmtPos (StmtReturn dummyPos Nothing) @?= dummyPos
+        getStmtPos (StmtIf dummyPos dummyExpr [] Nothing) @?= dummyPos
+        getStmtPos (StmtFor dummyPos "i" Nothing Nothing dummyExpr []) @?= dummyPos
+        getStmtPos (StmtForEach dummyPos "i" Nothing dummyExpr []) @?= dummyPos
+        getStmtPos (StmtLoop dummyPos []) @?= dummyPos
+        getStmtPos (StmtStop dummyPos) @?= dummyPos
+        getStmtPos (StmtNext dummyPos) @?= dummyPos
+        getStmtPos (StmtExpr dummyPos dummyExpr) @?= dummyPos
     ]
