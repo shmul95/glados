@@ -195,7 +195,7 @@ parseFunctionSignatures = do
 parseFunctionSignature :: Parser FunctionSignature
 parseFunctionSignature = do
   isOverride <- check T.KwOverride
-  _ <- when isOverride advance
+  when isOverride advance
   _ <- expect T.KwDef
   name <- parseIdentifier
   paramTypes <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamTypeInSignature (expect T.Comma))
