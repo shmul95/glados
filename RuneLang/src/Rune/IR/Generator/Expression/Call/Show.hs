@@ -71,6 +71,7 @@ mkShowOverride name paramType = IRFunction
   , irFuncParams = [("value", paramType)]
   , irFuncRetType = Just IRNull
   , irFuncBody = []
+  , irFuncIsExport = False
   }
 
 overrideExists :: IRTopLevel -> String -> Bool
