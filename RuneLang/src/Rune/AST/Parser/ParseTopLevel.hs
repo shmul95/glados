@@ -177,10 +177,9 @@ parseField = Field <$> parseIdentifier <*> (expect T.Colon *> parseType)
 --
 
 parseSomewhere :: Parser TopLevelDef
-parseSomewhere = do
-  _ <- expect T.KwSomewhere *> expect T.LBrace
-  decls <- parseFunctionSignatures
-  pure $ DefSomewhere decls
+parseSomewhere =
+  do _ <- expect T.KwSomewhere *> expect T.LBrace
+     DefSomewhere <$> parseFunctionSignatures
 
 parseFunctionSignatures :: Parser [FunctionSignature]
 parseFunctionSignatures = do
