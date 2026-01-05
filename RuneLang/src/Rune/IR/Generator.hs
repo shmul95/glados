@@ -75,5 +75,5 @@ initialState fs =
     }
 
 getDefinedFuncName :: IRTopLevel -> [String]
-getDefinedFuncName (IRFunctionDef (IRFunction n _ _ _)) = [n]
+getDefinedFuncName (IRFunctionDef (IRFunction n _ _ _ _)) = [n]
 getDefinedFuncName _ = []
