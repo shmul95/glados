@@ -29,15 +29,29 @@ findFunc (Program _ defs) = do
 --
 
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
-findDefs s (DefFunction name params rType _) =
+
+-- | find normal function definitions
+-- lookup for existing function name in the stack
+-- if found, check if the signature already exists
+-- if the signature exists -> error
+-- if not found, insert the new function signature
+findDefs s (DefFunction name params rType _ _) =
     let paramTypes = map paramType params
         newSign = (rType, paramTypes)
         msg = "\n\tFuncAlreadyExist: %s was already defined, use override"
     in case HM.lookup name s of
+      Just existing -> 
+        if newSign `elem` existing
+          then Right s
+          else Left $ printf msg name
       Nothing -> Right $ HM.insert name [newSign] s
-      Just _  -> Left $ printf msg name
 
-findDefs s (DefOverride name params rType _) =
+-- | find override function definitions
+-- lookup for existing function name in the stack
+-- if found, append the new signature
+-- if the mangled name differs, insert the mangled version as well
+-- if not found, -> invalid override error
+findDefs s (DefOverride name params rType _ _) =
     let paramTypes = map paramType params
         newSign = (rType, paramTypes)
         msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
@@ -49,6 +63,24 @@ findDefs s (DefOverride name params rType _) =
            then Right s'
            else Right $ HM.insert mangledName [newSign] s'
       Nothing   -> Left $ printf msg name
+
+-- | find function signatures defined somewhere else
+-- iterate over all signatures
+-- if override, always insert or append the signature
+-- if not override, insert only if the function does not already exist
+findDefs s (DefSomewhere sigs) = foldM addSig s sigs
+  where
+    addSig fs (FunctionSignature name paramTypes rType isOverride) =
+      let newSign = (rType, paramTypes)
+      in if isOverride
+         then case HM.lookup name fs of
+                Just list -> Right $ HM.insert name (list <> [newSign]) fs
+                Nothing   -> Right $ HM.insert name [newSign] fs
+         else case HM.lookup name fs of
+                Nothing -> Right $ HM.insert name [newSign] fs
+                Just _  -> Right fs
+
+-- | otherwise...
 findDefs s _ = Right s
 
 mangleFuncName :: String -> Type -> [Type] -> String
