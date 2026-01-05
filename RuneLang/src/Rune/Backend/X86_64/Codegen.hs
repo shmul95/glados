@@ -145,7 +145,7 @@ emitFunction fn@(IRFunction name params _ body _) =
 emitFunctionPrologue :: Function -> Int -> [String]
 emitFunctionPrologue (IRFunction name _ _ _ isExport) frameSize =
   let shouldExport = isExport || name == "main"
-  in (if shouldExport then ["global " <> name] else [])
+  in ["global " <> name | shouldExport]
     <> [ name <> ":"
        , emit 1 "push rbp"
        , emit 1 "mov rbp, rsp"
