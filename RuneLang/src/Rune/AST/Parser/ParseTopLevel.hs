@@ -28,6 +28,7 @@ module Rune.AST.Parser.ParseTopLevel
 where
 
 import Control.Applicative ((<|>))
+import Control.Monad (when)
 import Data.Either (partitionEithers)
 import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.AST.Parser.ParseBlock (parseBlock)
@@ -194,7 +195,7 @@ parseFunctionSignatures = do
 parseFunctionSignature :: Parser FunctionSignature
 parseFunctionSignature = do
   isOverride <- check T.KwOverride
-  _ <- if isOverride then advance else pure ()
+  _ <- when isOverride advance
   _ <- expect T.KwDef
   name <- parseIdentifier
   paramTypes <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamTypeInSignature (expect T.Comma))
