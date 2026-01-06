@@ -25,11 +25,14 @@ import qualified Data.List as List
 
 import Rune.AST.Nodes
 import Rune.Semantics.Func (findFunc)
+import Rune.Semantics.Struct (findStruct)
 import Rune.Semantics.Generic (instantiate)
 
 import Rune.Semantics.Type
   ( FuncStack
   , VarStack
+  , StructStack
+  , Stack
   , Templates
   )
 
@@ -42,8 +45,11 @@ import Rune.Semantics.Helper
   , isTypeCompatible
   , SemanticError(..)
   , formatSemanticError
+  , fixSelfType
   )
 import Rune.Semantics.OpType (iHTBinary)
+
+import Debug.Trace (trace)
 
 --
 -- state monad
@@ -54,6 +60,7 @@ data SemState = SemState
   , stTemplates    :: Templates               -- << generic functions ('any')
   , stNewDefs      :: [TopLevelDef]           -- << new functions
   , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
+  , stStructs      :: StructStack            -- << known structs
   }
 
 type SemM a = StateT SemState (Either String) a
@@ -68,19 +75,21 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
+  ss <- findStruct (Program n defs)
 
-  let initialState = SemState 
-        { stFuncs = fs
+  let initialState = SemState
+        { stFuncs = trace ("funcStack: " ++ show ss) fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
+        , stStructs = ss
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
-      finalFuncStack = stFuncs finalState
-  
-  pure (Program n allDefs, finalFuncStack)
+      finalFs = mangleFuncStack (stFuncs finalState)
+
+  pure (Program n allDefs, finalFs)
 
 --
 -- private
@@ -140,14 +149,17 @@ verifTopLevel (DefOverride name params r_t body) = do
   body' <- verifScope vs body
   pure $ DefOverride name' params r_t body'
 
-verifTopLevel def = pure def -- Structs
+verifTopLevel (DefStruct name fields methods) = do
+  methods' <- mapM (verifMethod name) methods
+  pure $ DefStruct name fields methods'
 
 -- | scope verification
 -- NOTE: 'FuncStack' is read from State, 'VarStack' is passed locally
 verifScope :: VarStack -> Block -> SemM Block
 verifScope vs (StmtVarDecl pos v t e : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
 
   e'      <- verifExprWithContext t vs e
@@ -191,7 +203,8 @@ verifScope vs (StmtIf pos cond a Nothing : stmts) = do
 
 verifScope vs (StmtFor pos v t (Just start) end body : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
   
   start'  <- verifExpr vs start
@@ -219,7 +232,8 @@ verifScope vs (StmtFor pos v t Nothing end body : stmts) = do
 
 verifScope vs (StmtForEach pos v t iter body : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
   
   iter'   <- verifExpr vs iter
@@ -247,7 +261,8 @@ verifScope vs (StmtLoop pos body : stmts) = do
 
 verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
 
   rv'     <- verifExpr vs rv
@@ -261,7 +276,8 @@ verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
 
 verifScope vs (StmtAssignment pos lhs rv : stmts) = do
   fs      <- gets stFuncs
-  let s   = (fs, vs)
+  ss      <- gets stStructs
+  let s   = (fs, vs, ss)
       SourcePos file line col = pos
 
   lhs'    <- verifExpr vs lhs
@@ -309,7 +325,8 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
   r' <- verifExprWithContext hint vs r
   
   fs <- gets stFuncs
-  let s = (fs, vs)
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
       SourcePos file line col = pos
   
   leftType  <- lift $ either 
@@ -323,28 +340,36 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
 
-verifExprWithContext hint vs (ExprCall pos name args) = do
+verifExprWithContext hint vs (ExprCall cPos (ExprVar _ fname) args) = do
   fs <- gets stFuncs
-  let s   = (fs, vs)
-      SourcePos file line col = pos
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
 
   args' <- mapM (verifExpr vs) args
-  
-  let argTypesResult = mapM (exprType s) args'
-  case argTypesResult of
-    Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "valid argument types" err ["function call"]
-    Right argTypes -> do
-      case name of
-        ExprVar _ fnName -> do
-          let match = checkParamType s fnName file line col args'
-          case match of
-            Right foundName -> pure $ ExprCall pos (ExprVar pos foundName) args'
-            Left err -> do
-                templates <- gets stTemplates
-                case HM.lookup fnName templates of
-                    Nothing -> lift $ Left $ formatSemanticError err
-                    Just templateDef -> tryInstantiateTemplate templateDef fnName args' argTypes hint
-        _ -> pure $ ExprCall pos name args'
+  argTypesResult <- mapM (lift . exprType s) args'
+  callOrInstantiate cPos hint s fname args' argTypesResult
+
+verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
+  fs <- gets stFuncs
+  ss <- gets stStructs
+  let s = (fs, vs, ss)
+
+  let targetTypeResult = exprType s (ExprVar vPos target)
+  targetType <- lift targetTypeResult
+  let mangledName = show targetType ++ "_" ++ method
+
+  _ <- case HM.lookup mangledName fs of
+    Just (_:_) -> pure ()
+    _ -> lift $ Left $ printf "Method '%s' not found on type '%s'" method (show targetType)
+
+  args' <- mapM (verifExpr vs) args
+  argTypesResult <- mapM (lift . exprType s) args'
+  let allArgs = ExprVar vPos target : args'
+      allArgTypes = targetType : argTypesResult
+  callOrInstantiate cPos hint s mangledName allArgs allArgTypes
+
+verifExprWithContext _ _ (ExprCall _ _ _) =
+  lift $ Left "Invalid function call target"
 
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
@@ -369,6 +394,22 @@ verifExprWithContext _ vs (ExprVar pos var)
 
 verifExprWithContext _ _ expr = pure expr
 
+verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
+verifMethod sName (DefFunction methodName params retType body) = do
+  fs <- gets stFuncs
+  let params' = fixSelfType sName params
+      paramTypes = map paramType params'
+      vs = trace ("Method " ++ sName ++ "." ++ methodName ++ " params: " ++ show params') 
+           $ HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+      baseName = sName ++ "_" ++ methodName
+      name' = case HM.lookup baseName fs of
+          Just sigs | length sigs > 1 -> mangleName baseName retType paramTypes
+          _ -> baseName
+
+  body' <- verifScope vs body
+  pure $ DefFunction name' params' retType body'
+verifMethod _ def = pure def
+
 --
 -- instanciation
 --
@@ -382,11 +423,11 @@ tryInstantiateTemplate def originalName args argTypes contextRetType = do
               []    -> SourcePos "<generated>" 0 0
 
   alreadyInstantiated mangled >>= \case
-    True  -> pure $ ExprCall pos (ExprVar pos mangled) args
+    True  -> pure $ ExprVar pos mangled
     False -> do
       verified <- verifTopLevel (instantiate def argTypes retTy)
       registerInstantiation mangled verified retTy argTypes
-      pure $ ExprCall pos (ExprVar pos mangled) args
+      pure $ ExprVar pos mangled
 
 
 resolveReturnType :: String -> [Type] -> Maybe Type -> SemM Type
@@ -414,3 +455,17 @@ registerInstantiation name def retTy argTys =
     , stFuncs        = HM.insertWith (<>) name [(retTy, argTys)] (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
+
+callOrInstantiate :: SourcePos -> Maybe Type -> Stack -> String -> [Expression] -> [Type] -> SemM Expression
+callOrInstantiate pos hint s name args argTypes = do
+  let SourcePos file line col = pos
+
+  case checkParamType s name file line col args of
+    Right foundName -> pure $ ExprCall pos (ExprVar pos foundName) args
+    Left err -> do
+      templates <- gets stTemplates
+      case HM.lookup name templates of
+        Just templateDef -> do
+          targetExpr <- tryInstantiateTemplate templateDef name args argTypes hint
+          pure $ ExprCall pos targetExpr args
+        Nothing -> lift $ Left $ formatSemanticError err

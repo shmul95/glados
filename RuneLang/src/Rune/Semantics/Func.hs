@@ -1,14 +1,15 @@
 module Rune.Semantics.Func (findFunc) where
 
 import Control.Monad (foldM)
-import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
+import qualified Data.List as List
 
 import Text.Printf (printf)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Type (FuncStack)
+import Rune.Semantics.Helper (fixSelfType)
 
 --
 -- public
@@ -41,29 +42,29 @@ findDefs s (DefOverride name params rType _) =
     let paramTypes = map paramType params
         newSign = (rType, paramTypes)
         msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
-        mangledName = mangleFuncName name rType paramTypes
     in case HM.lookup name s of
-      Just list -> 
-        let s' = HM.insert name (list <> [newSign]) s
-        in if mangledName == name
-           then Right s'
-           else Right $ HM.insert mangledName [newSign] s'
+      Just list ->
+        let (generic, specific) = List.partition (\(_, args) -> TypeAny `elem` args) list
+        in Right $ HM.insert name (specific ++ [newSign] ++ generic) s
       Nothing   -> Left $ printf msg name
-findDefs s _ = Right s
-
-mangleFuncName :: String -> Type -> [Type] -> String
-mangleFuncName fname ret args
-  | TypeAny `elem` args || ret == TypeAny = fname
-  | otherwise = intercalate "_" (show ret : fname : map show args)
+findDefs s (DefStruct name _ methods) =
+    foldM addMethod s methods
+  where
+    addMethod acc (DefFunction methodName params rType _) =
+      let baseName = name ++ "_" ++ methodName
+          params' = fixSelfType name params
+          paramTypes = map paramType params'
+          newSign = (rType, paramTypes)
+      in Right $ HM.insertWith (++) baseName [newSign] acc
+    addMethod acc _ = Right acc
 
 hasDuplicate :: (Ord a) => [a] -> Bool
 hasDuplicate xs = Set.size (Set.fromList xs) /= length xs
 
 findDuplicateMap :: FuncStack -> String -> Maybe String
 findDuplicateMap fs msg = foldr check Nothing (HM.toList fs)
-  where 
+  where
     check _ (Just err) = Just err
     check (name, sigs) Nothing
       | hasDuplicate sigs = Just $ printf msg name (show sigs)
       | otherwise = Nothing
-

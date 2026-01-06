@@ -21,8 +21,8 @@ import Rune.IR.Nodes (GenState (..), IRFunction (..), IRProgram (..), IRTopLevel
 import Rune.Semantics.Type (FuncStack)
 
 -- NOTE: uncomment for debugging
--- import Rune.AST.Printer (prettyPrint)
--- import Debug.Trace (trace)
+import Rune.AST.Printer (prettyPrint)
+import Debug.Trace (trace)
 
 --
 -- public
@@ -31,7 +31,7 @@ import Rune.Semantics.Type (FuncStack)
 generateIR :: Program -> FuncStack -> Either String IRProgram
 generateIR (Program name defs) fs =
   -- NOTE: uncomment for debugging
-  -- trace ("AST: " <> prettyPrint (Program name defs)) $
+  trace ("AST: " <> prettyPrint (Program name defs)) $
   let (result, finalState) = runState (runExceptT (mapM genTopLevel defs)) (initialState fs)
    in case result of
         Left err -> Left err
