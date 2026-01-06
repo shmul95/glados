@@ -59,7 +59,7 @@ testGenBlock = testGroup "genBlock"
       in result @?= [IRRET Nothing]
 
   , testCase "Multiple statements concatenated" $
-      let result = runGenUnsafe (genBlock [StmtReturn dummyPos Nothing, StmtReturn dummyPos Nothing])
+      let result = runGenUnsafe (genBlock [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 1), StmtReturn dummyPos Nothing])
       in length result @?= 2
   ]
 

@@ -36,6 +36,12 @@ varsSemanticsTests =
       expectOk "accepts incompatible assignment type (implementation returns Any for field access)" assignmentIncompatibleProgram,
       expectErr "detects undefined variable in binary op" binaryUndefinedProgram "Undefined variable",
 
+      -- Unreachable code detection tests
+      expectErr "detects unreachable code after return" unreachableAfterReturnProgram "Unreachable code after return",
+      expectErr "detects unreachable code after return with expression" unreachableAfterReturnExprProgram "Unreachable code after return",
+      expectOk "allows return in if branch followed by code" returnInIfBranchProgram,
+      expectErr "detects unreachable after multiple returns" multipleReturnsProgram "Unreachable code after return",
+
       testCase "mangleFuncStack covers all branches" testMangleFuncStack
     ]
 
@@ -153,6 +159,43 @@ assignmentIncompatibleProgram = Program "assignerr"
 binaryUndefinedProgram :: Program
 binaryUndefinedProgram = Program "binundef" 
   [ DefFunction "f" [] TypeNull [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprVar dummyPos "ghost") (ExprLitInt dummyPos 1))]
+  ]
+
+-- Unreachable code test programs
+
+unreachableAfterReturnProgram :: Program
+unreachableAfterReturnProgram = Program "unreach1"
+  [ DefFunction "f" [] TypeNull
+    [ StmtReturn dummyPos Nothing,
+      StmtReturn dummyPos Nothing  -- This should be unreachable
+    ]
+  ]
+
+unreachableAfterReturnExprProgram :: Program
+unreachableAfterReturnExprProgram = Program "unreach2"
+  [ DefFunction "f" [] TypeI32
+    [ StmtReturn dummyPos (Just (ExprLitInt dummyPos 0)),
+      StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))  -- This should be unreachable
+    ]
+  ]
+
+returnInIfBranchProgram :: Program
+returnInIfBranchProgram = Program "ifret"
+  [ DefFunction "f" [Parameter "x" TypeI32] TypeI32
+    [ StmtIf dummyPos (ExprVar dummyPos "x") 
+        [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+        (Just [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))]),
+      StmtReturn dummyPos (Just (ExprLitInt dummyPos 0))  -- This is reachable (if branches might not execute)
+    ]
+  ]
+
+multipleReturnsProgram :: Program
+multipleReturnsProgram = Program "multret"
+  [ DefFunction "f" [] TypeNull
+    [ StmtReturn dummyPos Nothing,
+      StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 1),  -- This should be unreachable
+      StmtReturn dummyPos Nothing
+    ]
   ]
 
 testMangleFuncStack :: IO ()
