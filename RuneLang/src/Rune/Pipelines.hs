@@ -129,29 +129,27 @@ compileMultiplePipeline inFiles outFile = do
 -- rune build <file1.ru> <file2.ru> ... -o output
 --
 -- threads:
---  1. read all files in parallel
---  2. perform sanity checks once
---  3. compile each file in parallel
---  4. return list of object files
---  5. log errors as they occur
+--  1. compile each file separately in parallel
+--  2. return list of object files
+--  3. log errors as they occur
 compileRuneSources :: [FilePath] -> FilePath -> IO [FilePath]
 compileRuneSources [] _ = pure []
-compileRuneSources runeFiles@(first:_) outFile = do
-  contents <- mapConcurrently safeRead runeFiles
-
-  case sequence contents of
-    Left err -> logError err >> pure []
-    Right runeContents -> do
-
-      performSanityChecks >>= either (\e -> logError e >> pure []) (\() ->
-        case pipeline (first, unlines runeContents) of
-          Left err -> logError err >> pure []
-          Right ir ->
-
-            let objFile = dropExtension outFile <> ".o"
-                asmContent = emitAssembly ir
-             in compileAsmToObject asmContent objFile >> pure [objFile]
-        )
+compileRuneSources runeFiles _ = do
+  performSanityChecks >>= either (\e -> logError e >> pure []) (\() -> do
+    results <- mapConcurrently compileRuneFile runeFiles
+    pure (catMaybes results)
+    )
+  where
+    compileRuneFile :: FilePath -> IO (Maybe FilePath)
+    compileRuneFile runeFile = do
+      result <- runPipeline runeFile
+      case result of
+        Left err -> logError err >> pure Nothing
+        Right ir -> do
+          let objFile = dropExtension runeFile <> ".o"
+              asmContent = emitAssembly ir
+          compileAsmToObject asmContent objFile
+          pure (Just objFile)
 
 -- | compile a list of assembly files into object files concurrently
 compileAsmSources :: [FilePath] -> IO [FilePath]
