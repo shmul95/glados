@@ -75,3 +75,5 @@ done
 echo -e "\n${CYAN}=======================================${NC}"
 echo -e "${CYAN}        BENCHMARK COMPLET             ${NC}"
 echo -e "${CYAN}=======================================${NC}"
+
+find "$BASE_DIR" -type f -name "*.o" -exec rm -f {} \;
