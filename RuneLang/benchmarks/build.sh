@@ -58,6 +58,11 @@ find "$BASE_DIR" -mindepth 1 -type d | while read -r subdir; do
                 rm -f *.class
                 rm -f "${name}"
                 ;;
+            cr)
+                crystal build --release "$filename" -o "${name}" && \
+                run_bench "Crystal" "./${name}"
+                rm -f "${name}"
+                ;;
             ru)
                 $RUNE_EXEC build "$filename" -o "${name}"
                 run_bench "Rune" "./${name}"

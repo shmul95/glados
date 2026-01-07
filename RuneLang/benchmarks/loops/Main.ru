@@ -2,7 +2,7 @@ def main() -> null
 {
     total_steps: i64 = 0;
 
-    for i: i64 = 1 to 1_000_000 {
+    for i: i64 = 1 to 1_000_001 {
         n: i64 = i;
         
         loop {
