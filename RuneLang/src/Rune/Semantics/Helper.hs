@@ -45,7 +45,7 @@ formatSemanticError (SemanticError file line col expected got ctx) =
   let header = printf "[ERROR]: %s:%d:%d: error:" file line col
       expectedLine = "  Expected: " <> expected
       gotLine = "  Got: " <> got
-      contexts = map (\c -> "  ... in " <> c) ctx
+      contexts = map ("  ... in " <>) ctx
   in intercalate "\n" ([header, expectedLine, gotLine] <> contexts)
 
 
@@ -93,6 +93,8 @@ exprType s (ExprAccess pos target field) = do
   case getFieldType pos ss targetType field of
     Right t -> Right t
     Left err -> Left (formatSemanticError err)
+
+exprType _ (ExprCast _ _ t)         = Right t
 
 exprType s (ExprBinary _ op a b)    = do 
   a' <- exprType s a

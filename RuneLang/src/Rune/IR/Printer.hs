@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.IR.Printer
@@ -50,7 +50,7 @@ printTopLevel (IRStructDef name fields) =
   "STRUCT " ++ name ++ " { " ++ intercalate ", " (map (\(n, t) -> n ++ ": " ++ printType t) fields) ++ " }"
 
 printFunction :: IRFunction -> String
-printFunction (IRFunction name params _ body) =
+printFunction (IRFunction name params _ body _) =
   let paramStrs = map (\(n, t) -> n ++ ": " ++ printType t) params
       header = "DEF " ++ name ++ "(" ++ intercalate ", " paramStrs ++ "):"
       bodyStrs = map printInstructionWithIndent body

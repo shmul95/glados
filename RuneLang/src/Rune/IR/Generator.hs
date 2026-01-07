@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.IR.Generator
@@ -75,5 +75,5 @@ initialState fs =
     }
 
 getDefinedFuncName :: IRTopLevel -> [String]
-getDefinedFuncName (IRFunctionDef (IRFunction n _ _ _)) = [n]
+getDefinedFuncName (IRFunctionDef (IRFunction n _ _ _ _)) = [n]
 getDefinedFuncName _ = []

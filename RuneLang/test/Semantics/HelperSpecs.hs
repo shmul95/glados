@@ -19,13 +19,14 @@ funcStack1 = HM.fromList
   [ ("foo", [(TypeI32, [TypeI32, TypeF32])])
   , ("overloaded", [(TypeI32, [TypeI32]), (TypeF32, [TypeF32]), (TypeI32, [TypeI64])])
   , ("any_arg", [(TypeNull, [TypeAny])])
-  , ("show", [(TypeNull, [TypeAny]), (TypeNull, [TypeArray TypeAny])])
+  , ("show", [(TypeNull, [TypeArray TypeAny]), (TypeNull, [TypeAny])])
   , ("empty_sigs", [])
   , ("deep_overload", [(TypeString, [TypeString]), (TypeBool, [TypeBool]), (TypeI32, [TypeI32])])
   ]
 
+
 stack1 :: Stack
-stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)])
+stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)], HM.empty)
 
 --
 -- public
@@ -176,7 +177,7 @@ exprTypeTests = testGroup "exprType Tests"
       exprType stack1 (ExprIndex dummyPos charArr (ExprLitInt dummyPos 1)) @?= Right TypeChar
   , testCase "ExprIndex on TypeAny" $ 
       let vs = HM.singleton "a" TypeAny
-      in exprType (funcStack1, vs) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
+      in exprType (funcStack1, vs, HM.empty) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
   , testCase "ExprLitArray incompatible elements - Error" $ 
       (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of 
           Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
@@ -187,8 +188,48 @@ exprTypeTests = testGroup "exprType Tests"
           Right _ -> assertFailure "Expected error")
   , testCase "ExprStructInit Type" $ 
       exprType stack1 (ExprStructInit dummyPos "Vec2f" []) @?= Right (TypeCustom "Vec2f")
-  , testCase "ExprAccess Type" $ 
-      exprType stack1 (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Right TypeAny
+  , testCase "ExprAccess on valid struct field" $ do
+      let structStack = HM.singleton "Point" (DefStruct "Point" [Field "x" TypeF32, Field "y" TypeF32] [])
+          varStack = HM.singleton "p" (TypeCustom "Point")
+          stack = (funcStack1, varStack, structStack)
+      exprType stack (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Right TypeF32
+  , testCase "ExprAccess on undefined variable (TypeAny) - error" $ do
+      let structStack = HM.singleton "Point" (DefStruct "Point" [Field "x" TypeF32] [])
+          varStack = HM.empty
+          stack = (funcStack1, varStack, structStack)
+      case exprType stack (ExprAccess dummyPos (ExprVar dummyPos "p") "x") of
+          Left err -> "cannot access field" `isInfixOf` err @? "Should mention field access error"
+          Right _ -> assertFailure "Expected error when accessing field on TypeAny"
+  , testCase "ExprAccess on non-struct type (i32) - error" $ do
+      let varStack = HM.singleton "n" TypeI32
+          stack = (funcStack1, varStack, HM.empty)
+      case exprType stack (ExprAccess dummyPos (ExprVar dummyPos "n") "x") of
+          Left err -> "cannot access field" `isInfixOf` err @? "Should reject field access on i32"
+          Right _ -> assertFailure "Expected error when accessing field on non-struct type"
+  , testCase "ExprAccess on undefined field - error" $ do
+      let structStack = HM.singleton "Point" (DefStruct "Point" [Field "x" TypeF32, Field "y" TypeF32] [])
+          varStack = HM.singleton "p" (TypeCustom "Point")
+          stack = (funcStack1, varStack, structStack)
+      case exprType stack (ExprAccess dummyPos (ExprVar dummyPos "p") "z") of
+          Left err -> "undefined field" `isInfixOf` err @? "Should mention undefined field"
+          Right _ -> assertFailure "Expected error when accessing non-existent field"
+  , testCase "ExprAccess on multiple fields of same struct" $ do
+      let structStack = HM.singleton "Point" (DefStruct "Point" [Field "x" TypeF32, Field "y" TypeF32, Field "z" TypeI32] [])
+          varStack = HM.singleton "p" (TypeCustom "Point")
+          stack = (funcStack1, varStack, structStack)
+      exprType stack (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Right TypeF32
+      exprType stack (ExprAccess dummyPos (ExprVar dummyPos "p") "y") @?= Right TypeF32
+      exprType stack (ExprAccess dummyPos (ExprVar dummyPos "p") "z") @?= Right TypeI32
+
+  , testCase "ExprAccess on nested struct field" $ do
+      let structStack = HM.fromList 
+            [ ("Point", DefStruct "Point" [Field "x" TypeF32, Field "y" TypeF32] [])
+            , ("Vec2f", DefStruct "Vec2f" [Field "pos" (TypeCustom "Point"), Field "length" TypeF32] [])
+            ]
+          varStack = HM.singleton "v" (TypeCustom "Vec2f")
+          stack = (funcStack1, varStack, structStack)
+      exprType stack (ExprAccess dummyPos (ExprVar dummyPos "v") "pos") @?= Right (TypeCustom "Point")
+      exprType stack (ExprAccess dummyPos (ExprVar dummyPos "v") "length") @?= Right TypeF32
   , testCase "ExprVar (exists)" $ 
       exprType stack1 (ExprVar dummyPos "x") @?= Right TypeI32
   , testCase "ExprVar (not exists)" $ 
@@ -310,7 +351,7 @@ checkParamTypeTests = testGroup "checkParamType Tests"
           Right _ -> assertFailure "Expected error")
   , testCase "Overloaded - Match i32" $ 
       (case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprVar dummyPos "x"] of 
-          Right name -> name @?= "overloaded"
+          Right name -> name @?= "i32_overloaded_i32"
           Left _ -> assertFailure "Expected success")
   , testCase "Overloaded - Match f32 (mangle)" $ 
       (case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprVar dummyPos "f"] of 
@@ -324,7 +365,7 @@ checkParamTypeTests = testGroup "checkParamType Tests"
           Left _ -> assertFailure "Expected success")
   , testCase "Overloaded - Mismatch all - Error Content" $      case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprLitBool dummyPos True] of 
           Left err -> do 
-             seExpected err @?= "matching signature for overloaded"
+             "matching signature for overloaded" `isInfixOf` seExpected err @? "Should mention matching signature for overloaded"
              seGot err @?= "no matching overload"
              seContext err @?= ["function call", "global context"]
           Right _ -> assertFailure "Expected error"

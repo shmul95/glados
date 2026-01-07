@@ -1,0 +1,21 @@
+name: run_hlint
+
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+
+jobs:
+  run_hlint:
+    name: Run HLint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install HLint
+        run: sudo apt-get update && sudo apt-get install -y hlint
+
+      - name: Run HLint script
+        run: ./scripts/check_hlint.sh

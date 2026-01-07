@@ -28,6 +28,8 @@ keywordMap =
     (KwLoop, "loop"),
     (KwNext, "next"),
     (KwStop, "stop"),
+    (KwSomewhere, "somewhere"),
+    (KwExport, "export"),
     (OpAnd, "and"),
     (OpOr, "or"),
     (OpNot, "not")

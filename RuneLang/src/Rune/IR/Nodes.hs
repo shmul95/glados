@@ -146,7 +146,8 @@ data IRFunction = IRFunction
   { irFuncName :: String,
     irFuncParams :: [(String, IRType)],
     irFuncRetType :: Maybe IRType,
-    irFuncBody :: [IRInstruction]
+    irFuncBody :: [IRInstruction],
+    irFuncIsExport :: Bool
   }
   deriving (Show, Eq)
 

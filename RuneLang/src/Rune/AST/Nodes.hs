@@ -11,6 +11,7 @@ module Rune.AST.Nodes
     UnaryOp (..),
     Parameter (..),
     Field (..),
+    FunctionSignature (..),
     Block,
     SourcePos (..),
     getExprPos,
@@ -110,7 +111,8 @@ data TopLevelDef
       { funcName :: String,
         funcParams :: [Parameter],
         funcReturnType :: Type,
-        funcBody :: Block
+        funcBody :: Block,
+        funcIsExport :: Bool
       }
   | -- | struct definition
     -- struct Vec2f
@@ -138,7 +140,17 @@ data TopLevelDef
       { overrideName :: String,
         overrideParams :: [Parameter],
         overrideReturnType :: Type,
-        overrideBody :: Block
+        overrideBody :: Block,
+        overrideIsExport :: Bool
+      }
+  | -- | somewhere block (forward declarations)
+    -- somewhere
+    -- {
+    --     def foo(i32) -> null;
+    --     override def bar(string) -> null;
+    -- }
+    DefSomewhere
+      { somewhereDecls :: [FunctionSignature]
       }
   deriving (Show, Eq)
 
@@ -160,6 +172,15 @@ data Parameter = Parameter {paramName :: String, paramType :: Type}
 --     y: f32;
 -- }
 data Field = Field {fieldName :: String, fieldType :: Type}
+  deriving (Show, Eq)
+
+-- | function signature for forward declarations
+data FunctionSignature = FunctionSignature
+  { sigName :: String,
+    sigParams :: [Type],
+    sigReturnType :: Type,
+    sigIsOverride :: Bool
+  }
   deriving (Show, Eq)
 
 -- | statements
@@ -293,6 +314,14 @@ data Expression
         indexTarget :: Expression,
         indexValue :: Expression
       }
+  | -- | type cast
+    -- 42: i8
+    -- 3.14: f32
+    ExprCast
+      { exprPos :: SourcePos,
+        castExpr :: Expression,
+        castType :: Type
+      }
   | -- | literals and variables
     -- 42
     ExprLitInt SourcePos Int
@@ -321,6 +350,7 @@ getExprPos (ExprCall pos _ _) = pos
 getExprPos (ExprStructInit pos _ _) = pos
 getExprPos (ExprAccess pos _ _) = pos
 getExprPos (ExprIndex pos _ _) = pos
+getExprPos (ExprCast pos _ _) = pos
 getExprPos (ExprLitInt pos _) = pos
 getExprPos (ExprLitFloat pos _) = pos
 getExprPos (ExprLitString pos _) = pos

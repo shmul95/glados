@@ -207,9 +207,6 @@ testNamingHelpers = testGroup "Naming Helpers"
 
   , testCase "makeLabel formats correctly" $
       makeLabel "loop" 42 @?= IRLabel ".L.loop42"
-  
-  , testCase "mangleMethodName combines strings" $
-      mangleMethodName "Struct" "method" @?= "Struct_method"
   ]
 
 testStringGlobalHelpers :: TestTree

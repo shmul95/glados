@@ -41,17 +41,18 @@ genTopLevelTests = testGroup "Rune.IR.Generator.GenTopLevel"
 testGenTopLevel :: TestTree
 testGenTopLevel = testGroup "genTopLevel"
   [ testCase "Routes DefFunction to genFunction" $
-      let def = DefFunction "test" [] TypeNull []
+      let def = DefFunction "test" [] TypeNull [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> irFuncName func @?= "test"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Routes DefOverride to genOverride" $
-      let def = DefOverride "show" [Parameter "self" (TypeCustom "Point")] TypeNull []
+      -- override def show(self: Point) -> null {}
+      let def = DefOverride "null_show_Point" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "show_Point"
+        [IRFunctionDef func] -> irFuncName func @?= "null_show_Point"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Routes DefStruct to genStruct" $
@@ -65,7 +66,7 @@ testGenTopLevel = testGroup "genTopLevel"
 testGenFunction :: TestTree
 testGenFunction = testGroup "genFunction"
   [ testCase "Generates function with no params or body" $
-      let def = DefFunction "empty" [] TypeNull []
+      let def = DefFunction "empty" [] TypeNull [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> do
@@ -76,7 +77,7 @@ testGenFunction = testGroup "genFunction"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Generates function with params" $
-      let def = DefFunction "add" [Parameter "a" TypeI32, Parameter "b" TypeI32] TypeI32 []
+      let def = DefFunction "add" [Parameter "a" TypeI32, Parameter "b" TypeI32] TypeI32 [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> do
@@ -85,7 +86,7 @@ testGenFunction = testGroup "genFunction"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Generates function with body" $
-      let def = DefFunction "test" [] TypeNull [StmtReturn dummyPos Nothing]
+      let def = DefFunction "test" [] TypeNull [StmtReturn dummyPos Nothing] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> do
@@ -95,22 +96,8 @@ testGenFunction = testGroup "genFunction"
 
 testGenOverride :: TestTree
 testGenOverride = testGroup "genOverride"
-  [ testCase "Mangles name with TypeCustom first param" $
-      let def = DefOverride "show" [Parameter "self" (TypeCustom "Vec2")] TypeNull []
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "show_Vec2"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Does not mangle without TypeCustom" $
-      let def = DefOverride "print" [Parameter "x" TypeI32] TypeNull []
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "print"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Handles empty params" $
-      let def = DefOverride "test" [] TypeNull []
+  [ testCase "Handles empty params" $
+      let def = DefOverride "test" [] TypeNull [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> irFuncName func @?= "test"
@@ -130,7 +117,7 @@ testGenStruct = testGroup "genStruct"
 
   , testCase "Generates struct with methods" $
       let def = DefStruct "Vec2" [Field "x" TypeF32] 
-                [DefFunction "magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 []]
+                [DefFunction "Vec2_magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 [] False]
           result = runGenUnsafe (genTopLevel def)
       in do
         length result @?= 2
@@ -150,15 +137,8 @@ testGenStruct = testGroup "genStruct"
 
 testGenStructMethod :: TestTree
 testGenStructMethod = testGroup "genStructMethod"
-  [ testCase "Mangles method name" $
-      let method = DefFunction "calc" [Parameter "self" (TypeCustom "Point")] TypeI32 []
-          result = runGenUnsafe (genStructMethod "Point" method)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "Point_calc"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Fixes self parameter type" $
-      let method = DefFunction "test" [Parameter "self" TypeAny] TypeNull []
+  [ testCase "Fixes self parameter type" $
+      let method = DefFunction "test" [Parameter "self" TypeAny] TypeNull [] False
           result = runGenUnsafe (genStructMethod "Vec" method)
       in case result of
         [IRFunctionDef _] -> return ()

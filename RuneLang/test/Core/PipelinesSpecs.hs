@@ -13,22 +13,6 @@ import System.IO (hClose, hPutStr, openTempFile)
 import Data.Either (isLeft, isRight)
 
 import Rune.Pipelines
-  ( CompileMode (..),
-    compilePipeline,
-    compileAsmToObject,
-    compileObjectIntoExecutable,
-    translateRuneInAsm,
-    interpretPipeline,
-    pipeline,
-    verifAndGenIR,
-    runPipeline,
-    runPipelineAction,
-    optimizeIR,
-    checkSemantics,
-    safeRead,
-    parseLexer,
-    parseAST,
-  )
 import Rune.AST.Nodes (Program(..))
 import Rune.IR.Nodes (IRProgram (..))
 import Rune.IR.Generator (generateIR)
@@ -73,6 +57,10 @@ semErrorRuneCode :: String
 semErrorRuneCode =
     "def main() -> i32 { x: string = 10; return 0; }"
 
+helperRuneCode :: String
+helperRuneCode =
+    "def helper() -> i32 { return 1; }"
+
 catchExitCode :: IO () -> IO ExitCode
 catchExitCode action = catch (action >> return ExitSuccess) (\e -> return e)
 
@@ -84,6 +72,16 @@ withTempFile content action = do
   tmpDir <- getTemporaryDirectory
   bracket (openTempFile tmpDir "test.rune")
           (\(fp, h) -> hClose h >> removeFile fp)
+          (\(fp, h) -> do
+             hPutStr h content
+             hClose h
+             action fp)
+
+withTempRuneFile :: String -> (FilePath -> IO a) -> IO a
+withTempRuneFile content action = do
+  tmpDir <- getTemporaryDirectory
+  bracket (openTempFile tmpDir "test-XXXXXX.ru")
+          (\(fp, h) -> hClose h >> removeFileIfExists fp)
           (\(fp, h) -> do
              hPutStr h content
              hClose h
@@ -170,7 +168,6 @@ pipelinePrivateTests =
     , testCase "runPipeline_read_failure" test_runPipeline_read_failure
     , testCase "runPipelineAction_success" test_runPipelineAction_success
     , testCase "runPipelineAction_failure" test_runPipelineAction_failure
-    , testCase "translateRuneInAsm_success" test_translateRuneInAsm_success
     , testCase "compileAsmToObject_success" test_compileAsmToObject_success
     , testCase "compileAsmToObject_failure" test_compileAsmToObject_failure
     , testCase "compileAsmToObject_injection_safe" test_compileAsmToObject_injection_safe
@@ -185,6 +182,8 @@ pipelineCoverageTests =
     , testCase "compilePipeline_asm_read_failure" test_compilePipeline_asm_read_failure
     , testCase "compilePipeline_unsupported_ext" test_compilePipeline_unsupported_ext
     , testCase "compileObjectIntoExecutable_success" test_compileObjectIntoExecutable_success
+    , testCase "compileMultiplePipeline_success" test_compileMultiplePipeline_success
+    , testCase "compileMultiplePipeline_no_inputs" test_compileMultiplePipeline_no_inputs
     ]
 
 --
@@ -381,20 +380,6 @@ test_runPipelineAction_failure = do
         res <- catchExitCode (runPipelineAction fp onSuccess)
         assertEqual "runPipelineAction_failure should exit with 84" (ExitFailure 84) res
 
-test_translateRuneInAsm_success :: IO ()
-test_translateRuneInAsm_success = do
-    case parseLexer (validFile, validRuneCode) of
-      Right (fp, tokens) -> case parseAST (fp, tokens) of
-        Right ast -> case checkSemantics ast of
-          Right (checkedAST, fs) -> case generateIR checkedAST fs of
-            Right irProg -> do
-              let asmContent = translateRuneInAsm irProg
-              assertBool "ASM content should not be empty" (not (null asmContent))
-            Left err -> assertFailure $ "generateIR failed: " ++ err
-          Left _ -> assertFailure "checkSemantics failed"
-        Left _ -> assertFailure "Parser failed"
-      Left _ -> assertFailure "Lexer failed"
-
 test_compileAsmToObject_success :: IO ()
 test_compileAsmToObject_success = do
   let asmContent = "section .text\nglobal main\nmain:\n mov rax, 60\n xor rdi, rdi\n syscall"
@@ -497,3 +482,24 @@ test_compileObjectIntoExecutable_success = do
             removeFileIfExists exe
             assertEqual "compileObjectIntoExecutable success" ExitSuccess res
             assertBool "Executable created" exists)
+
+test_compileMultiplePipeline_success :: IO ()
+test_compileMultiplePipeline_success = do
+    withTempRuneFile validRuneCode $ \fp1 ->
+      withTempRuneFile helperRuneCode $ \fp2 -> do
+        tmpDir <- getTemporaryDirectory
+        bracket (openTempFile tmpDir "multi.out")
+          (\(out, h) -> hClose h >> removeFileIfExists out)
+          (\(out, h) -> do
+            hClose h
+            res <- catchExitCode (compileMultiplePipeline [fp1, fp2] out)
+            exists <- doesFileExist out
+            removeFileIfExists out
+            assertEqual "compileMultiplePipeline success" ExitSuccess res
+            assertBool "Executable created" exists)
+
+test_compileMultiplePipeline_no_inputs :: IO ()
+test_compileMultiplePipeline_no_inputs = do
+  res <- catchExitCode (compileMultiplePipeline [] "out")
+  removeFileIfExists "out"
+  assertEqual "compileMultiplePipeline should fail without inputs" (ExitFailure 84) res

@@ -244,7 +244,8 @@ testIRFunction =
                 { irFuncName = "calculate",
                   irFuncParams = params,
                   irFuncRetType = Just IRI32,
-                  irFuncBody = body
+                  irFuncBody = body,
+                  irFuncIsExport = False
                 }
          in do
               irFuncName func @?= "calculate"
@@ -252,10 +253,10 @@ testIRFunction =
               irFuncRetType func @?= Just IRI32
               irFuncBody func @?= body,
       testCase "Deriving Show/Eq" $
-        let func1 = IRFunction "f" [] Nothing []
-            func2 = IRFunction "f" [] Nothing []
+        let func1 = IRFunction "f" [] Nothing [] False
+            func2 = IRFunction "f" [] Nothing [] False
          in do
-              show func1 @?= "IRFunction {irFuncName = \"f\", irFuncParams = [], irFuncRetType = Nothing, irFuncBody = []}"
+              show func1 @?= "IRFunction {irFuncName = \"f\", irFuncParams = [], irFuncRetType = Nothing, irFuncBody = [], irFuncIsExport = False}"
               func1 @?= func2
     ]
 
@@ -273,7 +274,8 @@ testIRTopLevel =
                 { irFuncName = "main",
                   irFuncParams = [],
                   irFuncRetType = Just IRI32,
-                  irFuncBody = [IRRET (Just op_const_int)]
+                  irFuncBody = [IRRET (Just op_const_int)],
+                  irFuncIsExport = False
                 }
          in IRFunctionDef func @?= IRFunctionDef func,
       testCase "IRStructDef" $ IRStructDef "Vec2" [("x", IRF32)] @?= IRStructDef "Vec2" [("x", IRF32)],
@@ -293,7 +295,8 @@ testIRProgram =
                     { irFuncName = "entry",
                       irFuncParams = [],
                       irFuncRetType = Nothing,
-                      irFuncBody = []
+                      irFuncBody = [],
+                      irFuncIsExport = False
                     }
               ]
             program =

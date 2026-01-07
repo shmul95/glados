@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.SanityChecks (
@@ -39,7 +39,7 @@ hasTool :: String -> IO Bool
 hasTool = fmap isJust . findExecutable
 
 isArchSupported :: String -> Bool
-isArchSupported arch' = elem arch' supportedArchitecture
+isArchSupported arch' = arch' `elem` supportedArchitecture
 
 checkRequiredTools :: (String -> IO Bool) -> IO (Either String ())
 checkRequiredTools hasTool' = runExceptT $ do

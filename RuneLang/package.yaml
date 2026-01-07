@@ -21,6 +21,7 @@ dependencies:
   - directory
   - process
   - filepath
+  - async
 
 ghc-options:
   - -Wall

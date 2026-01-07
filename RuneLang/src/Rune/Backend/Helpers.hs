@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.Backend.Helpers
@@ -72,7 +72,7 @@ collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
 collectTopLevel _ acc = acc
 
 collectIRVars :: Function -> Map.Map String IRType
-collectIRVars (IRFunction _ params _ body) = 
+collectIRVars (IRFunction _ params _ body _) = 
   let initialMap = Map.fromList params
    in foldl' collectVars initialMap body
 

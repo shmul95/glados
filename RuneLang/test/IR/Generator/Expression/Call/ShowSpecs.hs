@@ -1,6 +1,4 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-#define TESTING_EXPORT
 
 module IR.Generator.Expression.Call.ShowSpecs (showCallTests) where
 
@@ -228,7 +226,7 @@ test_ensure_show_bool_func_definition = testCase "ensureShowBoolFunc adds show_b
 
 test_override_exists :: TestTree
 test_override_exists = testCase "overrideExists detects if IRTopLevel is a function with the target name" $ do
-    let func = IRFunction "show_int" [] Nothing []
+    let func = IRFunction "show_int" [] Nothing [] False
     let funcDef = IRFunctionDef func
     let extern = IRExtern "printf"
     

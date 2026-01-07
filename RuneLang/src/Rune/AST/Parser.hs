@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Rune.AST.Parser (parseRune) where
 
 import Rune.AST.Nodes (Program (..))

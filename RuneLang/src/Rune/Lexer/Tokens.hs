@@ -18,6 +18,8 @@ data TokenKind
   | KwLoop
   | KwStop
   | KwNext
+  | KwSomewhere
+  | KwExport
   -- | primitive types
   | TypeI8
   | TypeI16

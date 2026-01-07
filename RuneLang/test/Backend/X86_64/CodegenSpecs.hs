@@ -58,7 +58,8 @@ emitAssemblyTests = testGroup "emitAssembly"
             , IRFunctionDef (IRFunction "main_fn" [] Nothing 
                 [ IRALLOC_ARRAY "static_arr" IRI32 [IRConstInt 42]
                 , IRRET Nothing
-                ])
+                ]
+                False)
             ]
           resultLines = lines (emitAssembly program)
       in assertBool "should contain all assembly sections and labels" $
@@ -152,14 +153,14 @@ collectStaticArraysTests = testGroup "collectStaticArrays"
     testCase "collect static array" $
       let values = [IRConstInt 1, IRConstInt 2]
           instr = IRALLOC_ARRAY "arr" IRI32 values
-          func = IRFunction "main" [] Nothing [instr]
+          func = IRFunction "main" [] Nothing [instr] False
           result = collectStaticArrays [func]
       in case result of
            [(n, t, v)] -> assertBool "content match" $ n == "main_arr_lit" && t == IRI32 && v == values
            _           -> assertBool "expected exactly one static array" False
   , testCase "ignore dynamic array" $
       let instr = IRALLOC_ARRAY "arr" IRI32 [IRTemp "t" IRI32]
-          func = IRFunction "main" [] Nothing [instr]
+          func = IRFunction "main" [] Nothing [instr] False
       in assertBool "should be empty" $ null (collectStaticArrays [func])
   ]
 
@@ -427,10 +428,10 @@ emitRoDataSectionTests = testGroup "emitRoDataSection"
 emitDataSectionTests :: TestTree
 emitDataSectionTests = testGroup "emitDataSection"
   [ testCase "no static arrays" $
-      let fs = [IRFunction "f" [] Nothing []]
+      let fs = [IRFunction "f" [] Nothing [] False]
       in assertBool "should be empty" $ null (emitDataSection fs)
   , testCase "with static array" $
-      let fs = [IRFunction "m" [] Nothing [IRALLOC_ARRAY "a" IRI32 [IRConstInt 1, IRConstInt 2]]]
+      let fs = [IRFunction "m" [] Nothing [IRALLOC_ARRAY "a" IRI32 [IRConstInt 1, IRConstInt 2]] False]
           result = emitDataSection fs
       in assertBool "should format section and array definition" $
            take 1 result == ["section .data"] &&
@@ -442,7 +443,7 @@ emitTextSectionTests = testGroup "emitTextSection"
   [ testCase "empty functions" $
       assertBool "should be empty" $ null (emitTextSection [])
   , testCase "with functions" $
-      let fs = [IRFunction "f1" [] Nothing [], IRFunction "f2" [] Nothing []]
+      let fs = [IRFunction "f1" [] Nothing [] False, IRFunction "f2" [] Nothing [] False]
           result = emitTextSection fs
       in assertBool "should format section and functions" $
            take 1 result == ["section .text"] &&
@@ -465,7 +466,7 @@ emitFunctionTests = testGroup "emitFunction"
     testCase "full function emission" $
       let body = [IRRET (Just (IRTemp "arg1" IRI32))]
           params = [("arg1", IRI32)]
-          fn = IRFunction "test_func" params Nothing body
+          fn = IRFunction "test_func" params Nothing body True
           result = emitFunction fn
       in assertBool "should contain all function components" $
            any (== "global test_func") result &&
@@ -476,7 +477,7 @@ emitFunctionTests = testGroup "emitFunction"
            any (== ".L.function_end_test_func:") result &&
            any (== "    ret") result
   , testCase "empty function body" $
-      let fn = IRFunction "empty" [] Nothing []
+      let fn = IRFunction "empty" [] Nothing [] False
           result = emitFunction fn
       in assertBool "should still emit prologue and epilogue" $
            any (== "empty:") result &&
@@ -489,7 +490,7 @@ emitFunctionPrologueTests :: TestTree
 emitFunctionPrologueTests = testGroup "emitFunctionPrologue"
   [
     testCase "check standard prologue" $
-      let func = IRFunction "test" [] Nothing []
+      let func = IRFunction "test" [] Nothing [] True
           result = emitFunctionPrologue func 32
       in assertBool "should have prologue instructions" $
            any (=="global test") result &&

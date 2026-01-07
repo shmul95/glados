@@ -84,7 +84,7 @@ testCollectTopLevels = testGroup "collectTopLevels"
       in length globals @?= 2
 
   , testCase "Collects functions" $
-      let func = IRFunction "test" [] (Just IRNull) []
+      let func = IRFunction "test" [] (Just IRNull) [] False
           tls = [IRFunctionDef func]
           (_, _, funcs) = collectTopLevels tls
       in length funcs @?= 1
@@ -95,7 +95,7 @@ testCollectTopLevels = testGroup "collectTopLevels"
       in externs @?= ["printf"]
 
   , testCase "Handles mixed top levels" $
-      let func = IRFunction "f" [] (Just IRNull) []
+      let func = IRFunction "f" [] (Just IRNull) [] False
           tls = [IRExtern "e", IRGlobalDef "s" (IRGlobalStringVal "v"), IRFunctionDef func]
           (externs, globals, funcs) = collectTopLevels tls
       in do
@@ -107,17 +107,17 @@ testCollectTopLevels = testGroup "collectTopLevels"
 testCollectIRVars :: TestTree
 testCollectIRVars = testGroup "collectIRVars"
   [ testCase "Collects from params" $
-      let func = IRFunction "test" [("x", IRI32), ("y", IRI32)] (Just IRNull) []
+      let func = IRFunction "test" [("x", IRI32), ("y", IRI32)] (Just IRNull) [] False
           vars = collectIRVars func
       in Map.size vars @?= 2
 
   , testCase "Collects from IRASSIGN" $
-      let func = IRFunction "test" [] (Just IRNull) [IRASSIGN "x" (IRConstInt 1) IRI32]
+      let func = IRFunction "test" [] (Just IRNull) [IRASSIGN "x" (IRConstInt 1) IRI32] False
           vars = collectIRVars func
       in Map.member "x" vars @?= True
 
   , testCase "Collects from IRALLOC" $
-      let func = IRFunction "test" [] (Just IRNull) [IRALLOC "buf" (IRPtr IRChar)]
+      let func = IRFunction "test" [] (Just IRNull) [IRALLOC "buf" (IRPtr IRChar)] False
           vars = collectIRVars func
       in Map.lookup "buf" vars @?= Just (IRPtr IRChar)
 
@@ -126,7 +126,7 @@ testCollectIRVars = testGroup "collectIRVars"
             [ IRALLOC "x" IRI32
             , IRASSIGN "y" (IRConstInt 2) IRI32
             , IRADD_OP "z" (IRConstInt 1) (IRConstInt 2) IRI32
-            ]
+            ] False
           vars = collectIRVars func
       in Map.size vars @?= 3
   ]
@@ -134,19 +134,19 @@ testCollectIRVars = testGroup "collectIRVars"
 testCalculateStackMap :: TestTree
 testCalculateStackMap = testGroup "calculateStackMap"
   [ testCase "Calculates for empty function" $
-      let func = IRFunction "empty" [] (Just IRNull) []
+      let func = IRFunction "empty" [] (Just IRNull) [] False
           (stackMap, frameSize) = calculateStackMap func
       in do
         Map.size stackMap @?= 0
         frameSize @?= 0
 
   , testCase "Aligns frame size to 16 bytes" $
-      let func = IRFunction "test" [("x", IRI32)] (Just IRNull) []
+      let func = IRFunction "test" [("x", IRI32)] (Just IRNull) [] False
           (_, frameSize) = calculateStackMap func
       in frameSize `mod` 16 @?= 0
 
   , testCase "Calculates offsets for variables" $
-      let func = IRFunction "test" [("x", IRI32), ("y", IRI64)] (Just IRNull) []
+      let func = IRFunction "test" [("x", IRI32), ("y", IRI64)] (Just IRNull) [] False
           (stackMap, _) = calculateStackMap func
       in Map.size stackMap @?= 2
   ]
@@ -183,7 +183,7 @@ testCollectTopLevel = testGroup "collectTopLevel"
       in result @?= ([], [("s", IRGlobalStringVal "val")], [])
 
   , testCase "Adds function" $
-      let func = IRFunction "f" [] (Just IRNull) []
+      let func = IRFunction "f" [] (Just IRNull) [] False
           result = collectTopLevel (IRFunctionDef func) ([], [], [])
       in case result of
         ([], [], [_]) -> return ()

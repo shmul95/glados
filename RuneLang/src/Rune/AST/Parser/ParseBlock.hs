@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 module Rune.AST.Parser.ParseBlock
 #if defined(TESTING_EXPORT)
@@ -49,12 +49,12 @@ parseBlock = expect T.LBrace *> parseBlockLoop
 parseBlockLoop :: Parser Block
 parseBlockLoop = do
   isEnd <- check T.RBrace
-  case isEnd of
-    True -> advance >> pure []
-    False -> do
-      stmt <- parseStatement
-      stmts <- parseBlockLoop
-      pure (stmt : stmts)
+  if isEnd then
+    advance >> pure []
+  else do
+    stmt <- parseStatement
+    stmts <- parseBlockLoop
+    pure $ stmt : stmts
 
 parseStatement :: Parser Statement
 parseStatement = do
@@ -90,7 +90,7 @@ parseIf = do
   _ <- expect T.KwIf
   cond <- withContext "if condition" parseExpression
   thenBlock <- withContext "if block" parseBlock
-  elseBlock <- optional (expect T.KwElse *> (withContext "else block" (parseBlock <|> (pure <$> parseIf))))
+  elseBlock <- optional (expect T.KwElse *> withContext "else block" (parseBlock <|> (pure <$> parseIf)))
   pure $ StmtIf pos cond thenBlock elseBlock
 
 --

@@ -94,8 +94,8 @@ verifVars (Program n defs) = do
 --
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _) = hasAny ret || any (hasAny . paramType) params
-isGeneric (DefOverride _ _ _ _) = False
+isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefOverride {}) = False
 isGeneric _ = False
 
 
@@ -106,9 +106,10 @@ hasAny _ = False
 
 
 getDefName :: TopLevelDef -> String
-getDefName (DefFunction n _ _ _) = n
-getDefName (DefOverride n _ _ _) = n
+getDefName (DefFunction n _ _ _ _) = n
+getDefName (DefOverride n _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
+getDefName (DefSomewhere {}) = ""
 
 
 mangleFuncStack :: FuncStack -> FuncStack
@@ -127,7 +128,7 @@ mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
 --
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
-verifTopLevel (DefFunction name params r_t body) = do
+verifTopLevel (DefFunction name params r_t body isExport) = do
   fs <- gets stFuncs
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
       paramTypes = map paramType params
@@ -137,19 +138,21 @@ verifTopLevel (DefFunction name params r_t body) = do
           _ -> name
 
   body' <- verifScope vs body
-  pure $ DefFunction name' params r_t body'
+  pure $ DefFunction name' params r_t body' isExport
 
-verifTopLevel (DefOverride name params r_t body) = do
+verifTopLevel (DefOverride name params r_t body isExport) = do
   let paramTypes = map paramType params
       name' = mangleName name r_t paramTypes
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
 
   body' <- verifScope vs body
-  pure $ DefOverride name' params r_t body'
+  pure $ DefOverride name' params r_t body' isExport
 
 verifTopLevel (DefStruct name fields methods) = do
   methods' <- mapM (verifMethod name) methods
   pure $ DefStruct name fields methods'
+
+verifTopLevel def = pure def -- Somewhere
 
 -- | scope verification
 -- NOTE: 'FuncStack' is read from State, 'VarStack' is passed locally
@@ -386,6 +389,10 @@ verifExprWithContext hint vs (ExprLitArray pos elems) = do
   elems' <- mapM (verifExprWithContext hint vs) elems
   pure $ ExprLitArray pos elems'
 
+verifExprWithContext hint vs (ExprCast pos expr typ) = do
+  expr' <- verifExprWithContext hint vs expr
+  pure $ ExprCast pos expr' typ
+
 verifExprWithContext _ vs (ExprVar pos var)
   | HM.member var vs = pure (ExprVar pos var)
   | otherwise       = lift $ Left $ formatSemanticError $ SemanticError (posFile pos) (posLine pos) (posCol pos) (printf "Undefined variable '%s'" var) "undefined variable" ["variable reference"]
@@ -393,7 +400,7 @@ verifExprWithContext _ vs (ExprVar pos var)
 verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
-verifMethod sName (DefFunction methodName params retType body) = do
+verifMethod sName (DefFunction methodName params retType body isExport) = do
   fs <- gets stFuncs
   let params' = fixSelfType sName params
       paramTypes = map paramType params'
@@ -404,7 +411,7 @@ verifMethod sName (DefFunction methodName params retType body) = do
           _ -> baseName
 
   body' <- verifScope vs body
-  pure $ DefFunction name' params' retType body'
+  pure $ DefFunction name' params' retType body' isExport
 verifMethod _ def = pure def
 
 --

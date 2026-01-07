@@ -37,7 +37,7 @@ testRunIROptimizer = testGroup "runIROptimizer"
                  , IRASSIGN "y" (IRTemp "x" IRI64) IRI64
                  , IRRET (Just (IRTemp "y" IRI64))
                  ]
-          func = IRFunction "main" [] (Just IRI64) body
+          func = IRFunction "main" [] (Just IRI64) body False
           prog = IRProgram "test" [IRFunctionDef func]
           
           expectedBody = [ IRRET (Just (IRConstInt 10))
@@ -49,7 +49,7 @@ testRunIROptimizer = testGroup "runIROptimizer"
 testOptimizeTopLevel :: TestTree
 testOptimizeTopLevel = testGroup "optimizeTopLevel"
   [ testCase "Optimizes IRFunctionDef" $
-      let func = IRFunction "f" [] Nothing []
+      let func = IRFunction "f" [] Nothing [] False
           optFunc = func { irFuncBody = [] }
           res = optimizeTopLevel M.empty (IRFunctionDef func)
       in res @?= IRFunctionDef optFunc
@@ -67,7 +67,7 @@ testOptimizeFunction :: TestTree
 testOptimizeFunction = testGroup "optimizeFunction"
   [ testCase "Optimizes function body" $
       let body = [IRASSIGN "a" (IRConstInt 1) IRI64, IRRET (Just (IRTemp "a" IRI64))]
-          func = IRFunction "f" [] (Just IRI64) body
+          func = IRFunction "f" [] (Just IRI64) body False
           expected = [IRRET (Just (IRConstInt 1))]
       in irFuncBody (optimizeFunction M.empty func) @?= expected
   ]
@@ -76,17 +76,17 @@ testHelpers :: TestTree
 testHelpers = testGroup "Helpers"
   [ testCase "isInlineable returns true for small simple functions" $
       let body = replicate 5 (IRINC (IRTemp "x" IRI64))
-          func = IRFunction "f" [] Nothing body
+          func = IRFunction "f" [] Nothing body False
       in isInlineable func @?= True
       
   , testCase "isInlineable returns false for large functions" $
       let body = replicate 20 (IRINC (IRTemp "x" IRI64))
-          func = IRFunction "f" [] Nothing body
+          func = IRFunction "f" [] Nothing body False
       in isInlineable func @?= False
       
   , testCase "isInlineable returns false for control flow" $
       let body = [IRLABEL (IRLabel "l")]
-          func = IRFunction "f" [] Nothing body
+          func = IRFunction "f" [] Nothing body False
       in isInlineable func @?= False
 
   , testCase "isControlFlow identification" $ do
@@ -260,7 +260,7 @@ testOptimizationLogic = testGroup "Logic"
         osConsts newSt @?= M.empty
 
   , testCase "optimizeInstr: Inlines simple function" $
-      let callee = IRFunction "min" [] (Just IRI64) [IRRET (Just (IRConstInt 5))]
+      let callee = IRFunction "min" [] (Just IRI64) [IRRET (Just (IRConstInt 5))] False
           funcs = M.singleton "min" callee
           st = OptState M.empty funcs False
           
@@ -273,7 +273,7 @@ testOptimizationLogic = testGroup "Logic"
 
   , testCase "optimizeInstr: Does not inline complex function" $
       let body = replicate 20 (IRINC (IRTemp "x" IRI64))
-          callee = IRFunction "big" [] Nothing body
+          callee = IRFunction "big" [] Nothing body False
           funcs = M.singleton "big" callee
           st = OptState M.empty funcs False
           
@@ -286,7 +286,7 @@ testOptimizationLogic = testGroup "Logic"
                    [ IRALLOC "sum" IRI64
                    , IRADD_OP "sum" (IRParam "a" IRI64) (IRConstInt 1) IRI64
                    , IRRET (Just (IRTemp "sum" IRI64))
-                   ]
+                   ] False
           st = OptState M.empty M.empty False
           args = [IRConstInt 10]
           
