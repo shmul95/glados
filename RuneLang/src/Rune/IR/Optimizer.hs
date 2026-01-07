@@ -38,11 +38,13 @@ import Data.Bifunctor (first)
 
 type ConstMap = M.Map String IROperand
 type FuncMap = M.Map String IRFunction
+type UseCount = M.Map String Int
 
 data OptState = OptState
   { osConsts :: ConstMap,
     osFuncs :: FuncMap,
-    osKeepAssignments :: Bool
+    osKeepAssignments :: Bool,
+    osUseCounts :: UseCount
   }
 
 type OptM = State OptState
@@ -151,6 +153,12 @@ isControlFlow (IRJUMP _) = True
 isControlFlow (IRJUMP_TRUE _ _) = True
 isControlFlow (IRJUMP_FALSE _ _) = True
 isControlFlow (IRJUMP_EQ0 _ _) = True
+isControlFlow (IRJUMP_LT _ _ _) = True
+isControlFlow (IRJUMP_LTE _ _ _) = True
+isControlFlow (IRJUMP_GT _ _ _) = True
+isControlFlow (IRJUMP_GTE _ _ _) = True
+isControlFlow (IRJUMP_EQ _ _ _) = True
+isControlFlow (IRJUMP_NEQ _ _ _) = True
 isControlFlow _ = False
 
 simplifyInstr :: IRInstruction -> OptM IRInstruction
@@ -177,6 +185,12 @@ simplifyInstr (IROR_OP t o1 o2 ty) = IROR_OP t <$> simplifyOp o1 <*> simplifyOp 
 simplifyInstr (IRJUMP_TRUE o l) = IRJUMP_TRUE <$> simplifyOp o <*> pure l
 simplifyInstr (IRJUMP_FALSE o l) = IRJUMP_FALSE <$> simplifyOp o <*> pure l
 simplifyInstr (IRJUMP_EQ0 o l) = IRJUMP_EQ0 <$> simplifyOp o <*> pure l
+simplifyInstr (IRJUMP_LT o1 o2 l) = IRJUMP_LT <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_LTE o1 o2 l) = IRJUMP_LTE <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_GT o1 o2 l) = IRJUMP_GT <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_GTE o1 o2 l) = IRJUMP_GTE <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_EQ o1 o2 l) = IRJUMP_EQ <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_NEQ o1 o2 l) = IRJUMP_NEQ <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
 simplifyInstr (IRRET (Just o)) = IRRET . Just <$> simplifyOp o
 simplifyInstr (IRINC o) = IRINC <$> simplifyOp o
 simplifyInstr (IRDEC o) = IRDEC <$> simplifyOp o
@@ -214,6 +228,12 @@ renameInstr pre (IRJUMP (IRLabel l)) = IRJUMP (IRLabel (pre <> l))
 renameInstr pre (IRJUMP_TRUE o (IRLabel l)) = IRJUMP_TRUE (renameOp pre o) (IRLabel (pre <> l))
 renameInstr pre (IRJUMP_FALSE o (IRLabel l)) = IRJUMP_FALSE (renameOp pre o) (IRLabel (pre <> l))
 renameInstr pre (IRJUMP_EQ0 o (IRLabel l)) = IRJUMP_EQ0 (renameOp pre o) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_LT o1 o2 (IRLabel l)) = IRJUMP_LT (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_LTE o1 o2 (IRLabel l)) = IRJUMP_LTE (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_GT o1 o2 (IRLabel l)) = IRJUMP_GT (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_GTE o1 o2 (IRLabel l)) = IRJUMP_GTE (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_EQ o1 o2 (IRLabel l)) = IRJUMP_EQ (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_NEQ o1 o2 (IRLabel l)) = IRJUMP_NEQ (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
 renameInstr pre (IRCALL t f args rt) = IRCALL (pre <> t) f (map (renameOp pre) args) rt
 renameInstr pre (IRRET o) = IRRET (fmap (renameOp pre) o)
 renameInstr pre (IRADDR t s ty) = IRADDR (pre <> t) (pre <> s) ty
