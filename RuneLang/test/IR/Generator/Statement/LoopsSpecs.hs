@@ -32,7 +32,7 @@ testGenForTo = testGroup "genForTo"
       let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
           genBlock _ = return []
-          instrs = runGenUnsafe (genForTo genExpr genBlock "i" (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [])
+          instrs = runGenUnsafe (genForTo genExpr genBlock "i" Nothing (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [])
       in do
         assertBool "Should have labels" $ any isLabel instrs
         assertBool "Should have comparison" $ any isCmp instrs
@@ -42,7 +42,7 @@ testGenForTo = testGroup "genForTo"
       let genExpr (ExprLitInt _ n) = return ([], IRConstInt n, IRI32)
           genExpr _ = return ([], IRConstInt 0, IRI32)
           genBlock _ = return []
-          instrs = runGenUnsafe (genForTo genExpr genBlock "i" Nothing (ExprLitInt dummyPos 10) [])
+          instrs = runGenUnsafe (genForTo genExpr genBlock "i" Nothing Nothing (ExprLitInt dummyPos 10) [])
       in assertBool "Should generate loop" $ not $ null instrs
   ]
 
