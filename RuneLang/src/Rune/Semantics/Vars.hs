@@ -49,8 +49,6 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
-import Debug.Trace (trace)
-
 --
 -- state monad
 --
@@ -78,7 +76,7 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n defs)
 
   let initialState = SemState
-        { stFuncs = trace ("funcStack: " ++ show ss) fs
+        { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
@@ -399,8 +397,7 @@ verifMethod sName (DefFunction methodName params retType body) = do
   fs <- gets stFuncs
   let params' = fixSelfType sName params
       paramTypes = map paramType params'
-      vs = trace ("Method " ++ sName ++ "." ++ methodName ++ " params: " ++ show params') 
-           $ HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
       baseName = sName ++ "_" ++ methodName
       name' = case HM.lookup baseName fs of
           Just sigs | length sigs > 1 -> mangleName baseName retType paramTypes

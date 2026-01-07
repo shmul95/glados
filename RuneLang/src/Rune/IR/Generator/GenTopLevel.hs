@@ -27,7 +27,7 @@ import Control.Monad.Except (throwError)
 import Data.Map (empty, insert)
 import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.IR.Generator.GenStatement (genStatement)
-import Rune.IR.IRHelpers (astTypeToIRType, mangleMethodName, registerVar)
+import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
 import Rune.IR.Nodes
   ( GenState (..),
     IRFunction (..),
@@ -74,11 +74,8 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- | generate IR for an override function
 -- show(Vec2f) -> show_Vec2f
 genOverride :: TopLevelDef -> IRGen [IRTopLevel]
-genOverride (DefOverride name params retType body) = do
-  let mangledName = case params of
-        (Parameter _ (TypeCustom s) : _) -> mangleMethodName name s
-        _ -> name
-  genFunction (DefFunction mangledName params retType body)
+genOverride (DefOverride name params retType body) =
+  genFunction (DefFunction name params retType body)
 genOverride _ = throwError "genOverride called on non-override"
 
 -- | generate IR for a struct definition and its methods
@@ -95,10 +92,9 @@ genStruct _ = pure []
 -- | generate IR for a struct method
 -- Vec2f.magnitude() -> magnitude_Vec2f
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
-genStructMethod structName' (DefFunction methName params retType body) = do
-  let mangledName = mangleMethodName structName' methName
-      typedParams = map (fixSelfParam structName') params
-  genFunction (DefFunction mangledName typedParams retType body)
+genStructMethod structName' (DefFunction methName params retType body) =
+  let typedParams = map (fixSelfParam structName') params
+  in genFunction (DefFunction methName typedParams retType body)
 genStructMethod _ _ = pure []
 
 --
