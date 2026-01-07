@@ -44,7 +44,7 @@ def print_ko(message: str) -> None:
 
 def compile(examples_files: List[str]) -> subprocess.CompletedProcess:
 
-    build_cmd = ["rune", "build", *examples_files, "-o", OUT_BIN]
+    build_cmd = ["./rune", "build", *examples_files, "-o", OUT_BIN]
 
     try:
         result = subprocess.run(
