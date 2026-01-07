@@ -6,6 +6,6 @@ public class Main {
         for (long i = 0; i < 1_000_000_000L; i++) {
             result += i;
         }
-        System.out.println("result: " + result);
+        System.out.println(result);
     }
 }

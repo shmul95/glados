@@ -9,5 +9,5 @@ func main() {
 	for i := range 1_000_000_000 {
 		result += i
 	}
-	fmt.Println("result:", result)
+	fmt.Println(result)
 }
