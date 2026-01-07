@@ -11,7 +11,7 @@ echo -e "${CYAN}          BENCHMARK TESTER${NC}"
 echo -e "${CYAN}=======================================${NC}"
 
 BASE_DIR="$(dirname "$(realpath "$0")")"
-RUNE_EXEC="$(realpath "$BASE_DIR/../rune")"
+RUNE_EXEC="$(realpath $PWD/rune)"
 
 function run_bench()
 {
@@ -62,7 +62,7 @@ find "$BASE_DIR" -mindepth 1 -type d | while read -r subdir; do
                 run_bench "NodeJS" "node $filename"
                 ;;
             ru)
-                ../../rune build "$filename" -o "${name}"
+                $RUNE_EXEC build "$filename" -o "${name}"
                 run_bench "Rune" "./${name}"
                 rm -f "${name}"
                 ;;
