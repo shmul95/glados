@@ -26,6 +26,9 @@ module Rune.Backend.X86_64.Codegen
     emitIncDecHelper,
     emitAddr,
     emitConditionalJump,
+    emitDirectCmpJump,
+    emitIntCmpJump,
+    emitFloatCmpJump,
     emitRmWarning,
     collectStaticArrays,
     isStaticOperand,
@@ -195,6 +198,12 @@ emitInstruction _ _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " <> lbl]
 emitInstruction sm _ _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
 emitInstruction sm _ _ (IRJUMP_FALSE op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
 emitInstruction sm _ _ (IRJUMP_TRUE op (IRLabel lbl)) = emitConditionalJump sm op "jne" lbl
+emitInstruction sm _ _ (IRJUMP_LT o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jl" lbl
+emitInstruction sm _ _ (IRJUMP_LTE o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jle" lbl
+emitInstruction sm _ _ (IRJUMP_GT o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jg" lbl
+emitInstruction sm _ _ (IRJUMP_GTE o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jge" lbl
+emitInstruction sm _ _ (IRJUMP_EQ o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "je" lbl
+emitInstruction sm _ _ (IRJUMP_NEQ o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jne" lbl
 emitInstruction sm _ _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
 emitInstruction sm endLbl _ (IRRET mbOp) = emitRet sm endLbl mbOp
 emitInstruction sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
@@ -461,6 +470,38 @@ emitConditionalJump sm op jumpInstr lbl =
   loadRegWithExt sm ("rax", op)
     <> [emit 1 $ "test " <> getTestReg op <> ", " <> getTestReg op]
     <> [emit 1 $ jumpInstr <> " " <> lbl]
+
+emitDirectCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitDirectCmpJump sm op1 op2 jumpInstr lbl =
+  let typ1 = getOperandType op1
+      typ2 = getOperandType op2
+      isFloat = maybe False isFloatType typ1 || maybe False isFloatType typ2
+  in if isFloat
+     then emitFloatCmpJump sm op1 op2 jumpInstr lbl
+     else emitIntCmpJump sm op1 op2 jumpInstr lbl
+
+emitIntCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitIntCmpJump sm op1 op2 jumpInstr lbl =
+  let typ1 = maybe IRI64 id $ getOperandType op1
+      typ2 = maybe IRI64 id $ getOperandType op2
+      regSize = getSizeSpecifier typ1
+  in loadRegWithExt sm ("rax", op1)
+     <> case op2 of
+          IRConstInt n | n >= -2147483648 && n <= 2147483647 && regSize /= "byte" ->
+            [emit 1 $ "cmp " <> getRegisterName "rax" typ1 <> ", " <> show n]
+          _ -> loadRegWithExt sm ("rbx", op2)
+               <> [emit 1 $ "cmp " <> getRegisterName "rax" typ1 <> ", " <> getRegisterName "rbx" typ2]
+     <> [emit 1 $ jumpInstr <> " " <> lbl]
+
+emitFloatCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitFloatCmpJump sm op1 op2 jumpInstr lbl =
+  let typ = maybe IRF64 id $ getOperandType op1
+  in loadFloatOperand sm "xmm0" op1 typ
+     <> loadFloatOperand sm "xmm1" op2 typ
+     <> (case typ of
+           IRF32 -> [emit 1 "ucomiss xmm0, xmm1"]
+           _     -> [emit 1 "ucomisd xmm0, xmm1"])
+     <> [emit 1 $ jumpInstr <> " " <> lbl]
 
 emitRmWarning :: [String]
 emitRmWarning =
