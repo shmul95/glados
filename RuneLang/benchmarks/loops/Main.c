@@ -1,10 +1,23 @@
 #include <stdio.h>
 
 int main(void) {
-  long result = 0;
 
-  for (long i = 0; i < 1000000000; ++i) {
-    result += i;
+  long long total_steps = 0;
+
+  for (int i = 1; i <= 1000000; ++i) {
+    long long n = i;
+
+    while (n != 1) {
+
+      if (n % 2 == 0) {
+        n = n / 2;
+      } else {
+        n = 3 * n + 1;
+      }
+      ++total_steps;
+    }
   }
-  printf("%ld\n", result);
+
+  printf("%lld", total_steps);
+  return 0;
 }

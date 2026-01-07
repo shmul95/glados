@@ -58,9 +58,6 @@ find "$BASE_DIR" -mindepth 1 -type d | while read -r subdir; do
                 rm -f *.class
                 rm -f "${name}"
                 ;;
-            js)
-                run_bench "NodeJS" "node $filename"
-                ;;
             ru)
                 $RUNE_EXEC build "$filename" -o "${name}"
                 run_bench "Rune" "./${name}"

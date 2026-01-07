@@ -1,10 +1,22 @@
 def main() -> null
 {
-    result: i64 = 0;
+    total_steps: i64 = 0;
 
-    for i: i64 = 0 to 1_000_000_000 {
-        result += i;
+    for i: i64 = 1 to 1_000_000 {
+        n: i64 = i;
+        
+        loop {
+            if n == 1 {
+                stop;
+            }
+            if n % 2 == 0 {
+                n = n / 2;
+            } else {
+                n = n * 3 + 1;
+            }
+            total_steps = total_steps + 1;
+        }
         ++i;
     }
-    show(result)
+    show(total_steps);
 }
