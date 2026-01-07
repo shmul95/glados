@@ -69,12 +69,24 @@ genForTo genExpr genBlock var start end body = do
   bodyInstrs <- genBlock body
   popLoopContext
 
+  -- Extract start value to determine comparison direction
+  let startVal = case initInstrs of
+        (_ : IRASSIGN _ (IRConstInt s) _ : _) -> Just s
+        (IRASSIGN _ (IRConstInt s) _ : _) -> Just s
+        _ -> Nothing
+      
+      -- Determine comparison direction based on start and end values
+      cmpInstr = case (startVal, endOp) of
+        (Just s, IRConstInt e) | s > e -> IRCMP_GT cmpTemp (IRTemp var IRI32) endOp
+        (Nothing, IRConstInt e) | e < 0 -> IRCMP_GT cmpTemp (IRTemp var IRI32) endOp
+        _ -> IRCMP_LT cmpTemp (IRTemp var IRI32) endOp
+
   pure $
     mconcat
       [ initInstrs,
         [IRLABEL headerLbl],
         endInstrs,
-        [IRCMP_LT cmpTemp (IRTemp var IRI32) endOp],
+        [cmpInstr],
         [IRJUMP_FALSE (IRTemp cmpTemp IRBool) endLbl],
         [IRLABEL bodyLbl],
         bodyInstrs,

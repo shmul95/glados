@@ -89,103 +89,11 @@ optimizeTopLevel funcs (IRFunctionDef f) = IRFunctionDef (optimizeFunction funcs
 optimizeTopLevel _ other = other
 
 optimizeFunction :: FuncMap -> IRFunction -> IRFunction
-optimizeFunction funcs f = f { irFuncBody = finalBody }
+optimizeFunction funcs f = f { irFuncBody = newBody }
   where
     hasCF = any isControlFlow (irFuncBody f)
     initialState = OptState M.empty funcs hasCF
-    (basicOptBody, _) = runState (optimizeBlock (irFuncBody f)) initialState
-    finalBody = foldLoops basicOptBody
-
--- fold simple loops into closed-form expressions
--- for i = 0 to N { acc += i; ++i; } => acc = N*(N-1)/2
-foldLoops :: [IRInstruction] -> [IRInstruction]
-foldLoops [] = []
-foldLoops instrs = case findAndFoldLoop instrs of
-  Just folded -> foldLoops folded
-  Nothing -> instrs
-
-findAndFoldLoop :: [IRInstruction] -> Maybe [IRInstruction]
-findAndFoldLoop instrs =
-  case break isLoopHeader instrs of
-    (before, IRLABEL headerLbl : afterHeader) ->
-      foldLoop before headerLbl afterHeader
-    _ -> Nothing
-  where
-    isLoopHeader (IRLABEL (IRLabel l)) =
-      "loop" `isInfixOf` l && "header" `isInfixOf` l
-    isLoopHeader _ = False
-
-    foldLoop before headerLbl afterHeader =
-      case parseLoopStructure headerLbl afterHeader of
-        Just (_, endVal, accVar, _, _, afterLoop) ->
-          foldSum before accVar endVal afterLoop
-        Nothing -> Nothing
-
-    foldSum before accVar endVal afterLoop =
-      case endVal of
-        IRConstInt n ->
-          let sumResult   = (n * (n - 1)) `div` 2
-              resultInstr = IRASSIGN accVar (IRConstInt sumResult) IRI64
-          in Just (before ++ [resultInstr] ++ afterLoop)
-        _ -> Nothing
-
-    
-isInfixOf :: String -> String -> Bool
-isInfixOf needle haystack = any (needle `isPrefixOf`) (tails haystack)
-  where
-    isPrefixOf [] _ = True
-    isPrefixOf _ [] = False
-    isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
-    tails [] = [[]]
-    tails s@(_:xs) = s : tails xs
-
--- parse loop structure
--- CMP_LT cmp loopVar endVal;
--- JUMP_FALSE cmp endLbl;
--- LABEL bodyLbl;
--- ...
--- ADD acc acc loopVar;
--- ...
--- INC loopVar;
--- JUMP headerLbl;
--- LABEL endLbl
-parseLoopStructure :: IRLabel -> [IRInstruction] -> Maybe (String, IROperand, String, IRLabel, IRLabel, [IRInstruction])
-parseLoopStructure headerLbl instrs =
-  case instrs of
-    (IRCMP_LT _ (IRTemp loopVar _) endVal :
-     IRJUMP_FALSE _ endLbl :
-     IRLABEL _ :
-     rest) -> 
-      case findLoopBody loopVar headerLbl endLbl rest of
-        Just (accVar, afterLoop) -> Just (loopVar, endVal, accVar, headerLbl, endLbl, afterLoop)
-        Nothing -> Nothing
-    _ -> Nothing
-
--- find accumulator pattern:
--- acc = ADD acc loopVar;
--- ...
--- INC loopVar;
--- JUMP header;
--- LABEL end
-findLoopBody :: String -> IRLabel -> IRLabel -> [IRInstruction] -> Maybe (String, [IRInstruction])
-findLoopBody loopVar headerLbl endLbl instrs = findLoopAcc instrs Nothing
-  where
-    findLoopAcc [] _ = Nothing
-    findLoopAcc (IRJUMP jLbl : IRLABEL lbl : rest) (Just acc) 
-      | jLbl == headerLbl && lbl == endLbl = Just (acc, rest)
-    -- t = ADD result, i; result = t
-    findLoopAcc (IRADD_OP t (IRTemp v1 _) (IRTemp v2 _) _ : IRASSIGN target (IRTemp src _) _ : rest) _
-      | v2 == loopVar && src == t = findLoopAcc rest (Just target)
-      | v1 == loopVar && src == t = findLoopAcc rest (Just target)
-    findLoopAcc (IRADD_OP _ (IRTemp v1 _) (IRTemp v2 _) _ : rest) _
-      | v2 == loopVar = findLoopAcc rest (Just v1)
-      | v1 == loopVar = findLoopAcc rest (Just v2)
-    findLoopAcc (IRASSIGN _ (IRTemp src _) _ : rest) maybeAcc
-      | Just acc <- maybeAcc, src == acc = findLoopAcc rest maybeAcc
-    findLoopAcc (IRINC (IRTemp v _) : rest) maybeAcc
-      | v == loopVar = findLoopAcc rest maybeAcc
-    findLoopAcc (_ : rest) maybeAcc = findLoopAcc rest maybeAcc
-
+    (newBody, _) = runState (optimizeBlock (irFuncBody f)) initialState
 
 optimizeBlock :: [IRInstruction] -> OptM [IRInstruction]
 optimizeBlock [] = return []
