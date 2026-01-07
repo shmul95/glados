@@ -97,7 +97,7 @@ pipeline =
   parseLexer
     >=> parseAST
     >=> verifAndGenIR
-    -- >=> optimizeIR
+    >=> optimizeIR
 
 verifAndGenIR :: Program -> Either String IRProgram
 verifAndGenIR p = do
