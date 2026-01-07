@@ -43,7 +43,7 @@ formatSemanticError (SemanticError file line col expected got ctx) =
   let header = printf "[ERROR]: %s:%d:%d: error:" file line col
       expectedLine = "  Expected: " <> expected
       gotLine = "  Got: " <> got
-      contexts = map (\c -> "  ... in " <> c) ctx
+      contexts = map ("  ... in " <>) ctx
   in intercalate "\n" ([header, expectedLine, gotLine] <> contexts)
 
 
@@ -87,7 +87,8 @@ exprType _ (ExprLitChar _ _)        = Right TypeChar
 exprType _ (ExprLitBool _ _)        = Right TypeBool
 exprType _ (ExprStructInit _ st _)  = Right $ TypeCustom st
 exprType _ (ExprLitNull _)          = Right TypeNull
-exprType _ (ExprAccess _ _ _)       = Right TypeAny -- don't know how to use struct
+exprType _ (ExprAccess {})       = Right TypeAny -- don't know how to use struct
+exprType _ (ExprCast _ _ t)         = Right t
 
 exprType s (ExprBinary _ op a b)    = do 
   a' <- exprType s a
@@ -154,7 +155,7 @@ checkMultipleType v file line col (Just t) e_t
 checkEachParam :: Stack -> String -> Int -> Int -> Int -> [Expression] -> [Type] -> Maybe SemanticError
 checkEachParam s file line col i (e:es) (t:at) =
   case exprType s e of
-    Left err -> Just $ SemanticError file line col ("valid expression type") err ["parameter check", "function call"]
+    Left err -> Just $ SemanticError file line col "valid expression type" err ["parameter check", "function call"]
     Right t' ->
       if isTypeCompatible t t'
       then checkEachParam s file line col (i + 1) es at

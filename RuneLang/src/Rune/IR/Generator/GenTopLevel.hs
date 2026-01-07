@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.IR.Generator.GenTopLevel
@@ -46,6 +46,7 @@ genTopLevel :: TopLevelDef -> IRGen [IRTopLevel]
 genTopLevel def@DefFunction {} = genFunction def
 genTopLevel ovr@DefOverride {} = genOverride ovr
 genTopLevel str@DefStruct {} = genStruct str
+genTopLevel DefSomewhere {} = pure []
 
 --
 -- private
@@ -55,7 +56,7 @@ genTopLevel str@DefStruct {} = genStruct str
 -- def foo(a: i32, b: f32) -> i32 { ... }
 -- DEF foo(p_a: i32, p_b: f32)
 genFunction :: TopLevelDef -> IRGen [IRTopLevel]
-genFunction (DefFunction name params retType body) = do
+genFunction (DefFunction name params retType body isExport) = do
   resetFunctionState name
 
   irParams <- mapM genParam params
@@ -65,7 +66,7 @@ genFunction (DefFunction name params retType body) = do
                     TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
                     t -> astTypeToIRType t
       cleaned = ensureReturn irRetType bodyInstrs
-      func = IRFunction name irParams (Just irRetType) cleaned
+      func = IRFunction name irParams (Just irRetType) cleaned isExport
 
   clearFunctionState
   pure [IRFunctionDef func]
@@ -74,11 +75,11 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- | generate IR for an override function
 -- show(Vec2f) -> show_Vec2f
 genOverride :: TopLevelDef -> IRGen [IRTopLevel]
-genOverride (DefOverride name params retType body) = do
+genOverride (DefOverride name params retType body isExport) = do
   let mangledName = case params of
         (Parameter _ (TypeCustom s) : _) -> mangleMethodName name s
         _ -> name
-  genFunction (DefFunction mangledName params retType body)
+  genFunction (DefFunction mangledName params retType body isExport)
 genOverride _ = throwError "genOverride called on non-override"
 
 -- | generate IR for a struct definition and its methods
@@ -95,10 +96,10 @@ genStruct _ = pure []
 -- | generate IR for a struct method
 -- Vec2f.magnitude() -> magnitude_Vec2f
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
-genStructMethod structName' (DefFunction methName params retType body) = do
+genStructMethod structName' (DefFunction methName params retType body _) = do
   let mangledName = mangleMethodName structName' methName
       typedParams = map (fixSelfParam structName') params
-  genFunction (DefFunction mangledName typedParams retType body)
+  genFunction (DefFunction mangledName typedParams retType body False)
 genStructMethod _ _ = pure []
 
 --

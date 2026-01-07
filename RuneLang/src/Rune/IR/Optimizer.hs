@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -30,6 +30,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad.State
 import Data.Maybe (fromMaybe)
+import Data.Bifunctor (first)
 
 --
 -- Types
@@ -125,7 +126,7 @@ inlineFunction :: String -> String -> IRFunction -> [IROperand] -> [IRInstructio
 inlineFunction target fun callee args rest =
   let prefix = fun <> "_" <> target <> "_"
       renamedBody = renameInstr prefix <$> irFuncBody callee
-      renamedParams = map (\(n, t) -> (prefix <> n, t)) (irFuncParams callee)
+      renamedParams = map (first (prefix <>)) $ irFuncParams callee
       assigns = zipWith (\(n, t) arg -> IRASSIGN n arg t) renamedParams args
   in optimizeBlock (assigns <> replaceRet target renamedBody <> rest)
 

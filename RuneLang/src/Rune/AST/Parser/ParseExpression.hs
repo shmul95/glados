@@ -7,7 +7,7 @@ where
 
 import Control.Applicative ((<|>))
 import Rune.AST.Nodes (BinaryOp (..), Expression (..), UnaryOp (..))
-import Rune.AST.Parser.ParseTypes (parseIdentifier)
+import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (between, chainPostfix, chainl1, choice, expect, failParse, getCurrentPos, sepBy, sepEndBy, tokenMap, try, withContext)
 import Rune.AST.Types (Parser (..))
 import qualified Rune.Lexer.Tokens as T
@@ -110,6 +110,7 @@ parsePostfix = chainPostfix parsePrimary op
         [ parseCallPostfix,
           parseFieldAccessPostfix,
           parseIndexPostfix,
+          parseCastPostfix,
           parseErrorPropPostfix,
           parseIncPostfix,
           parseDecPostfix
@@ -134,6 +135,13 @@ parseIndexPostfix = do
   pos <- getCurrentPos
   index <- between (expect T.LBracket) (expect T.RBracket) (withContext "array index" parseExpression)
   pure $ \e -> ExprIndex pos e index
+
+parseCastPostfix :: Parser (Expression -> Expression)
+parseCastPostfix = do
+  pos <- getCurrentPos
+  _ <- expect T.Colon
+  t <- parseType
+  pure $ \e -> ExprCast pos e t
 
 parseErrorPropPostfix :: Parser (Expression -> Expression)
 parseErrorPropPostfix = do
@@ -230,8 +238,7 @@ parseLitArray = do
 parseStructInitOrVar :: Parser Expression
 parseStructInitOrVar = try parseStructInit <|> do
   pos <- getCurrentPos
-  name <- parseIdentifier
-  pure $ ExprVar pos name
+  ExprVar pos <$> parseIdentifier
 
 parseStructInit :: Parser Expression
 parseStructInit = do

@@ -41,7 +41,7 @@ testGenerateIR = testGroup "generateIR"
   
   , testCase "Generates program with function" $
       let prog = Program "test" 
-            [ DefFunction "main" [] TypeNull [] ]
+            [ DefFunction "main" [] TypeNull [] False ]
           fs = HM.empty
           result = generateIR prog fs
       in case result of
@@ -61,6 +61,7 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
                 [ StmtReturn dummyPos (Just (ExprCall dummyPos "external_func" [])) ]
+                False
             ]
           fs = HM.singleton "external_func" [(TypeNull, [])]
           result = generateIR prog fs
@@ -98,6 +99,7 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
                 [ StmtReturn dummyPos (Just (ExprCall dummyPos "ext1" [])) ]
+                False
             ]
           fs = HM.singleton "ext1" [(TypeNull, [])]
           result = generateIR prog fs
@@ -114,6 +116,7 @@ testGenerateIR = testGroup "generateIR"
                 [ StmtReturn dummyPos (Just (ExprLitString dummyPos "hello"))
                 , StmtReturn dummyPos (Just (ExprLitString dummyPos "world"))
                 ]
+                False
             ]
           fs = HM.empty
           result = generateIR prog fs
@@ -125,8 +128,8 @@ testGenerateIR = testGroup "generateIR"
 
   , testCase "Multiple functions" $
       let prog = Program "test"
-            [ DefFunction "func1" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
-            , DefFunction "func2" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))]
+            [ DefFunction "func1" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))] False
+            , DefFunction "func2" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))] False
             ]
           fs = HM.empty
           result = generateIR prog fs
@@ -138,9 +141,10 @@ testGenerateIR = testGroup "generateIR"
 
   , testCase "Calls to defined functions are not extern" $
       let prog = Program "test"
-            [ DefFunction "callee" [] TypeNull []
+            [ DefFunction "callee" [] TypeNull [] False
             , DefFunction "caller" [] TypeNull 
                 [ StmtExpr dummyPos (ExprCall dummyPos "callee" []) ]
+                False
             ]
           fs = HM.singleton "callee" [(TypeNull, [])]
           result = generateIR prog fs
@@ -156,6 +160,7 @@ testGenerateIR = testGroup "generateIR"
                 [ StmtExpr dummyPos (ExprCall dummyPos "ext1" [])
                 , StmtExpr dummyPos (ExprCall dummyPos "ext2" [])
                 ]
+                False
             ]
           fs = HM.fromList [("ext1", [(TypeNull, [])]), ("ext2", [(TypeNull, [])])]
           result = generateIR prog fs
@@ -167,7 +172,7 @@ testGenerateIR = testGroup "generateIR"
 
   , testCase "Override function generates mangled name" $
       let prog = Program "test"
-            [ DefOverride "show" [Parameter "self" (TypeCustom "Point")] TypeNull []
+            [ DefOverride "show" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
             ]
           fs = HM.empty
           result = generateIR prog fs
@@ -182,7 +187,7 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test"
             [ DefStruct "Vec2" 
                 [Field "x" TypeF32, Field "y" TypeF32]
-                [DefFunction "magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 []]
+                [DefFunction "magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 [] False]
             ]
           fs = HM.empty
           result = generateIR prog fs
@@ -221,7 +226,7 @@ testInitialState = testGroup "initialState"
 testGetDefinedFuncName :: TestTree
 testGetDefinedFuncName = testGroup "getDefinedFuncName"
   [ testCase "Extracts function name from IRFunctionDef" $
-      let func = IRFunction "myFunc" [] Nothing []
+      let func = IRFunction "myFunc" [] Nothing [] False
           topLevel = IRFunctionDef func
       in getDefinedFuncName topLevel @?= ["myFunc"]
   

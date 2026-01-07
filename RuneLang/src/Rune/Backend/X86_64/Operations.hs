@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+
 module Rune.Backend.X86_64.Operations
   ( emitBinaryOp,
     emitDivOp,
@@ -47,7 +48,7 @@ emitDivOp sm dest leftOp rightOp t
 -- | emit dest = left % right
 emitModOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
 emitModOp sm dest leftOp rightOp t
-  | isFloatType t = [emit 1 $ "; TODO: floating point modulo not supported"]
+  | isFloatType t = [emit 1   "; TODO: floating point modulo not supported"]
   | otherwise = emitIntModOp sm dest leftOp rightOp t
 
 --
@@ -67,7 +68,7 @@ emitFloatDivOp sm dest leftOp rightOp t =
         r0 : r1 : _ -> (r0, r1)
         _           -> ("xmm0", "xmm1")
     
-    load op reg ty = loadFloatOperand sm reg op ty
+    load op reg = loadFloatOperand sm reg op
     
     divInstr = case t of
       IRF32 -> "divss"
@@ -188,7 +189,7 @@ emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
         r0 : r1 : _ -> (r0, r1)
         _           -> ("xmm0", "xmm1")   -- safe fallback; never used
 
-    load op reg ty  = loadFloatOperand sm reg op ty
+    load op reg = loadFloatOperand sm reg op
 
     left  = leftOp
     right = rightOp

@@ -18,6 +18,7 @@ lexerKeywordsTests =
     , test_kw_control_flow_loop_next_stop
     , test_kw_override
     , test_kw_logical
+    , test_kw_somewhere_export
     , test_kw_reserved_check
     ]
 
@@ -49,6 +50,11 @@ test_kw_override :: TestTree
 test_kw_override = testCase "Kw Override" $
   lexTest "override"
     [ tok KwOverride "override" 1 1, tok EOF "" 1 9 ]
+
+test_kw_somewhere_export :: TestTree
+test_kw_somewhere_export = testCase "Kw Somewhere, Export" $
+  lexTest "somewhere export"
+    [ tok KwSomewhere "somewhere" 1 1, tok KwExport "export" 1 11, tok EOF "" 1 17 ]
 
 test_kw_reserved_check :: TestTree
 test_kw_reserved_check = testCase "Keyword reserved check (defX should be ID)" $

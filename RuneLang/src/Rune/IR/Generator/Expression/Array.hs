@@ -29,7 +29,7 @@ type ArrayGenFunc = Expression -> ArrayGen
 -- | generate an array literal
 -- arr0: *[char x 4] = ALLOC_ARRAY char ['a', 'b', 'c', 'd']
 -- arr1: *[i32 x 5] = ALLOC_ARRAY i32 [1, 2, 3, 4, 5]
-genLitArray :: (ArrayGenFunc) -> [Expression] -> ArrayGen
+genLitArray :: ArrayGenFunc -> [Expression] -> ArrayGen
 genLitArray _ [] = throwError "genLitArray: empty array not supported"
 genLitArray genExpr exprs = do
   (instrs, ops, types) <- unzip3 <$> mapM genExpr exprs
@@ -49,7 +49,7 @@ genLitArray genExpr exprs = do
 
 -- | generate array indexing
 -- elem1: char = GET_ELEM arr0[0]
-genIndex :: (ArrayGenFunc) -> Expression -> ArrayGenFunc
+genIndex :: ArrayGenFunc -> Expression -> ArrayGenFunc
 genIndex genExpr target idx = do
   (targetInstrs, targetOp, targetType) <- genExpr target
   (idxInstrs, idxOp, _) <- genExpr idx

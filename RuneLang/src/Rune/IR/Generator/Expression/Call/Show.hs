@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.IR.Generator.Expression.Call.Show
@@ -6,6 +6,7 @@ module Rune.IR.Generator.Expression.Call.Show
     genShowBoolCall,
     genShowCharCall,
     genShowPrintfCall,
+    genShowFmtCall,
     getShowFunc,
     getFormatSpecifier,
     prepareAddr,
@@ -16,7 +17,14 @@ module Rune.IR.Generator.Expression.Call.Show
   )
 where
 #else
-module Rune.IR.Generator.Expression.Call.Show (genShowCall) where
+module Rune.IR.Generator.Expression.Call.Show
+  ( genShowCall,
+    genShowFmtCall,
+    getFormatSpecifier,
+    prepareAddr,
+    mkShowOverride,
+    overrideExists
+  ) where
 #endif
 
 import Control.Monad (unless)
@@ -63,6 +71,7 @@ mkShowOverride name paramType = IRFunction
   , irFuncParams = [("value", paramType)]
   , irFuncRetType = Just IRNull
   , irFuncBody = []
+  , irFuncIsExport = False
   }
 
 overrideExists :: IRTopLevel -> String -> Bool

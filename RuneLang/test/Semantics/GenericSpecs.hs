@@ -28,13 +28,13 @@ genericInstantiateTests :: TestTree
 genericInstantiateTests = testGroup "instantiate function"
     [ testCase "Instantiate DefFunction with TypeAny params" $
         let 
-          def = DefFunction "foo" [Parameter "x" TypeAny] TypeAny []
+          def = DefFunction "foo" [Parameter "x" TypeAny] TypeAny [] False
           args = [TypeI32]
           ret = TypeI32
           expectedName = mangleName "foo" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "x" t] r _ -> do
+            DefFunction n [Parameter "x" t] r _ _ -> do
                 n @?= expectedName
                 t @?= TypeI32
                 r @?= TypeI32
@@ -42,13 +42,13 @@ genericInstantiateTests = testGroup "instantiate function"
 
     , testCase "Instantiate DefOverride with TypeAny params" $
         let 
-          def = DefOverride "bar" [Parameter "y" TypeAny] TypeAny []
+          def = DefOverride "bar" [Parameter "y" TypeAny] TypeAny [] False
           args = [TypeF32]
           ret = TypeNull
           expectedName = mangleName "bar" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefOverride n [Parameter "y" t] r _ -> do
+            DefOverride n [Parameter "y" t] r _ _ -> do
                 n @?= expectedName
                 t @?= TypeF32
                 r @?= TypeNull
@@ -56,13 +56,13 @@ genericInstantiateTests = testGroup "instantiate function"
 
     , testCase "Instantiate preserves non-TypeAny params" $
         let 
-          def = DefFunction "baz" [Parameter "a" TypeI32, Parameter "b" TypeAny] TypeAny []
+          def = DefFunction "baz" [Parameter "a" TypeI32, Parameter "b" TypeAny] TypeAny [] False
           args = [TypeI32, TypeString]
           ret = TypeString
           expectedName = mangleName "baz" ret args
           instantiated = instantiate def args ret
         in case instantiated of
-            DefFunction n [Parameter "a" t1, Parameter "b" t2] r _ -> do
+            DefFunction n [Parameter "a" t1, Parameter "b" t2] r _ _ -> do
                 n @?= expectedName
                 t1 @?= TypeI32
                 t2 @?= TypeString

@@ -24,7 +24,7 @@ module Rune.AST.ParserHelper
   )
 where
 
-import Control.Applicative (Alternative (..))
+import Control.Applicative (Alternative (..), asum)
 import Control.Monad (when)
 import Data.Bifunctor (Bifunctor (first))
 import Rune.AST.Types (Parser (..), ParserState (..))
@@ -156,7 +156,7 @@ match kind = do
 -- | one or the other
 -- example: choice [parseString, parseInt, parseBool]
 choice :: [Parser a] -> Parser a
-choice = foldr (<|>) empty
+choice = asum
 
 -- | parse `p` enclosed by `open` and `close`
 -- example: between (expect LParen) (expect RParen) parseExpression

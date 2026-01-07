@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
@@ -76,10 +75,11 @@ visitTopLevel :: TopLevelDef -> Printer ()
 visitTopLevel d@DefFunction {} = visitFunction d
 visitTopLevel d@DefStruct {} = visitStruct d
 visitTopLevel d@DefOverride {} = visitOverride d
+visitTopLevel d@DefSomewhere {} = visitSomewhere d
 
 visitFunction :: TopLevelDef -> Printer ()
-visitFunction (DefFunction name params retType body) = do
-  emit $ "DefFunction " <> name
+visitFunction (DefFunction name params retType body isExport) = do
+  emit $ (if isExport then "export " else "") <> "DefFunction " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine
@@ -100,8 +100,8 @@ visitStruct (DefStruct name fields methods) = do
 visitStruct _ = return ()
 
 visitOverride :: TopLevelDef -> Printer ()
-visitOverride (DefOverride name params retType body) = do
-  emit $ "DefOverride " <> name
+visitOverride (DefOverride name params retType body isExport) = do
+  emit $ (if isExport then "export " else "") <> "DefOverride " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine
@@ -109,6 +109,20 @@ visitOverride (DefOverride name params retType body) = do
   emitBlock "Body:" (visitBody body)
   dedent
 visitOverride _ = return ()
+
+visitSomewhere :: TopLevelDef -> Printer ()
+visitSomewhere (DefSomewhere sigs) = do
+  emit "DefSomewhere"
+  indent
+  emitBlock "Signatures:" (mapM_ emitSig sigs)
+  dedent
+  where
+    emitSig (FunctionSignature name paramTypes retType isOverride) = do
+      newLine
+      emit $ (if isOverride then "override " else "") <> name <> "("
+      emit $ unwords (map showType paramTypes)
+      emit $ ") -> " <> showType retType
+visitSomewhere _ = return ()
 
 visitStatement :: Statement -> Printer ()
 visitStatement (StmtVarDecl _ name typeDecl expr) = visitVarDecl name typeDecl expr
@@ -240,6 +254,12 @@ visitExpression (ExprIndex _ target index) = do
   indent
   emitBlock "Target:" (newLine >> visitExpression target)
   emitBlock "Index:" (newLine >> visitExpression index)
+  dedent
+visitExpression (ExprCast _ expr typ) = do
+  emit $ "ExprCast -> " <> showType typ
+  indent
+  newLine
+  visitExpression expr
   dedent
 visitExpression (ExprLitArray _ elems) = do
   emit "ExprArrayLiteral"

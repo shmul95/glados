@@ -58,7 +58,7 @@ genIfElse genExpr genBlock cond thenBlock elseBlock = do
   thenInstrs <- genBlock thenBlock
   elseInstrs <- genBlock elseBlock
 
-  let jumpEndIfNeeded = if endsWithRet thenInstrs then [] else [IRJUMP endLbl]
+  let jumpEndIfNeeded = ([IRJUMP endLbl | not (endsWithRet thenInstrs)])
 
   pure $
     mconcat

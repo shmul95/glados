@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -cpp #-}
+{-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.Backend.X86_64.Codegen
@@ -133,7 +133,7 @@ emitTextSection fs = "section .text" : concatMap emitFunction fs
 --     pop rbp
 --     ret
 emitFunction :: Function -> [String]
-emitFunction fn@(IRFunction name params _ body) =
+emitFunction fn@(IRFunction name params _ body _) =
   let (stackMap, frameSize) = calculateStackMap fn
       endLabel = ".L.function_end_" <> name
       prologue = emitFunctionPrologue fn frameSize
@@ -143,13 +143,14 @@ emitFunction fn@(IRFunction name params _ body) =
    in prologue <> paramSetup <> bodyInstrs <> epilogue
 
 emitFunctionPrologue :: Function -> Int -> [String]
-emitFunctionPrologue (IRFunction name _ _ _) frameSize =
-  [ "global " <> name
-  , name <> ":"
-  , emit 1 "push rbp"
-  , emit 1 "mov rbp, rsp"
-  , emit 1 $ "sub rsp, " <> show frameSize
-  ]
+emitFunctionPrologue (IRFunction name _ _ _ isExport) frameSize =
+  let shouldExport = isExport || name == "main"
+  in ["global " <> name | shouldExport]
+    <> [ name <> ":"
+       , emit 1 "push rbp"
+       , emit 1 "mov rbp, rsp"
+       , emit 1 $ "sub rsp, " <> show frameSize
+       ]
 
 emitFunctionEpilogue :: String -> [String]
 emitFunctionEpilogue endLabel =
@@ -234,7 +235,7 @@ emitAssign sm dest (IRGlobal name IRF32) IRF32 =
 emitAssign sm dest (IRGlobal name IRF32) IRF64 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movss xmm0, dword [rel " <> name <> "]"
-               , emit 1 $ "cvtss2sd xmm0, xmm0"
+               , emit 1   "cvtss2sd xmm0, xmm0"
                , emit 1 $ "movsd qword " <> stackAddr sm dest <> ", xmm0"
                ]
     (reg:_) -> [ emit 1 $ "movss " <> reg <> ", dword [rel " <> name <> "]"
@@ -252,7 +253,7 @@ emitAssign sm dest (IRGlobal name IRF64) IRF64 =
 emitAssign sm dest (IRGlobal name IRF64) IRF32 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movsd xmm0, qword [rel " <> name <> "]"
-               , emit 1 $ "cvtsd2ss xmm0, xmm0"
+               , emit 1   "cvtsd2ss xmm0, xmm0"
                , emit 1 $ "movss dword " <> stackAddr sm dest <> ", xmm0"
                ]
     (reg:_) -> [ emit 1 $ "movsd " <> reg <> ", qword [rel " <> name <> "]"
@@ -287,17 +288,17 @@ emitCall sm dest funcName args mbType =
    in argSetup <> printfFixup <> callInstr <> retSave
   where
     printfFixupHelp (Just IRF32) (floatReg:_)
-      | funcName == "printf" =
+      | funcName == "printf" || funcName == "fprintf" =
         [ emit 1 $ "cvtss2sd " <> floatReg <> ", " <> floatReg
         , emit 1   "mov eax, 1"
         ]
     printfFixupHelp (Just IRF64) (_:_) 
-      | funcName == "printf" =
+      | funcName == "printf" || funcName == "fprintf" =
         [ emit 1 "mov eax, 1" ]
     printfFixupHelp Nothing _
-      | funcName == "printf" = [emit 1 "xor eax, eax"]
+      | funcName == "printf" || funcName == "fprintf" = [emit 1 "xor eax, eax"]
     printfFixupHelp _ _
-      | funcName == "printf" = []
+      | funcName == "printf" || funcName == "fprintf" = []
     printfFixupHelp _ _ = []
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
@@ -345,7 +346,7 @@ emitRet sm endLbl (Just op) = emitRetHelper $ getOperandType op
     getReg = loadReg sm "rax" op <> [emit 1 $ "jmp " <> endLbl]
 
     getFloatReg t (xmmRet:_) = loadFloatOperand sm xmmRet op t <> [emit 1 $ "jmp " <> endLbl]
-    getFloatReg t []         = [ emit 1 $ "; WARNING: no float return register available"
+    getFloatReg t []         = [ emit 1   "; WARNING: no float return register available"
                                ] <> loadFloatOperand sm "xmm0" op t <> [emit 1 $ "jmp " <> endLbl]
 
     emitRetHelper (Just IRNull)
@@ -470,7 +471,7 @@ emitRmWarning =
 collectStaticArrays :: [Function] -> [(String, IRType, [IROperand])]
 collectStaticArrays = concatMap collectFn
   where
-    collectFn (IRFunction fnName _ _ body) = concatMap (collectInstr fnName) body
+    collectFn (IRFunction fnName _ _ body _) = concatMap (collectInstr fnName) body
 
     collectInstr fnName (IRALLOC_ARRAY dest elemType values)
       | all isStaticOperand values = [(fnName <> "_" <> dest <> "_lit", elemType, values)]

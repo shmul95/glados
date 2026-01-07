@@ -50,17 +50,20 @@ mixedProgram =
         "printer"
         [Parameter "text" TypeString]
         TypeNull
-        [],
+        []
+        False,
       DefFunction
         "foo"
         [Parameter "value" TypeI32, Parameter "flag" TypeBool]
         TypeBool
-        [],
+        []
+        False,
       DefOverride
         "printer"
         [Parameter "text" TypeString]
         TypeNull
-        [],
+        []
+        False,
       DefStruct
         "Vec"
         []
@@ -75,12 +78,14 @@ shadowProgram =
         "dup"
         [Parameter "value" TypeI32]
         TypeI32
-        [],
+        []
+        False,
       DefOverride
         "dup"
         [Parameter "value" TypeBool]
         TypeBool
         []
+        False
     ]
 
 structMethodProgram :: Program
@@ -95,6 +100,7 @@ structMethodProgram =
             [Parameter "self" TypeAny]
             TypeI32
             []
+            False
         ]
     ]
 
@@ -102,20 +108,20 @@ duplicateFunctionProgram :: Program
 duplicateFunctionProgram =
   Program
     "duplicate-func"
-    [ DefFunction "foo" [Parameter "x" TypeI32] TypeI32 [],
-      DefFunction "foo" [Parameter "y" TypeF32] TypeF32 []
+    [ DefFunction "foo" [Parameter "x" TypeI32] TypeI32 [] False,
+      DefFunction "foo" [Parameter "y" TypeF32] TypeF32 [] False
     ]
 
 lonelyOverrideProgram :: Program
 lonelyOverrideProgram =
   Program
     "lonely-override"
-    [ DefOverride "nonExistent" [Parameter "x" TypeI32] TypeI32 []
+    [ DefOverride "nonExistent" [Parameter "x" TypeI32] TypeI32 [] False
     ]
 
 arrayOverrideProgram :: Program
 arrayOverrideProgram =
   Program
     "array-override"
-    [ DefOverride "show" [Parameter "arr" (TypeArray TypeAny)] TypeNull []
+    [ DefOverride "show" [Parameter "arr" (TypeArray TypeAny)] TypeNull [] False
     ]

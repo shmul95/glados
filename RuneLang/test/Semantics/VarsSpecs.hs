@@ -60,30 +60,34 @@ expectErr label program match =
 --
 
 returnNullProgram :: Program
-returnNullProgram = Program "ret" [DefFunction "f" [] TypeNull [StmtReturn dummyPos Nothing]]
+returnNullProgram = Program "ret" [DefFunction "f" [] TypeNull [StmtReturn dummyPos Nothing] False]
 
 ifElseFullProgram :: Program
 ifElseFullProgram = Program "if" 
   [ DefFunction "f" [] TypeNull 
     [ StmtIf dummyPos (ExprLitBool dummyPos True) [] (Just [StmtNext dummyPos]) ] 
+    False
   ]
 
 forWithStartProgram :: Program
 forWithStartProgram = Program "for" 
   [ DefFunction "f" [] TypeNull 
     [ StmtFor dummyPos "i" (Just TypeI32) (Just (ExprLitInt dummyPos 0)) (ExprLitInt dummyPos 10) [] ] 
+    False
   ]
 
 forEachStringProgram :: Program
 forEachStringProgram = Program "fe" 
   [ DefFunction "f" [] TypeNull 
     [ StmtForEach dummyPos "c" (Just TypeChar) (ExprLitString dummyPos "hi") [] ] 
+    False
   ]
 
 forEachAnyProgram :: Program
 forEachAnyProgram = Program "feany" 
   [ DefFunction "f" [Parameter "a" TypeAny] TypeNull 
     [ StmtForEach dummyPos "x" Nothing (ExprVar dummyPos "a") [] ] 
+    False
   ]
 
 structAssignmentProgram :: Program
@@ -91,12 +95,14 @@ structAssignmentProgram = Program "assign"
   [ DefStruct "S" [Field "x" TypeI32] [],
     DefFunction "f" [Parameter "s" (TypeCustom "S")] TypeNull 
     [ StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "s") "x") (ExprLitInt dummyPos 42) ]
+    False
   ]
 
 arrayIndexProgram :: Program
 arrayIndexProgram = Program "idx" 
   [ DefFunction "f" [Parameter "a" (TypeArray TypeI32)] TypeI32 
     [ StmtReturn dummyPos (Just (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0))) ]
+    False
   ]
 
 complexStructInitProgram :: Program
@@ -104,43 +110,46 @@ complexStructInitProgram = Program "sinit"
   [ DefStruct "S" [Field "x" TypeI32, Field "y" TypeI32] [],
     DefFunction "f" [] TypeNull 
     [ StmtVarDecl dummyPos "s" Nothing (ExprStructInit dummyPos "S" [("x", ExprLitInt dummyPos 1), ("y", ExprLitInt dummyPos 2)]) ]
+    False
   ]
 
 genericInstArgProgram :: Program
 genericInstArgProgram = Program "gen" 
-  [ DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
-    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "id" [ExprLitInt dummyPos 42])]
+  [ DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
+    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "id" [ExprLitInt dummyPos 42])] False
   ]
 
 genericInstContextProgram :: Program
 genericInstContextProgram = Program "genctx" 
-  [ DefFunction "get" [] TypeAny [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))],
-    DefFunction "m" [] TypeNull [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprCall dummyPos "get" [])]
+  [ DefFunction "get" [] TypeAny [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))] False,
+    DefFunction "m" [] TypeNull [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprCall dummyPos "get" [])] False
   ]
 
 genericCacheProgram :: Program
 genericCacheProgram = Program "cache" 
-  [ DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))],
+  [ DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
     DefFunction "m" [] TypeNull 
     [ StmtExpr dummyPos (ExprCall dummyPos "id" [ExprLitInt dummyPos 1]),
       StmtExpr dummyPos (ExprCall dummyPos "id" [ExprLitInt dummyPos 2]) ]
+    False
   ]
 
 genericFailProgram :: Program
 genericFailProgram = Program "genfail" 
-  [ DefFunction "fail" [] TypeAny [StmtReturn dummyPos (Just (ExprLitNull dummyPos))],
-    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "fail" [])]
+  [ DefFunction "fail" [] TypeAny [StmtReturn dummyPos (Just (ExprLitNull dummyPos))] False,
+    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos "fail" [])] False
   ]
 
 binaryInvalidProgram :: Program
 binaryInvalidProgram = Program "binerr" 
-  [ DefFunction "f" [] TypeNull [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "a"))]
+  [ DefFunction "f" [] TypeNull [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "a"))] False
   ]
 
 forEachInvalidProgram :: Program
 forEachInvalidProgram = Program "feerr" 
   [ DefFunction "f" [] TypeNull 
     [ StmtForEach dummyPos "i" Nothing (ExprLitInt dummyPos 1) [] ]
+    False
   ]
 
 assignmentIncompatibleProgram :: Program
@@ -148,11 +157,12 @@ assignmentIncompatibleProgram = Program "assignerr"
   [ DefStruct "S" [Field "x" TypeI32] [],
     DefFunction "f" [Parameter "s" (TypeCustom "S")] TypeNull 
     [ StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "s") "x") (ExprLitString dummyPos "bad") ]
+    False
   ]
 
 binaryUndefinedProgram :: Program
 binaryUndefinedProgram = Program "binundef" 
-  [ DefFunction "f" [] TypeNull [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprVar dummyPos "ghost") (ExprLitInt dummyPos 1))]
+  [ DefFunction "f" [] TypeNull [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprVar dummyPos "ghost") (ExprLitInt dummyPos 1))] False
   ]
 
 testMangleFuncStack :: IO ()

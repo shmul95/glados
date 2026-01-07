@@ -94,13 +94,16 @@ actionDerivingTests =
             action2 = CompileAll "in" (Just "out")
             action3 = Interpret "run"
             action4 = CompileAll "file" Nothing
+            action5 = CompileAllMany ["f1", "f2"] Nothing
         assertEqual "Show ShowUsage" "ShowUsage" (show action1)
         assertEqual "Show Compile Just" "CompileAll \"in\" (Just \"out\")" (show action2)
         assertEqual "Show Interpret" "Interpret \"run\"" (show action3)
         assertEqual "Show Compile Nothing" "CompileAll \"file\" Nothing" (show action4)
+        assertEqual "Show CompileAllMany" "CompileAllMany [\"f1\",\"f2\"] Nothing" (show action5)
     , testCase "Eq coverage" $ do
         let c1 = CompileAll "f" Nothing
             c2 = CompileAll "f" Nothing
+            c3 = CompileAllMany ["f1", "f2"] Nothing
             i1 = Interpret "f"
             s1 = ShowUsage
         assertEqual "Equal actions (Compile)" c1 c2
@@ -109,6 +112,7 @@ actionDerivingTests =
         assertBool "Unequal actions (Compile/Interpret)" (c1 /= i1)
         assertBool "Unequal actions (Interpret/ShowUsage)" (i1 /= s1)
         assertBool "Unequal actions (Compile/ShowUsage)" (c1 /= s1)
+        assertBool "Unequal actions (Compile/CompileAllMany)" (c1 /= c3)
     ]
 
 compileRuleDerivingTests :: TestTree
@@ -174,12 +178,14 @@ parseBuildSuccessTests =
       shouldParseTo ["--build", "input.o"] (CompileObjToExec "input.o" Nothing),
       shouldParseTo ["build", "input.o", "-o", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin")),
       shouldParseTo ["--build", "input.o", "--output", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin")),
-      shouldParseTo ["build", "-c", "input.ru"] (CompileToObj "input.ru" Nothing),
-      shouldParseTo ["--build", "-c", "input.asm"] (CompileToObj "input.asm" Nothing),
-      shouldParseTo ["build", "-S", "input.ru"] (CreateAsm "input.ru" Nothing),
-      shouldParseTo ["build", "-c", "input.ru", "-o", "output.o"] (CompileToObj "input.ru" (Just "output.o")),
-      shouldParseTo ["build", "-S", "input.ru", "--output", "output.asm"] (CreateAsm "input.ru" (Just "output.asm"))
-    ]
+       shouldParseTo ["build", "-c", "input.ru"] (CompileToObj "input.ru" Nothing),
+       shouldParseTo ["--build", "-c", "input.asm"] (CompileToObj "input.asm" Nothing),
+       shouldParseTo ["build", "-S", "input.ru"] (CreateAsm "input.ru" Nothing),
+       shouldParseTo ["build", "-c", "input.ru", "-o", "output.o"] (CompileToObj "input.ru" (Just "output.o")),
+       shouldParseTo ["build", "-S", "input.ru", "--output", "output.asm"] (CreateAsm "input.ru" (Just "output.asm")),
+       shouldParseTo ["build", "input1.ru", "input2.ru"] (CompileAllMany ["input1.ru", "input2.ru"] Nothing),
+       shouldParseTo ["build", "input1.ru", "input2.ru", "-o", "output.bin"] (CompileAllMany ["input1.ru", "input2.ru"] (Just "output.bin"))
+     ]
 
 parseBuildFailureTests :: TestTree
 parseBuildFailureTests =
@@ -293,6 +299,30 @@ findInputFileFailureTests =
         assertEqual "Should fail with no input file" (Left "No input file provided.") result
     ]
 
+findInputFilesSuccessTests :: TestTree
+findInputFilesSuccessTests =
+  testGroup
+    "findInputFiles Success Tests"
+    [ testCase "Multiple .ru files with All rule" $ do
+        let result = findInputFiles ["input1.ru", "input2.ru"] All
+        assertEqual "Should find both files" (Right (["input1.ru", "input2.ru"], [])) result
+    , testCase "Mixed .ru and .o with All rule" $ do
+        let result = findInputFiles ["input1.ru", "input2.o"] All
+        assertEqual "Should keep both valid files" (Right (["input1.ru", "input2.o"], [])) result
+    ]
+
+findInputFilesFailureTests :: TestTree
+findInputFilesFailureTests =
+  testGroup
+    "findInputFiles Failure Tests"
+    [ testCase "No input files provided" $ do
+        let result = findInputFiles [] All
+        assertEqual "Should fail with no input file" (Left "No input file provided.") result
+    , testCase "No valid files present" $ do
+        let result = findInputFiles ["invalid.txt"] All
+        assertEqual "Should fail with no input file" (Left "No input file provided.") result
+    ]
+
 findOutputFileSuccessTests :: TestTree
 findOutputFileSuccessTests =
   testGroup
@@ -378,6 +408,8 @@ helperFunctionsTests =
     [ isValidInputFileTests
     , findInputFileSuccessTests
     , findInputFileFailureTests
+    , findInputFilesSuccessTests
+    , findInputFilesFailureTests
     , findOutputFileSuccessTests
     , findOutputFileFailureTests
     , isSourceFileTests
@@ -415,6 +447,15 @@ runCLIActionTests =
         (do
           (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) (Just (testFolder ++ "specified.bin")))) :: IO (Either SomeException ()))
           assertBool "Should attempt compilation" True
+        )
+    , testCaseWithSetup "runCLI (CompileAllMany files Nothing) compiles multiple sources"
+        (do
+          createFile (testFolder ++ "first.ru")
+          createFile (testFolder ++ "second.ru"))
+        (deleteFolder testFolder)
+        (do
+          (_, _) <- capture (try (runCLI (CompileAllMany [testFolder ++ "first.ru", testFolder ++ "second.ru"] Nothing)) :: IO (Either SomeException ()))
+          assertBool "Should attempt multi compilation" True
         )
     , testCaseWithSetup "runCLI (CompileToObj file Nothing) uses default output file by replacing input extension with .o"
         (createFile (testFolder ++ testFile))

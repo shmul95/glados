@@ -163,9 +163,9 @@ topLevelDefTests = testGroup "TopLevelDef Tests"
     field = Field "x" TypeI32
     blockA = [StmtStop dummyPos]
     blockB = [StmtNext dummyPos]
-    defFunc = DefFunction "foo" [param] TypeI32 blockA
+    defFunc = DefFunction "foo" [param] TypeI32 blockA False
     defStruct = DefStruct "Vec2f" [field] [defFunc]
-    defOverride = DefOverride "show" [param] TypeNull blockA
+    defOverride = DefOverride "show" [param] TypeNull blockA False
 
 statementTests :: TestTree
 statementTests = testGroup "Statement Tests"

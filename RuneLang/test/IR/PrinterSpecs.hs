@@ -124,7 +124,7 @@ testPrintFunction = testGroup "printfunction"
             , IRLABEL (IRLabel "end")
             , IRRET (Just (IRTemp "t0" IRI32))
             ]
-          func = IRFunction "main" params (Just IRI32) body
+          func = IRFunction "main" params (Just IRI32) body False
           expected = intercalate "\n"
             [ "DEF main(p1: i32, p2: f32):"
             , "start:"
@@ -136,7 +136,7 @@ testPrintFunction = testGroup "printfunction"
             ]
       in printFunction func @?= expected
   , testCase "function with no instructions" $
-      let func = IRFunction "empty_func" [] Nothing []
+      let func = IRFunction "empty_func" [] Nothing [] False
           expected = "DEF empty_func():"
       in printFunction func @?= expected
   ]
@@ -151,7 +151,7 @@ testPrintTopLevel = testGroup "printtoplevel"
       let fields = [("x", IRI32), ("y", IRF32)]
       in printTopLevel (IRStructDef "point" fields) @?= "STRUCT point { x: i32, y: f32 }"
   , testCase "irfunctiondef" $
-      let func = IRFunction "main" [("p", IRI32)] (Just IRI32) [IRRET Nothing]
+      let func = IRFunction "main" [("p", IRI32)] (Just IRI32) [IRRET Nothing] False
           expected = intercalate "\n"
             [ "DEF main(p: i32):"
             , "    RET"
@@ -164,7 +164,7 @@ testPrintProgram = testGroup "printprogram/prettyprintir"
   [ testCase "simple program" $
       let extern = IRExtern "printf"
           global = IRGlobalDef "g_str" (IRGlobalStringVal "test")
-          func = IRFunction "main" [] (Just IRI32) [IRRET Nothing]
+          func = IRFunction "main" [] (Just IRI32) [IRRET Nothing] False
           program = IRProgram "TestModule" [extern, global, IRFunctionDef func]
           expected = intercalate "\n"
             [ "PROGRAM TestModule:"
