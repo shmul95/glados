@@ -100,6 +100,18 @@ printInstruction (IRJUMP_FALSE op (IRLabel target)) =
   "JUMP_FALSE " ++ printOperand op ++ ", " ++ target
 printInstruction (IRJUMP_EQ0 op (IRLabel target)) =
   "JUMP_EQ0 " ++ printOperand op ++ ", " ++ target
+printInstruction (IRJUMP_LT o1 o2 (IRLabel target)) =
+  "JUMP_LT " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_LTE o1 o2 (IRLabel target)) =
+  "JUMP_LTE " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_GT o1 o2 (IRLabel target)) =
+  "JUMP_GT " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_GTE o1 o2 (IRLabel target)) =
+  "JUMP_GTE " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_EQ o1 o2 (IRLabel target)) =
+  "JUMP_EQ " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_NEQ o1 o2 (IRLabel target)) =
+  "JUMP_NEQ " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
 printInstruction (IRCALL dest funcName args mbType) =
   let argsStr = intercalate ", " (map printOperand args)
       callStr = "CALL " ++ funcName ++ "(" ++ argsStr ++ ")"
