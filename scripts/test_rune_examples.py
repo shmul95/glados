@@ -21,12 +21,11 @@ OUT_BIN = "./out.bin"
 
 EXAMPLE_FILES = glob_files("RuneLang/test/RuneUnitTests", "ru")
 
-EXPECTED_STDOUT = "[+] PASSED\n" * 39
+EXPECTED_STDOUT = "[+] PASSED\n" * 82
 EXPECTED_RETURN = 0
 
 GREEN = "\033[32m"
 RED = "\033[31m"
-BOLD = "\033[1m"
 RESET = "\033[0m"
 CHECK = "✓"
 CROSS = "✗"
@@ -42,8 +41,7 @@ def print_ko(message: str) -> None:
     print(f"{RED}{CROSS}{RESET} {message}")
 
 
-def compile(examples_files: List[str]) -> subprocess.CompletedProcess:
-
+def compile(examples_files: List[str]) -> None:
     build_cmd = ["./rune", "build", *examples_files, "-o", OUT_BIN]
 
     try:
@@ -63,27 +61,46 @@ def compile(examples_files: List[str]) -> subprocess.CompletedProcess:
         raise SystemExit(ERROR)
 
     print_ok("Compilation succeeded.")
-    return result
+
+
+def run_binary() -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(
+            [OUT_BIN],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError:
+        print_ko("Binary not found.")
+        raise SystemExit(ERROR)
 
 
 def verify_output(run: subprocess.CompletedProcess) -> None:
-
     if run.returncode != EXPECTED_RETURN:
         print_ko(
             f"Program exited with code {run.returncode}, expected {EXPECTED_RETURN}."
         )
         raise SystemExit(ERROR)
 
+    if run.stdout != EXPECTED_STDOUT:
+        print_ko("Program output did not match expected output.")
+        print("Expected:")
+        print(EXPECTED_STDOUT)
+        print("Got:")
+        print(run.stdout)
+        raise SystemExit(ERROR)
+
     print_ok("Program exited with the expected return code.")
 
 
 def main() -> None:
-
     if not EXAMPLE_FILES:
         print_ko("No test files found.")
         raise SystemExit(ERROR)
 
-    run = compile(EXAMPLE_FILES)
+    compile(EXAMPLE_FILES)
+    run = run_binary()
     verify_output(run)
 
 
