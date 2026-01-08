@@ -29,15 +29,16 @@ import Rune.Pipelines
   ( compilePipeline,
     compileMultiplePipeline,
     interpretPipeline,
-    CompileMode (..)
+    CompileMode (..),
+    LibraryOptions (..)
   )
 import System.FilePath (takeExtension, dropExtension)
 
 data Action
   = ShowUsage
-  | CompileAll        FilePath (Maybe FilePath)
-  | CompileAllMany    [FilePath] (Maybe FilePath)
-  | CompileObjToExec  FilePath (Maybe FilePath)
+  | CompileAll        FilePath (Maybe FilePath) LibraryOptions
+  | CompileAllMany    [FilePath] (Maybe FilePath) LibraryOptions
+  | CompileObjToExec  FilePath (Maybe FilePath) LibraryOptions
   | CompileToObj      FilePath (Maybe FilePath)
   | CreateAsm         FilePath (Maybe FilePath)
   | Interpret         FilePath
@@ -47,6 +48,8 @@ data CompileRule
   = All
   | ToObj
   | ToAsm
+  | ToSharedLib
+  | ToStaticLib
   deriving (Show, Eq)
 
 usage :: String
@@ -62,7 +65,11 @@ usage =
       "Options:",
       "  -o, --output <file>   Specify the output file for compilation",
       "  -c                    Compile to object file",
-      "  -S                    Compile to assembly code"
+      "  -S                    Compile to assembly code",
+      "  -shared               Build a shared library (.so)",
+      "  -static-lib           Build a static library (.a)",
+      "  -L<path>              Add library search path",
+      "  -l<name>              Link with library"
     ]
 
 parseArgs :: [String] -> Either String Action
@@ -72,21 +79,26 @@ parseArgs (cmd : rest) = parseCommand cmd rest
 runCLI :: Action -> IO ()
 runCLI ShowUsage = putStr usage
 runCLI (Interpret inFile) = interpretPipeline inFile
-runCLI (CompileAll inFile maybeOutFile) =
-  let outFile = fromMaybe "a.out" maybeOutFile
-   in compilePipeline inFile outFile FullCompile
-runCLI (CompileAllMany inFiles maybeOutFile) =
-  let outFile = fromMaybe "a.out" maybeOutFile
-   in compileMultiplePipeline inFiles outFile
+runCLI (CompileAll inFile maybeOutFile libOpts) =
+  let outFile = fromMaybe (defaultOutput libOpts "a.out") maybeOutFile
+   in compilePipeline inFile outFile (FullCompile libOpts)
+runCLI (CompileAllMany inFiles maybeOutFile libOpts) =
+  let outFile = fromMaybe (defaultOutput libOpts "a.out") maybeOutFile
+   in compileMultiplePipeline inFiles outFile libOpts
 runCLI (CompileToObj inFile maybeOutFile) =
   let outFile = fromMaybe (dropExtension inFile ++ ".o") maybeOutFile
   in compilePipeline inFile outFile ToObject
 runCLI (CreateAsm inFile maybeOutFile) =
   let outFile = fromMaybe (dropExtension inFile ++ ".asm") maybeOutFile
   in compilePipeline inFile outFile ToAssembly
-runCLI (CompileObjToExec inFile maybeOutFile) =
-  let outFile = fromMaybe "a.out" maybeOutFile
-  in compilePipeline inFile outFile ToExecutable
+runCLI (CompileObjToExec inFile maybeOutFile libOpts) =
+  let outFile = fromMaybe (defaultOutput libOpts "a.out") maybeOutFile
+  in compilePipeline inFile outFile (ToExecutable libOpts)
+
+defaultOutput :: LibraryOptions -> String -> String
+defaultOutput (LibraryOptions True _ _ _) _ = "libout.so"
+defaultOutput (LibraryOptions _ True _ _) _ = "libout.a"
+defaultOutput _ def = def
 
 parseCommand :: String -> [String] -> Either String Action
 parseCommand "help" _ = pure ShowUsage
@@ -110,18 +122,35 @@ parseBuild :: [String] -> Either String Action
 parseBuild args = do
   (rule, args1)     <- determineCompileRule args
   (outFile, args2)  <- findOutputFile args1
-  parseByRule rule outFile args2
+  (libOpts, args3)  <- parseLibraryOptions args2
+  parseByRule rule outFile libOpts args3
 
 
-parseByRule :: CompileRule -> Maybe FilePath -> [String] -> Either String Action
-parseByRule All outFile args = do
+parseByRule :: CompileRule -> Maybe FilePath -> LibraryOptions -> [String] -> Either String Action
+parseByRule All outFile libOpts args = do
   (inFiles, rest) <- findInputFiles args All
   validateNoExtraArgs rest
   pure $ case inFiles of
-    [single] -> isSourceFile single outFile
-    _        -> CompileAllMany inFiles outFile
+    [single] -> isSourceFile single outFile libOpts
+    _        -> CompileAllMany inFiles outFile libOpts
 
-parseByRule rule outFile args = do
+parseByRule ToSharedLib outFile _ args = do
+  let libOpts = LibraryOptions True False [] []
+  (inFiles, rest) <- findInputFiles args ToSharedLib
+  validateNoExtraArgs rest
+  pure $ case inFiles of
+    [single] -> CompileAll single outFile libOpts
+    _        -> CompileAllMany inFiles outFile libOpts
+
+parseByRule ToStaticLib outFile _ args = do
+  let libOpts = LibraryOptions False True [] []
+  (inFiles, rest) <- findInputFiles args ToStaticLib
+  validateNoExtraArgs rest
+  pure $ case inFiles of
+    [single] -> CompileAll single outFile libOpts
+    _        -> CompileAllMany inFiles outFile libOpts
+
+parseByRule rule outFile _ args = do
   (inFile, rest) <- findInputFile args rule
   validateNoExtraArgs rest
   pure $ case rule of
@@ -155,6 +184,8 @@ isValidInputFile :: CompileRule -> FilePath -> Bool
 isValidInputFile All file = takeExtension file `elem` [".ru", ".o"]
 isValidInputFile ToObj file = takeExtension file `elem` [".ru", ".asm"]
 isValidInputFile ToAsm file = takeExtension file == ".ru"
+isValidInputFile ToSharedLib file = takeExtension file `elem` [".ru", ".o"]
+isValidInputFile ToStaticLib file = takeExtension file `elem` [".ru", ".o"]
 
 findOutputFile :: [String] -> Either String (Maybe FilePath, [String])
 findOutputFile [] = Right (Nothing, [])
@@ -167,21 +198,44 @@ findOutputFile args =
     (before, "--output":file:after) -> Right (Just file, before ++ after)
     (before, _:after) -> findOutputFile (before ++ after)
 
-isSourceFile :: FilePath -> Maybe FilePath -> Action
-isSourceFile inFile outFile =
+isSourceFile :: FilePath -> Maybe FilePath -> LibraryOptions -> Action
+isSourceFile inFile outFile libOpts =
   case takeExtension inFile of
-    ".ru" -> CompileAll inFile outFile
-    _     -> CompileObjToExec inFile outFile
+    ".ru" -> CompileAll inFile outFile libOpts
+    _     -> CompileObjToExec inFile outFile libOpts
 
 determineCompileRule :: [String] -> Either String (CompileRule, [String])
 determineCompileRule args =
-  case foldl processArg (False, False, []) args of
-    (True, True, _) -> Left "Cannot use both -c and -S options together."
-    (True, False, filtered) -> Right (ToObj, reverse filtered)
-    (False, True, filtered) -> Right (ToAsm, reverse filtered)
-    (False, False, filtered) -> Right (All, reverse filtered)
+  case foldl processArg (False, False, False, False, []) args of
+    (True, True, _, _, _) -> Left "Cannot use both -c and -S options together."
+    (_, _, True, True, _) -> Left "Cannot use both -shared and -static-lib options together."
+    (True, _, True, _, _) -> Left "Cannot use -c with -shared."
+    (True, _, _, True, _) -> Left "Cannot use -c with -static-lib."
+    (_, True, True, _, _) -> Left "Cannot use -S with -shared."
+    (_, True, _, True, _) -> Left "Cannot use -S with -static-lib."
+    (True, False, _, _, filtered) -> Right (ToObj, reverse filtered)
+    (False, True, _, _, filtered) -> Right (ToAsm, reverse filtered)
+    (_, _, True, _, filtered) -> Right (ToSharedLib, reverse filtered)
+    (_, _, _, True, filtered) -> Right (ToStaticLib, reverse filtered)
+    (False, False, False, False, filtered) -> Right (All, reverse filtered)
   where
-    processArg (c, s, acc) arg
-      | arg == "-c" = (True, s, acc)
-      | arg == "-S" = (c, True, acc)
-      | otherwise = (c, s, arg : acc)
+    processArg (c, s, sh, st, acc) arg
+      | arg == "-c" = (True, s, sh, st, acc)
+      | arg == "-S" = (c, True, sh, st, acc)
+      | arg == "-shared" = (c, s, True, st, acc)
+      | arg == "-static-lib" = (c, s, sh, True, acc)
+      | otherwise = (c, s, sh, st, arg : acc)
+
+parseLibraryOptions :: [String] -> Either String (LibraryOptions, [String])
+parseLibraryOptions args =
+  let (paths, rest1) = extractPrefixed "-L" args
+      (names, rest2) = extractPrefixed "-l" rest1
+   in Right (LibraryOptions False False paths names, rest2)
+  where
+    extractPrefixed prefix xs =
+      let (matching, others) = partition (prefix `isPrefixOf`) xs
+          values = map (drop (length prefix)) matching
+       in (values, others)
+
+isPrefixOf :: String -> String -> Bool
+isPrefixOf pre str = take (length pre) str == pre
