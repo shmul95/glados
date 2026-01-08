@@ -16,6 +16,7 @@ module Rune.IR.IRHelpers
     pushLoopContext,
     popLoopContext,
     getCurrentLoop,
+    mangleMethodName,
     getOperandType,
     getCommonType,
     selectReturnType,
@@ -44,6 +45,7 @@ module Rune.IR.IRHelpers
     pushLoopContext,
     popLoopContext,
     getCurrentLoop,
+    mangleMethodName,
     getOperandType,
     getCommonType,
     selectReturnType
@@ -236,6 +238,9 @@ genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do
   stringName <- newStringGlobal value
   return ([], IRGlobal stringName (IRPtr IRChar))
+
+mangleMethodName :: String -> String -> String
+mangleMethodName structName methodName = structName ++ "_" ++ methodName
 
 --
 -- control flow

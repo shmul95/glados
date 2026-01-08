@@ -163,10 +163,3 @@ binaryUndefinedProgram :: Program
 binaryUndefinedProgram = Program "binundef" 
   [ DefFunction "f" [] TypeNull [StmtExpr dummyPos (ExprBinary dummyPos Add (ExprVar dummyPos "ghost") (ExprLitInt dummyPos 1))] False
   ]
-
-testMangleFuncStack :: IO ()
-testMangleFuncStack = do
-  let fs = HM.fromList [("f", [(TypeI32, [TypeI32]), (TypeF32, [TypeF32])])]
-      mangled = mangleFuncStack fs
-  assertBool "Should contain mangled names" (HM.member "i32_f_i32" mangled)
-  assertBool "Should contain original name" (HM.member "f" mangled)

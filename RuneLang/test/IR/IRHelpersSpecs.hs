@@ -44,6 +44,8 @@ irHelpersTests =
     , testSignedTypeOfWidth
     , testUnsignedTypeOfWidth
     , testIsFloatType
+    , testDummyFunction
+    , testMangleMethodNameBasic
     ]
 
 --
@@ -461,4 +463,20 @@ testIsFloatType = testGroup "isFloatType"
       isFloatType IRNull @?= False
       isFloatType (IRPtr IRI32) @?= False
       isFloatType (IRStruct "S") @?= False
+  ]
+
+testDummyFunction :: TestTree
+testDummyFunction = testGroup "Dummy Test"
+  [ testCase "Simple dummy function test" $ do
+      irTypeToASTType IRI32 @?= TypeI32
+      irTypeToASTType IRF64 @?= TypeF64
+      irTypeToASTType IRBool @?= TypeBool
+  ]
+
+testMangleMethodNameBasic :: TestTree
+testMangleMethodNameBasic = testGroup "mangleMethodName"
+  [ testCase "Mangles struct method names correctly" $ do
+      mangleMethodName "Vec2f" "length" @?= "Vec2f_length"
+      mangleMethodName "MyStruct" "getValue" @?= "MyStruct_getValue"
+      mangleMethodName "Point" "distance" @?= "Point_distance"
   ]

@@ -37,6 +37,7 @@ import Rune.IR.Nodes
     IRTopLevel (..),
     IRType (..),
   )
+import Rune.Semantics.Helper (mangleName)
 
 --
 -- public
@@ -54,10 +55,13 @@ genTopLevel DefSomewhere {} = pure []
 
 -- | generate IR for a normal function
 -- def foo(a: i32, b: f32) -> i32 { ... }
--- DEF foo(p_a: i32, p_b: f32)
+-- DEF i32_foo_i32_f32(p_a: i32, p_b: f32)
 genFunction :: TopLevelDef -> IRGen [IRTopLevel]
 genFunction (DefFunction name params retType body isExport) = do
-  resetFunctionState name
+  let paramTypes = map paramType params
+      mangledName = if name == "main" then name else mangleName name retType paramTypes
+
+  resetFunctionState mangledName
 
   irParams <- mapM genParam params
   bodyInstrs <- concat <$> mapM genStatement body
@@ -66,14 +70,15 @@ genFunction (DefFunction name params retType body isExport) = do
                     TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
                     t -> astTypeToIRType t
       cleaned = ensureReturn irRetType bodyInstrs
-      func = IRFunction name irParams (Just irRetType) cleaned isExport
+      func = IRFunction mangledName irParams (Just irRetType) cleaned isExport
 
   clearFunctionState
   pure [IRFunctionDef func]
 genFunction x = throwError $ "genFunction called on non-function: received " ++ show x
 
 -- | generate IR for an override function
--- show(Vec2f) -> show_Vec2f
+-- override foo(a: i32) -> i32 { ... }
+-- DEF i32_foo_i32(p_a: i32)
 genOverride :: TopLevelDef -> IRGen [IRTopLevel]
 genOverride (DefOverride name params retType body isExport) =
   genFunction (DefFunction name params retType body isExport)
@@ -91,7 +96,7 @@ genStruct (DefStruct name fields methods) = do
 genStruct _ = pure []
 
 -- | generate IR for a struct method
--- Vec2f.magnitude() -> Vec2f_magnitude
+-- Vec2f.magnitude() -> f32_Vec2f_magnitude_Vec2f
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
 genStructMethod structName' (DefFunction methName params retType body isExport) =
   let typedParams = map (fixSelfParam structName') params

@@ -8,7 +8,6 @@ module Rune.Semantics.Vars (
   verifScope,
   verifExpr,
   verifExprWithContext,
-  mangleFuncStack
 ) where
 #else
 module Rune.Semantics.Vars (verifVars) where
@@ -85,9 +84,8 @@ verifVars (Program n defs) = do
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
-      finalFs = mangleFuncStack (stFuncs finalState)
 
-  pure (Program n allDefs, finalFs)
+  pure (Program n allDefs, fs)
 
 --
 -- private
@@ -110,18 +108,6 @@ getDefName (DefFunction n _ _ _ _) = n
 getDefName (DefOverride n _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
 getDefName (DefSomewhere {}) = ""
-
-
-mangleFuncStack :: FuncStack -> FuncStack
-mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
-  where
-    expandOverloads acc name sigs
-      | length sigs > 1 = foldr (addMangled name) acc sigs
-      | otherwise = acc
-
-    addMangled name (ret, args) acc =
-        let mName = mangleName name ret args
-        in HM.insert mName [(ret, args)] acc
 
 --
 -- verif
@@ -201,7 +187,7 @@ verifScope vs (StmtFor pos v t (Just start) end body : stmts) = do
       SourcePos file line col = pos
   
   start'  <- verifExpr vs start
-  e_t     <- lift $ either 
+  e_t     <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["for loop start"]) 
                Right $ exprType s start'
 

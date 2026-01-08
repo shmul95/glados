@@ -1,16 +1,32 @@
-def dummy_func() -> i32
+struct Vec2f
 {
-    return 42;
+    x: f32;
+    y: f32;
+
+    def add(self, other: Vec2f) -> Vec2f
+    {
+        Vec2f {
+            x: self.x + other.x,
+            y: self.y + other.y
+        }
+    }
+
 }
 
-override def dummy_func(i: i32) -> i32
+override def show(v: Vec2f) -> null
 {
-    return i + 1;
+    show("Vec2f(x: ");
+    show(v.x);
+    show(", y: ");
+    show(v.y);
+    show(")\n");
 }
 
 def main() -> null
 {
-    v = dummy_func(42);
+    a = Vec2f { x: 1.0, y: 2.0 };
+    b = Vec2f { x: 3.0, y: 4.0 };
+    c = a.add(b);
 
-    show(v);
+    show(c);
 }

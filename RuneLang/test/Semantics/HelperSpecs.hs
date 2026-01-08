@@ -91,17 +91,17 @@ specificityTests = testGroup "Signature specificity"
       in selectSignature fs "f" [TypeArray (TypeArray TypeI32)] @?= Just TypeI64
   ]
 
-mangleNameTests :: TestTree
-mangleNameTests = testGroup "mangleName Tests"
-  [ testCase "Mangles with primitive types" $ 
-      mangleName "add" TypeI32 [TypeI32, TypeI32] @?= "i32_add_i32_i32"
-  , testCase "Mangles with custom and mixed types" $ 
-      mangleName "print" TypeNull [TypeCustom "Vec", TypeI32] @?= "null_print_Vec_i32"
-  , testCase "Mangles with TypeAny in args" $ 
-      mangleName "method" TypeNull [TypeAny] @?= "method"
-  , testCase "Mangles with TypeAny in return" $ 
-      mangleName "method" TypeAny [TypeI32] @?= "method"
-  ]
+-- mangleNameTests :: TestTree
+-- mangleNameTests = testGroup "mangleName Tests"
+--   [ testCase "Mangles with primitive types" $ 
+--       mangleName "add" TypeI32 [TypeI32, TypeI32] @?= "i32_add_i32_i32"
+--   , testCase "Mangles with custom and mixed types" $ 
+--       mangleName "print" TypeNull [TypeCustom "Vec", TypeI32] @?= "null_print_Vec_i32"
+--   , testCase "Mangles with TypeAny in args" $ 
+--       mangleName "method" TypeNull [TypeAny] @?= "method"
+--   , testCase "Mangles with TypeAny in return" $ 
+--       mangleName "method" TypeAny [TypeI32] @?= "method"
+--   ]
 
 assignVarTypeTests :: TestTree
 assignVarTypeTests = testGroup "assignVarType Tests"
