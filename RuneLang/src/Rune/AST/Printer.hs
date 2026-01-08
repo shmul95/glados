@@ -338,10 +338,12 @@ showBinaryOp Gt = ">"
 showBinaryOp Gte = ">="
 showBinaryOp And = "&&"
 showBinaryOp Or = "||"
+showBinaryOp BitAnd = "&"
 
 showUnaryOp :: UnaryOp -> String
 showUnaryOp Negate = "-"
 showUnaryOp Not = "!"
+showUnaryOp BitNot = "~"
 showUnaryOp PropagateError = "?"
 showUnaryOp PrefixInc = "++(prefix)"
 showUnaryOp PrefixDec = "--(prefix)"

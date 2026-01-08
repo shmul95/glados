@@ -32,12 +32,20 @@ parseLogicalOr = chainl1 parseLogicalAnd op
       return $ ExprBinary pos Or
 
 parseLogicalAnd :: Parser Expression
-parseLogicalAnd = chainl1 parseEquality op
+parseLogicalAnd = chainl1 parseBitAnd op
   where
     op = do
       pos <- getCurrentPos
       _ <- expect T.OpAnd
       return $ ExprBinary pos And
+
+parseBitAnd :: Parser Expression
+parseBitAnd = chainl1 parseEquality op
+  where
+    op = do
+      pos <- getCurrentPos
+      _ <- expect T.OpBitAnd
+      return $ ExprBinary pos BitAnd
 
 parseEquality :: Parser Expression
 parseEquality = chainl1 parseComparison op
@@ -91,6 +99,10 @@ parseUnary =
         pos <- getCurrentPos
         _ <- expect T.OpNot
         ExprUnary pos Not <$> parseUnary,
+      do
+        pos <- getCurrentPos
+        _ <- expect T.OpBitNot
+        ExprUnary pos BitNot <$> parseUnary,
       do
         pos <- getCurrentPos
         _ <- expect T.OpInc
