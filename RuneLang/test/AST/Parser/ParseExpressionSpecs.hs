@@ -95,6 +95,8 @@ unaryOpTests = testGroup "Unary Op Tests"
       assertParse "!x" [tok T.OpNot, tok (T.Identifier "x")] (ExprUnary (SourcePos "test" 1 1) Not (ExprVar (SourcePos "test" 1 1) "x"))
   , testCase "PrefixInc" $
       assertParse "++x" [tok T.OpInc, tok (T.Identifier "x")] (ExprUnary (SourcePos "test" 1 1) PrefixInc (ExprVar (SourcePos "test" 1 1) "x"))
+  , testCase "ErrorPropagate" $
+      assertParse "x?" [tok (T.Identifier "x"), tok T.OpErrorProp] (ExprUnary (SourcePos "test" 1 1) PropagateError (ExprVar (SourcePos "test" 1 1) "x"))
   ]
 
 postfixTests :: TestTree
@@ -136,6 +138,11 @@ postfixTests = testGroup "Postfix Tests"
       assertParse "arr[x][y]"
         [tok (T.Identifier "arr"), tok T.LBracket, tok (T.Identifier "x"), tok T.RBracket, tok T.LBracket, tok (T.Identifier "y"), tok T.RBracket]
         (ExprIndex (SourcePos "test" 1 1) (ExprIndex (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "arr") (ExprVar (SourcePos "test" 1 1) "x")) (ExprVar (SourcePos "test" 1 1) "y"))
+
+  , testCase "Call with error propagation" $
+      assertParse "f()?"
+        [tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpErrorProp]
+        (ExprUnary (SourcePos "test" 1 1) PropagateError (ExprCall (SourcePos "test" 1 1) "f" []))
   ]
 
 structInitTests :: TestTree
