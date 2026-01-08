@@ -103,6 +103,7 @@ data IRInstruction
   | IRSTORE IROperand IROperand
   | IRLOAD String IROperand IRType
   | IRDEREF String IROperand IRType
+  | IRLOAD_OFFSET String IROperand IROperand IRType  -- load value of type at ptr+offset
   | -- struct
     IRGET_FIELD String IROperand String String IRType
   | IRSET_FIELD IROperand String String IROperand
@@ -120,6 +121,7 @@ data IRInstruction
     IRSHR_OP String IROperand IROperand IRType  -- shift right (for div by power of 2)
   | IRSHL_OP String IROperand IROperand IRType  -- shift left (for mul by power of 2)
   | IRBAND_OP String IROperand IROperand IRType -- bitwise AND (for mod by power of 2)
+  | IRBNOT_OP String IROperand IRType           -- bitwise NOT (~x)
   | -- comparison
     IRCMP_EQ String IROperand IROperand
   | IRCMP_NEQ String IROperand IROperand
