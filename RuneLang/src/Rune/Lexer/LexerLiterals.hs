@@ -41,6 +41,16 @@ literal line col =
 mkLiteralConstructor :: TokenKind -> String -> (Int -> Int -> Token)
 mkLiteralConstructor = Token
 
+hexIntLitParser :: Parser (Int -> Int -> Token)
+hexIntLitParser = try $ do
+  void $ char '0'
+  void $ char 'x' <|> char 'X'
+  digits <- some (hexDigitChar <|> char '_')
+  let cleanDigits = filter (/= '_') digits
+      num = foldl (\acc d -> acc * 16 + C.digitToInt d) 0 cleanDigits
+      sourceVal = "0x" ++ digits
+  return $ mkLiteralConstructor (LitInt num) sourceVal
+
 intLitParser :: Parser (Int -> Int -> Token)
 intLitParser = try $ do
   sign <- optional $ char '-'
@@ -111,6 +121,7 @@ charChar =
 literalParsers :: [Parser (Int -> Int -> Token)]
 literalParsers =
   [ floatLitParser,
+    hexIntLitParser,
     intLitParser,
     boolLitParser,
     stringLitParser,
