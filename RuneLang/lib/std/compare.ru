@@ -27,18 +27,21 @@ export def compare(a: string, b: string) -> i32
     }
 
     loop {
-        if i < min_len {
+        if i >= min_len {
             stop;
         }
+
         char_a: char = a[i];
         char_b: char = b[i];
+
         if char_a < char_b {
             return -1;
         } else if char_a > char_b {
             return 1;
         }
-        ++i;
+        i++;
     }
+
     if len_a < len_b {
         return -1;
     } else if len_a > len_b {
