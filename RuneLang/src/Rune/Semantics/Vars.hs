@@ -129,24 +129,16 @@ mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport) = do
-  fs <- gets stFuncs
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
-      paramTypes = map paramType params
-
-      name' = case HM.lookup name fs of
-          Just sigs | length sigs > 1 -> mangleName name r_t paramTypes
-          _ -> name
 
   body' <- verifScope vs body
-  pure $ DefFunction name' params r_t body' isExport
+  pure $ DefFunction name params r_t body' isExport
 
 verifTopLevel (DefOverride name params r_t body isExport) = do
-  let paramTypes = map paramType params
-      name' = mangleName name r_t paramTypes
-      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
+  let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
 
   body' <- verifScope vs body
-  pure $ DefOverride name' params r_t body' isExport
+  pure $ DefOverride name params r_t body' isExport
 
 verifTopLevel (DefStruct name fields methods) = do
   methods' <- mapM (verifMethod name) methods
@@ -401,29 +393,19 @@ verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 verifMethod sName (DefFunction methodName params retType body isExport) = do
-  fs <- gets stFuncs
   let params' = fixSelfType sName params
-      paramTypes = map paramType params'
-      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
       baseName = sName ++ "_" ++ methodName
-      name' = case HM.lookup baseName fs of
-          Just sigs | length sigs > 1 -> mangleName baseName retType paramTypes
-          _ -> baseName
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
 
   body' <- verifScope vs body
-  pure $ DefFunction name' params' retType body' isExport
+  pure $ DefFunction baseName params' retType body' isExport
 verifMethod sName (DefOverride methodName params retType body isExport) = do
-  fs <- gets stFuncs
   let params' = fixSelfType sName params
-      paramTypes = map paramType params'
-      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
       baseName = sName ++ "_" ++ methodName
-      name' = case HM.lookup baseName fs of
-          Just sigs | length sigs > 1 -> mangleName baseName retType paramTypes
-          _ -> baseName
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
 
   body' <- verifScope vs body
-  pure $ DefOverride name' params' retType body' isExport
+  pure $ DefOverride baseName params' retType body' isExport
 verifMethod _ def = pure def
 
 --
@@ -477,7 +459,7 @@ callOrInstantiate pos hint s name args argTypes = do
   let SourcePos file line col = pos
 
   case checkParamType s name file line col args of
-    Right foundName -> pure $ ExprCall pos (ExprVar pos foundName) args
+    Right _ -> pure $ ExprCall pos (ExprVar pos name) args
     Left err -> do
       templates <- gets stTemplates
       case HM.lookup name templates of

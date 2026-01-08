@@ -28,6 +28,8 @@ import Rune.Semantics.Type
   )
 import Rune.Semantics.OpType (isIntegerType, isFloatType, iHTBinary, sameType)
 
+import Debug.Trace (trace)
+
 -- | Semantic error with location information
 data SemanticError = SemanticError
   { seFile     :: String
@@ -184,7 +186,7 @@ checkEachParam _ file line col i es [] =
 
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
-selectSignature fs name at =
+selectSignature fs name at = trace (show fs ++ " " ++ name ++ " " ++ show at) $
   case HM.lookup name fs of
     Nothing   -> Nothing
     Just []   -> Nothing
