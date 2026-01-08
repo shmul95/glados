@@ -39,6 +39,9 @@ import Data.Functor ((<&>))
 import Data.List (partition)
 import Data.Maybe (catMaybes)
 
+import System.Exit (ExitCode(ExitFailure, ExitSuccess), exitWith)
+import System.IO (hPutStrLn, hPutStr, hClose, openTempFile, stderr)
+
 import Logger (logError)
 
 import Rune.AST.Nodes (Program)
@@ -58,9 +61,7 @@ import Lib (fixpoint)
 
 import Text.Megaparsec (errorBundlePretty)
 import System.Process (rawSystem)
-import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.FilePath (takeExtension, dropExtension)
-import System.IO (hPutStr, hClose, openTempFile)
 import System.Directory (removeFile, getTemporaryDirectory)
 
 data CompileMode
@@ -137,19 +138,34 @@ compileRuneSources [] _ = pure []
 compileRuneSources runeFiles _ = do
   performSanityChecks >>= either (\e -> logError e >> pure []) (\() -> do
     results <- mapConcurrently compileRuneFile runeFiles
-    pure (catMaybes results)
+    let (errors, successes) = partitionResults results
+    mapM_ (logErrorNoExit) errors
+    when (not (null errors)) $ exitWith (ExitFailure 84)
+    pure successes
     )
   where
-    compileRuneFile :: FilePath -> IO (Maybe FilePath)
+    compileRuneFile :: FilePath -> IO (Either String FilePath)
     compileRuneFile runeFile = do
       result <- runPipeline runeFile
       case result of
-        Left err -> logError err >> pure Nothing
+        Left err -> pure (Left err)
         Right ir -> do
           let objFile = dropExtension runeFile <> ".o"
               asmContent = emitAssembly ir
           compileAsmToObject asmContent objFile
-          pure (Just objFile)
+          pure (Right objFile)
+    
+    partitionResults :: [Either String FilePath] -> ([String], [FilePath])
+    partitionResults = foldr go ([], [])
+      where
+        go (Left err) (errs, succs) = (err : errs, succs)
+        go (Right fp) (errs, succs) = (errs, fp : succs)
+    
+    logErrorNoExit :: String -> IO ()
+    logErrorNoExit msg = do
+      let red = "\x1b[31m"
+      let reset = "\x1b[0m"
+      hPutStrLn stderr $ red ++ "[ERROR]: " ++ reset ++ msg
 
 -- | compile a list of assembly files into object files concurrently
 compileAsmSources :: [FilePath] -> IO [FilePath]
