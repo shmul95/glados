@@ -45,6 +45,7 @@ where
 #endif
 
 import Data.Map.Strict (Map)
+import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 
 import Rune.Backend.Helpers (calculateStackMap, collectTopLevels, emit, escapeString)
@@ -487,8 +488,8 @@ emitDirectCmpJump sm op1 op2 jumpInstr lbl =
 
 emitIntCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
 emitIntCmpJump sm op1 op2 jumpInstr lbl =
-  let typ1 = maybe IRI64 id $ getOperandType op1
-      typ2 = maybe IRI64 id $ getOperandType op2
+  let typ1 = fromMaybe IRI64 $ getOperandType op1
+      typ2 = fromMaybe IRI64 $ getOperandType op2
       regSize = getSizeSpecifier typ1
       reg1 = getRegisterName "rax" typ1
   in loadRegWithExt sm ("rax", op1)
@@ -502,7 +503,7 @@ emitIntCmpJump sm op1 op2 jumpInstr lbl =
 
 emitFloatCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
 emitFloatCmpJump sm op1 op2 jumpInstr lbl =
-  let typ = maybe IRF64 id $ getOperandType op1
+  let typ = fromMaybe IRF64 $ getOperandType op1
   in loadFloatOperand sm "xmm0" op1 typ
      <> loadFloatOperand sm "xmm1" op2 typ
      <> (case typ of
@@ -514,7 +515,7 @@ emitFloatCmpJump sm op1 op2 jumpInstr lbl =
 -- test op1, op2 sets ZF based on op1 AND op2
 emitTestJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
 emitTestJump sm op1 op2 jumpInstr lbl =
-  let typ1 = maybe IRI64 id $ getOperandType op1
+  let typ1 = fromMaybe IRI64 $ getOperandType op1
       reg1 = getRegisterName "rax" typ1
   in loadRegWithExt sm ("rax", op1)
      <> case op2 of
