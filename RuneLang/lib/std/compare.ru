@@ -39,7 +39,7 @@ export def compare(a: string, b: string) -> i32
         } else if char_a > char_b {
             return 1;
         }
-        i++;
+        ++i;
     }
 
     if len_a < len_b {
