@@ -1,7 +1,7 @@
 def factorial(n: i32) ~> i32
 {
     if n < 0 {
-        return error("Cannot calculate factorial of negative number");
+        return error("Cannot calculate factorial of negative number.\n");
     }
     if n == 0 {
         1
@@ -13,5 +13,5 @@ def factorial(n: i32) ~> i32
 def main() -> null
 {
     val = factorial(5)?;
-    show(val);
+    show(val)
 }
