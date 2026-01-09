@@ -13,7 +13,9 @@ module Rune.IR.Generator.Expression.Call.Show
     ensureShowBoolFunc,
     mkShowOverride,
     overrideExists,
-    mkShowBoolFunc
+    mkShowBoolFunc,
+    isNonAsciiChar,
+    genNonAsciiCharInstrs
   )
 where
 #else
@@ -23,12 +25,15 @@ module Rune.IR.Generator.Expression.Call.Show
     getFormatSpecifier,
     prepareAddr,
     mkShowOverride,
-    overrideExists
+    overrideExists,
+    isNonAsciiChar,
+    genNonAsciiCharInstrs
   ) where
 #endif
 
 import Control.Monad (unless)
 import Control.Monad.State (gets, modify)
+import Data.Char (ord)
 import Rune.AST.Nodes (Expression)
 import Rune.IR.IRHelpers (genFormatString, registerCall, newStringGlobal, newTemp, nextLabelIndex, makeLabel)
 import Rune.IR.Nodes (IRGen, GenState(..), IRInstruction (..), IROperand (..), IRType (..), IRTopLevel(..), IRFunction(..))
@@ -124,6 +129,19 @@ prepareAddr (IRTemp n _) (IRPtr (IRStruct t)) =
   )
 prepareAddr op _ = ([], op)
 
+-- | Check if an operand is a non-ASCII character constant (code point >= 128)
+isNonAsciiChar :: IROperand -> Bool
+isNonAsciiChar (IRConstChar c) = ord c >= 128
+isNonAsciiChar _ = False
+
+-- | Generate instructions for outputting a non-ASCII char as UTF-8 string
+-- Returns (instructions, format operand, string operand) for use with printf/dprintf
+genNonAsciiCharInstrs :: Char -> IRGen ([IRInstruction], IROperand, IROperand)
+genNonAsciiCharInstrs c = do
+  stringName <- newStringGlobal [c]
+  (fmtInstrs, fmtOp) <- genFormatString "%s"
+  return (fmtInstrs, fmtOp, IRGlobal stringName (IRPtr IRChar))
+
 --
 -- def show(value: bool) -> null
 --
@@ -137,13 +155,20 @@ genShowBoolCall instrs op = do
   let callInstr = IRCALL "" "show_bool" [op] Nothing
   return (instrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
 
--- | show(<char>) -> putchar(<char>)
--- optimized: use putchar instead of printf("%c", char)
+-- | show(<char>) -> putchar(<char>) for ASCII, or printf("%s", str) for non-ASCII
+-- for ASCII chars (< 128), use optimized putchar
+-- for non-ASCII chars, convert to string and use printf (proper UTF-8 output)
 genShowCharCall :: [IRInstruction] -> IROperand -> IRGen ([IRInstruction], IROperand, IRType)
-genShowCharCall instrs op = do
-  registerCall "putchar"
-  let callInstr = IRCALL "" "putchar" [op] Nothing
-  return (instrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
+genShowCharCall instrs op = case op of
+  IRConstChar c | isNonAsciiChar op -> do
+    (fmtInstrs, fmtOp, strOp) <- genNonAsciiCharInstrs c
+    registerCall "printf"
+    let callInstr = IRCALL "" "printf" [fmtOp, strOp] Nothing
+    return (instrs <> fmtInstrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
+  _ -> do
+    registerCall "putchar"
+    let callInstr = IRCALL "" "putchar" [op] Nothing
+    return (instrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
 
 -- | generic printf fallback for other types
 genShowPrintfCall :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)

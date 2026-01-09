@@ -22,7 +22,9 @@ import Rune.IR.Generator.Expression.Call.Show
   ( genShowFmtCall,
     prepareAddr,
     mkShowOverride,
-    overrideExists
+    overrideExists,
+    isNonAsciiChar,
+    genNonAsciiCharInstrs
   )
 import Rune.IR.IRHelpers (registerCall, newStringGlobal, newTemp, nextLabelIndex, makeLabel)
 import Rune.IR.Nodes (IRGen, GenState(..), IRInstruction (..), IROperand (..), IRType (..), IRTopLevel(..), IRFunction(..))
@@ -72,8 +74,15 @@ genErrorBoolCall instrs op = do
 -- def error(value: char) -> null
 --
 
+-- | error(<char>) -> dprintf(2, "%c", <char>) for ASCII, or dprintf(2, "%s", str) for non-ASCII
 genErrorCharCall :: [IRInstruction] -> IROperand -> IRGen ([IRInstruction], IROperand, IRType)
-genErrorCharCall instrs op = genErrorPrintfCall instrs op IRChar
+genErrorCharCall instrs op = case op of
+  IRConstChar c | isNonAsciiChar op -> do
+    (fmtInstrs, fmtOp, strOp) <- genNonAsciiCharInstrs c
+    registerCall "dprintf"
+    let callInstr = IRCALL "" "dprintf" [stderrFd, fmtOp, strOp] Nothing
+    return (instrs <> fmtInstrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
+  _ -> genErrorPrintfCall instrs op IRChar
 
 genErrorPrintfCall :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
 genErrorPrintfCall instrs op typ = do
