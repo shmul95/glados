@@ -23,6 +23,7 @@ showCallTests :: TestTree
 showCallTests = testGroup "Rune.IR.Generator.Expression.Call.Show"
   [ test_show_bool_generation_details
   , test_show_char_generation_details
+  , test_show_char_non_ascii_uses_printf
   , test_show_i64_generation_details
   , test_show_f64_generation_details
   , test_show_struct_generation_details
@@ -41,6 +42,8 @@ showCallTests = testGroup "Rune.IR.Generator.Expression.Call.Show"
   , test_ensure_show_bool_func_definition
   , test_override_exists
   , test_mk_show_bool_func_content
+  , test_is_non_ascii_char
+  , test_gen_non_ascii_char_instrs
   ]
 
 --
@@ -240,3 +243,39 @@ test_mk_show_bool_func_content = testCase "mkShowBoolFunc" $ do
     (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
     (Right _, state) ->
       assertBool "printf should be registered as external" $ Set.member "printf" (gsCalledFuncs state)
+
+test_show_char_non_ascii_uses_printf :: TestTree
+test_show_char_non_ascii_uses_printf = testCase "Non-ASCII char uses printf with string instead of putchar" $ do
+    case runState (runExceptT $ genShowCall genExprSimple (ExprLitChar dummyPos 'ç')) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), state) -> do
+        typ @?= IRNull
+        assertBool "Should contain call to printf" $ any (isCall "printf") instrs
+        assertBool "Should NOT contain call to putchar" $ not $ any (isCall "putchar") instrs
+        let stringGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
+        assertBool "Should register format string %s" $ any ("%s" `isPrefixOf`) stringGlobals
+
+test_is_non_ascii_char :: TestTree
+test_is_non_ascii_char = testCase "isNonAsciiChar detects non-ASCII characters" $ do
+    isNonAsciiChar (IRConstChar 'a') @?= False
+    isNonAsciiChar (IRConstChar 'z') @?= False
+    isNonAsciiChar (IRConstChar '~') @?= False
+    isNonAsciiChar (IRConstChar 'ç') @?= True
+    isNonAsciiChar (IRConstChar 'ñ') @?= True
+    isNonAsciiChar (IRConstChar '✓') @?= True
+    isNonAsciiChar (IRConstInt 200) @?= False
+
+test_gen_non_ascii_char_instrs :: TestTree
+test_gen_non_ascii_char_instrs = testCase "genNonAsciiCharInstrs creates string global and format" $ do
+    case runState (runExceptT $ genNonAsciiCharInstrs 'ç') emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (_, fmtOp, strOp), state) -> do
+        case fmtOp of
+          IRGlobal _ (IRPtr IRChar) -> return ()
+          _ -> assertFailure "Format operand should be a global string pointer"
+        case strOp of
+          IRGlobal _ (IRPtr IRChar) -> return ()
+          _ -> assertFailure "String operand should be a global string pointer"
+        let stringGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
+        assertBool "Should contain char as string global" $ any ("ç" `isPrefixOf`) stringGlobals
+        assertBool "Should contain %s format string" $ any ("%s" `isPrefixOf`) stringGlobals

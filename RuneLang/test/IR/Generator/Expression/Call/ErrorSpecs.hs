@@ -22,6 +22,7 @@ errorCallTests :: TestTree
 errorCallTests = testGroup "Rune.IR.Generator.Expression.Call.Error"
   [ test_error_bool_dispatch
   , test_error_char_dispatch
+  , test_error_char_non_ascii_dispatch
   , test_error_i64_dispatch
   , test_error_struct_dispatch
   , test_get_error_func_logic
@@ -69,6 +70,19 @@ test_error_char_dispatch = testCase "genErrorCall with Char dispatches to dprint
         typ @?= IRNull
         assertBool "Should contain call to dprintf" $ any (isCallTo "dprintf") instrs
         -- stderr registration removed
+
+test_error_char_non_ascii_dispatch :: TestTree
+test_error_char_non_ascii_dispatch = testCase "genErrorCall with non-ASCII Char uses dprintf with string" $ do
+    case runState (runExceptT $ genErrorCall genExprSimple (ExprLitChar dummyPos 'ç')) emptyState of
+      (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
+      (Right (instrs, _, typ), state) -> do
+        typ @?= IRNull
+        assertBool "Should contain call to dprintf" $ any (isCallTo "dprintf") instrs
+        let stringGlobals = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
+        assertBool "Should register format string %s" $ any ("%s" `isPrefixOf`) stringGlobals
+        case filter (isCallTo "dprintf") instrs of
+          [IRCALL _ _ (fdArg:_) _] -> fdArg @?= IRConstInt 2
+          _ -> assertFailure "Expected exactly one dprintf call with fd 2 as first argument"
 
 test_error_i64_dispatch :: TestTree
 test_error_i64_dispatch = testCase "genErrorCall with IRI64 uses dprintf with fd 2 and %ld" $ do

@@ -12,6 +12,7 @@ module Rune.Backend.Helpers
     collectVars,
     accumulateOffset,
     encodeCharacter,
+    encodeUtf8Bytes,
     makeRbpOffset
   )
 where
@@ -135,7 +136,27 @@ encodeCharacter (c : cs)
   | isPrintable c =
       let (printables, rest) = span isPrintable (c : cs)
        in ("\"" ++ printables ++ "\"") : encodeCharacter rest
-  | otherwise = show (ord c) : encodeCharacter cs
+  | otherwise = encodeUtf8Bytes (ord c) ++ encodeCharacter cs
+
+-- | Encode a Unicode code point as UTF-8 bytes (as string representations)
+encodeUtf8Bytes :: Int -> [String]
+encodeUtf8Bytes cp
+  | cp < 0x80 = [show cp]
+  | cp < 0x800 = 
+      [ show (0xC0 + (cp `div` 64))
+      , show (0x80 + (cp `mod` 64))
+      ]
+  | cp < 0x10000 =
+      [ show (0xE0 + (cp `div` 4096))
+      , show (0x80 + ((cp `div` 64) `mod` 64))
+      , show (0x80 + (cp `mod` 64))
+      ]
+  | otherwise =
+      [ show (0xF0 + (cp `div` 262144))
+      , show (0x80 + ((cp `div` 4096) `mod` 64))
+      , show (0x80 + ((cp `div` 64) `mod` 64))
+      , show (0x80 + (cp `mod` 64))
+      ]
 
 -- | convert offset from function stack frame to RBP-relative offset
 makeRbpOffset :: Int -> Int -> Int
