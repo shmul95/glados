@@ -469,13 +469,16 @@ emitFunctionTests = testGroup "emitFunction"
           fn = IRFunction "test_func" params Nothing body True
           result = emitFunction fn
       in assertBool "should contain all function components" $
-           any (== "global test_func") result &&
+           any (== "global test_func:function") result &&
            any (== "test_func:") result &&
            any (== "    push rbp") result &&
+           -- arg1 (4 bytes) -> stack size 16 (aligned)
+           any (== "    sub rsp, 16") result &&
            any (== "    mov dword [rbp-4], edi") result &&
            any (== "    mov eax, dword [rbp-4]") result &&
            any (== ".L.function_end_test_func:") result &&
            any (== "    ret") result
+
   , testCase "empty function body" $
       let fn = IRFunction "empty" [] Nothing [] False
           result = emitFunction fn
@@ -493,11 +496,20 @@ emitFunctionPrologueTests = testGroup "emitFunctionPrologue"
       let func = IRFunction "test" [] Nothing [] True
           result = emitFunctionPrologue func 32
       in assertBool "should have prologue instructions" $
-           any (=="global test") result &&
+           any (=="global test:function") result &&
            any (=="test:") result &&
            any (=="    push rbp") result &&
            any (=="    sub rsp, 32") result
+
+  , testCase "check prologue without stack allocation" $
+      let func = IRFunction "test" [] Nothing [] True
+          result = emitFunctionPrologue func 0
+      in assertBool "should not have sub rsp" $
+           any (=="test:") result &&
+           any (=="    push rbp") result &&
+           not (any (== "    sub rsp, 0") result)
   ]
+
 
 emitFunctionEpilogueTests :: TestTree
 emitFunctionEpilogueTests = testGroup "emitFunctionEpilogue"

@@ -1,9 +1,11 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.Pipelines
   ( CompileMode (..),
+    LibraryOptions (..),
     compilePipeline,
     compileMultiplePipeline,
     compileAsmToObject,
@@ -27,23 +29,29 @@ module Rune.Pipelines
   ( compilePipeline,
     interpretPipeline,
     compileMultiplePipeline,
+    CompileMode (..),
+    LibraryOptions (..)
   )
 where
 #endif
 
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (IOException, try, bracket)
-import Control.Monad ((>=>), when)
+import Control.Monad ((>=>), when, unless)
 
+import Data.Bifunctor (first)
 import Data.Functor ((<&>))
 import Data.List (partition)
 import Data.Maybe (catMaybes)
+
+import System.Exit (ExitCode(ExitFailure, ExitSuccess), exitWith)
+import System.IO (hPutStrLn, hPutStr, hClose, openTempFile, stderr)
 
 import Logger (logError)
 
 import Rune.AST.Nodes (Program)
 import Rune.AST.Parser (parseRune)
-import Rune.Backend.X86_64.Codegen (emitAssembly)
+import Rune.Backend.X86_64.Codegen (emitAssembly, emitAssemblyLib)
 import Rune.IR.Generator (generateIR)
 import Rune.IR.Nodes (IRProgram)
 import Rune.IR.Printer (prettyPrintIR)
@@ -58,166 +66,204 @@ import Lib (fixpoint)
 
 import Text.Megaparsec (errorBundlePretty)
 import System.Process (rawSystem)
-import System.Exit (ExitCode (ExitFailure, ExitSuccess))
 import System.FilePath (takeExtension, dropExtension)
-import System.IO (hPutStr, hClose, openTempFile)
-import System.Directory (removeFile, getTemporaryDirectory)
+import System.Directory (removeFile, getTemporaryDirectory, getHomeDirectory)
+
+data LibraryOptions = LibraryOptions
+  { libShared :: Bool
+  , libStatic :: Bool
+  , libPaths  :: [FilePath]
+  , libNames  :: [String]
+  } deriving (Show, Eq)
 
 data CompileMode
   = ToObject
-  | ToExecutable
+  | ToExecutable LibraryOptions
   | ToAssembly
-  | FullCompile
+  | FullCompile LibraryOptions
   deriving (Show, Eq)
 
---
--- public
---
+defaultLibPaths :: FilePath -> [FilePath]
+defaultLibPaths home = ["/usr/local/lib", "/usr/lib", home <> "/.local/lib", "./lib/std"]
 
---
--- compiler pipeline routine
---
+rpathArg :: FilePath -> String
+rpathArg home = "-Wl,-rpath," <> home <> "/.local/lib"
 
--- | rune build <file.ru> -o output [options]
 compilePipeline :: FilePath -> FilePath -> CompileMode -> IO ()
-compilePipeline inFile outFile mode =
-  case mode of
-    FullCompile  -> compileFullPipeline inFile outFile
-    ToAssembly   -> compileToAssembly inFile outFile
-    ToObject     -> compileToObject inFile outFile
-    ToExecutable -> compileObjectIntoExecutable inFile outFile
+compilePipeline = modeToAction
+  where
+    modeToAction inf outf = \case
+      FullCompile libOpts  -> compileFullPipeline inf outf libOpts
+      ToAssembly           -> compileToAssembly inf outf
+      ToObject             -> compileToObject inf outf
+      ToExecutable libOpts -> compileObjectIntoExecutable inf outf libOpts
 
--- | rune build <file.ru> -o output
-compileFullPipeline :: FilePath -> FilePath -> IO ()
-compileFullPipeline inFile outFile =
+compileFullPipeline :: FilePath -> FilePath -> LibraryOptions -> IO ()
+compileFullPipeline inFile outFile libOpts =
   runPipelineAction inFile $ \ir -> do
-    let objFile = dropExtension inFile <> ".o"
-        asmContent = emitAssembly ir
-    compileAsmToObject asmContent objFile
-    compileObjectIntoExecutable objFile outFile
+    let objFile = objectFileName inFile
+        asmContent = selectEmitter libOpts ir
+    compileAsmToObject asmContent objFile (isPIC libOpts)
+    linkOrArchive libOpts [objFile] outFile
 
--- | rune build <file.ru> -S -o output.asm
 compileToAssembly :: FilePath -> FilePath -> IO ()
-compileToAssembly inFile outFile =
+compileToAssembly inFile outFile = 
   runPipelineAction inFile (writeFile outFile . emitAssembly)
 
--- | rune build <file.ru|file.asm> -o output.o
 compileToObject :: FilePath -> FilePath -> IO ()
-compileToObject inFile outFile =
-  case takeExtension inFile of
-    ".ru" -> runPipelineAction inFile $ \ir ->
-              let asmContent = emitAssembly ir
-               in compileAsmToObject asmContent outFile
-    ".asm" -> safeRead inFile >>= either logError (`compileAsmToObject` outFile)
-    ext -> logError $ "Unsupported file extension: " <> ext
+compileToObject inFile outFile = case takeExtension inFile of
+  ".ru"  -> runPipelineAction inFile $ \ir -> 
+              compileAsmToObject (emitAssembly ir) outFile False
+  ".asm" -> safeRead inFile >>= either logError (\c -> compileAsmToObject c outFile False)
+  ext    -> logError $ "Unsupported file extension: " <> ext
 
--- | rune build <file1.ru> <file2.ru> ... -o output
-compileMultiplePipeline :: [FilePath] -> FilePath -> IO ()
-compileMultiplePipeline [] _ = logError "No input files provided."
-compileMultiplePipeline inFiles outFile = do
-  let (runeFiles, remainder) = partition (\fp -> takeExtension fp == ".ru") inFiles
-      (asmFiles, objectFiles) = partition (\fp -> takeExtension fp == ".asm") remainder
+compileMultiplePipeline :: [FilePath] -> FilePath -> LibraryOptions -> IO ()
+compileMultiplePipeline [] _ _ = logError "No input files provided."
+compileMultiplePipeline inFiles outFile libOpts = do
+  let (runeFiles, remainder) = partitionByExt ".ru" inFiles
+      (asmFiles, objectFiles) = partitionByExt ".asm" remainder
+      isLib = isPIC libOpts
 
-  runeObjs <- compileRuneSources runeFiles outFile
-  asmObjs  <- compileAsmSources asmFiles
-  let allObjects = objectFiles <> asmObjs <> runeObjs
-  case allObjects of
-    [] -> logError "No object files to link."
-    _  -> linkObjectsIntoExecutable allObjects outFile
+  runeObjs <- compileRuneSources runeFiles isLib
+  asmObjs  <- compileAsmSources asmFiles isLib
+  
+  linkOrArchive' libOpts (objectFiles <> asmObjs <> runeObjs) outFile
 
--- | compile many Rune sources files into object files concurrently
--- rune build <file1.ru> <file2.ru> ... -o output
---
--- threads:
---  1. compile each file separately in parallel
---  2. return list of object files
---  3. log errors as they occur
-compileRuneSources :: [FilePath] -> FilePath -> IO [FilePath]
+compileRuneSources :: [FilePath] -> Bool -> IO [FilePath]
 compileRuneSources [] _ = pure []
-compileRuneSources runeFiles _ = do
-  performSanityChecks >>= either (\e -> logError e >> pure []) (\() -> do
-    results <- mapConcurrently compileRuneFile runeFiles
-    pure (catMaybes results)
-    )
+compileRuneSources runeFiles isLib =
+  performSanityChecks >>= either exitWithError (const $ compileFiles runeFiles isLib)
   where
-    compileRuneFile :: FilePath -> IO (Maybe FilePath)
-    compileRuneFile runeFile = do
-      result <- runPipeline runeFile
-      case result of
-        Left err -> logError err >> pure Nothing
-        Right ir -> do
-          let objFile = dropExtension runeFile <> ".o"
-              asmContent = emitAssembly ir
-          compileAsmToObject asmContent objFile
-          pure (Just objFile)
+    exitWithError e = logError e >> pure []
+    compileFiles files forLib = do
+      results <- mapConcurrently (compileRuneFile forLib) files
+      let (errors, successes) = partitionEithers results
+      mapM_ logErrorNoExit errors
+      unless (null errors) $ exitWith (ExitFailure 84)
+      pure successes
 
--- | compile a list of assembly files into object files concurrently
-compileAsmSources :: [FilePath] -> IO [FilePath]
-compileAsmSources asmFiles = do
-  let targets = map (\fp -> (fp, dropExtension fp <> ".o")) asmFiles
-  results <- mapConcurrently compileTarget targets
-  pure (catMaybes results)
+compileRuneFile :: Bool -> FilePath -> IO (Either String FilePath)
+compileRuneFile forLib runeFile =
+  runPipeline runeFile >>= either (pure . Left) (compileToObj forLib runeFile)
   where
-    compileTarget (asmFile, objFile) =
-      safeRead asmFile >>= either (\e -> logError e >> pure Nothing) (\asmContent -> compileAsmToObject asmContent objFile >> pure (Just objFile))
+    compileToObj isLib rf ir = do
+      let objFile = objectFileName rf
+          asmContent = if isLib then emitAssemblyLib ir else emitAssembly ir
+      compileAsmToObject asmContent objFile isLib
+      pure $ Right objFile
+
+compileAsmSources :: [FilePath] -> Bool -> IO [FilePath]
+compileAsmSources asmFiles isLib =
+  catMaybes <$> mapConcurrently (compileAsmFile isLib) asmFiles
+  where
+    compileAsmFile forLib asmFile = do
+      let objFile = objectFileName asmFile
+      safeRead asmFile >>= either handleError (compileAndReturn objFile forLib)
+    
+    handleError e = logError e >> pure Nothing
+    compileAndReturn obj forLib content = 
+      compileAsmToObject content obj forLib >> pure (Just obj)
 
 interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
 
---
--- private pipelines
---
-
 pipeline :: (FilePath, String) -> Either String IRProgram
-pipeline =
-  parseLexer
-    >=> parseAST
-    >=> verifAndGenIR
-    >=> optimizeIR
+pipeline = parseLexer >=> parseAST >=> verifAndGenIR >=> optimizeIR
 
 verifAndGenIR :: Program -> Either String IRProgram
-verifAndGenIR p = do
-  (checkedAST, funcStack) <- checkSemantics p
-  generateIR checkedAST funcStack
+verifAndGenIR = checkSemantics >=> uncurry generateIR
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
-runPipeline fp = do
-  performSanityChecks >>= either (pure . Left)
-    (\() -> safeRead fp <&> (>>= (pipeline . (fp,))))
-
+runPipeline fp = performSanityChecks >>= either (pure . Left) 
+  (const $ safeRead fp <&> (>>= pipeline . (fp,)))
 
 runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
-runPipelineAction inFile onSuccess =
-  runPipeline inFile >>= either logError onSuccess
+runPipelineAction inFile = (runPipeline inFile >>=) . either logError
 
----
---- private methods for compilation steps
----
+compileAsmToObject :: String -> FilePath -> Bool -> IO ()
+compileAsmToObject asmContent objFile forPic = 
+  withTempAsm asmContent (if forPic then assembleToObjectPIC objFile else assembleToObject objFile)
 
-compileAsmToObject :: String -> FilePath -> IO ()
-compileAsmToObject asmContent objFile = do
+withTempAsm :: String -> (FilePath -> IO ()) -> IO ()
+withTempAsm content action = do
   tmpDir <- getTemporaryDirectory
   bracket (openTempFile tmpDir "asm-XXXXXX.asm")
           (\(asmFile, h) -> hClose h >> removeFile asmFile)
-          (\(asmFile, h) -> do
-              hPutStr h asmContent >> hClose h
-              exitCode <- rawSystem "nasm" ["-f", "elf64", asmFile, "-o", objFile]
-              when (exitCode /= ExitSuccess) $
-                logError $ "Assembly to object compilation failed with exit code: " <> show exitCode)
+          (\(asmFile, h) -> hPutStr h content >> hClose h >> action asmFile)
 
-compileObjectIntoExecutable :: FilePath -> FilePath -> IO ()
-compileObjectIntoExecutable objFile = linkObjectsIntoExecutable [objFile]
+assembleToObject :: FilePath -> FilePath -> IO ()
+assembleToObject objFile asmFile = do
+  exitCode <- rawSystem "nasm" ["-f", "elf64", asmFile, "-o", objFile]
+  when (exitCode /= ExitSuccess) $
+    logError $ "Assembly to object compilation failed with exit code: " <> show exitCode
 
-linkObjectsIntoExecutable :: [FilePath] -> FilePath -> IO ()
-linkObjectsIntoExecutable objFiles exeFile = do
-  exitCode <- rawSystem "gcc" (("-no-pie":) $ objFiles ++ ["-o", exeFile])
+assembleToObjectPIC :: FilePath -> FilePath -> IO ()
+assembleToObjectPIC objFile asmFile = do
+  exitCode <- rawSystem "nasm" ["-f", "elf64", "-DPIC", asmFile, "-o", objFile]
+  when (exitCode /= ExitSuccess) $
+    logError $ "Assembly to object compilation failed with exit code: " <> show exitCode
+
+compileObjectIntoExecutable :: FilePath -> FilePath -> LibraryOptions -> IO ()
+compileObjectIntoExecutable objFile outFile libOpts = 
+  linkOrArchive libOpts [objFile] outFile
+
+linkOrArchive :: LibraryOptions -> [FilePath] -> FilePath -> IO ()
+linkOrArchive libOpts objFiles outFile
+  | libStatic libOpts = createStaticLibrary objFiles outFile
+  | libShared libOpts = createSharedLibrary objFiles outFile libOpts
+  | otherwise         = linkObjectsIntoExecutable objFiles outFile libOpts
+
+linkOrArchive' :: LibraryOptions -> [FilePath] -> FilePath -> IO ()
+linkOrArchive' _ [] _ = logError "No object files to link."
+linkOrArchive' libOpts objs out = linkOrArchive libOpts objs out
+
+createStaticLibrary :: [FilePath] -> FilePath -> IO ()
+createStaticLibrary objFiles outFile = 
+  runCommand "ar" (["rcs", outFile] ++ objFiles) 
+    "Static library creation failed with exit code: "
+
+createSharedLibrary :: [FilePath] -> FilePath -> LibraryOptions -> IO ()
+createSharedLibrary objFiles outFile libOpts = do
+  home <- getHomeDirectory
+  let args = sharedLibArgs home objFiles outFile libOpts
+  runCommand "gcc" args "Shared library creation failed with exit code: "
+
+sharedLibArgs :: FilePath -> [FilePath] -> FilePath -> LibraryOptions -> [String]
+sharedLibArgs home objFiles outFile libOpts =
+  ["-shared", "-fPIC", "-o", outFile] 
+  ++ objFiles 
+  ++ libPathArgs home libOpts
+  ++ libNameArgs libOpts
+  ++ [rpathArg home]
+
+linkObjectsIntoExecutable :: [FilePath] -> FilePath -> LibraryOptions -> IO ()
+linkObjectsIntoExecutable objFiles exeFile libOpts = do
+  home <- getHomeDirectory
+  let args = linkArgs home objFiles exeFile libOpts
+  runCommand "gcc" args "Object to executable compilation failed with exit code: "
+
+linkArgs :: FilePath -> [FilePath] -> FilePath -> LibraryOptions -> [String]
+linkArgs home objFiles exeFile libOpts =
+  ["-no-pie"] 
+  ++ objFiles 
+  ++ ["-o", exeFile] 
+  ++ libPathArgs home libOpts
+  ++ libNameArgs libOpts
+  ++ [rpathArg home]
+
+libPathArgs :: FilePath -> LibraryOptions -> [String]
+libPathArgs home libOpts = 
+  map ("-L" <>) (defaultLibPaths home ++ libPaths libOpts)
+
+libNameArgs :: LibraryOptions -> [String]
+libNameArgs = map ("-l" <>) . libNames
+
+runCommand :: String -> [String] -> String -> IO ()
+runCommand cmd args errMsg = do
+  exitCode <- rawSystem cmd args
   case exitCode of
-    ExitSuccess -> return ()
-    ExitFailure code -> logError $ "Object to executable compilation failed with exit code: " <> show code
-
---
--- private encapsulations for error handling
---
+    ExitSuccess      -> return ()
+    ExitFailure code -> logError $ errMsg <> show code
 
 optimizeIR :: IRProgram -> Either String IRProgram
 optimizeIR = Right . fixpoint runIROptimizer
@@ -226,12 +272,31 @@ checkSemantics :: Program -> Either String (Program, FuncStack)
 checkSemantics = verifVars
 
 safeRead :: FilePath -> IO (Either String String)
-safeRead fp = do
-  r <- try (readFile fp) :: IO (Either IOException String)
-  pure $ either (Left . ("Failed to read input file: " <>) . show) Right r
+safeRead fp = (try (readFile fp) :: IO (Either IOException String)) <&> first (("Failed to read input file: " <>) . show)
 
 parseLexer :: (FilePath, String) -> Either String (FilePath, [Token])
 parseLexer (fp, content) = either (Left . errorBundlePretty) (Right . (fp,)) (lexer fp content)
 
 parseAST :: (FilePath, [Token]) -> Either String Program
-parseAST (fp, tokens) = Right =<< parseRune fp tokens
+parseAST (fp, tokens) = parseRune fp tokens
+
+objectFileName :: FilePath -> FilePath
+objectFileName = (<> ".o") . dropExtension
+
+isPIC :: LibraryOptions -> Bool
+isPIC libOpts = libShared libOpts || libStatic libOpts
+
+selectEmitter :: LibraryOptions -> IRProgram -> String
+selectEmitter libOpts = if isPIC libOpts then emitAssemblyLib else emitAssembly
+
+partitionByExt :: String -> [FilePath] -> ([FilePath], [FilePath])
+partitionByExt ext = partition ((== ext) . takeExtension)
+
+partitionEithers :: [Either a b] -> ([a], [b])
+partitionEithers = foldr go ([], [])
+  where
+    go (Left e)  (ls, rs) = (e : ls, rs)
+    go (Right r) (ls, rs) = (ls, r : rs)
+
+logErrorNoExit :: String -> IO ()
+logErrorNoExit msg = hPutStrLn stderr $ "\x1b[31m[ERROR]: \x1b[0m" ++ msg

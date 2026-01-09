@@ -5,7 +5,7 @@ module Rune.IR.Generator.Statement.Loops
   )
 where
 
-import Rune.AST.Nodes (Expression, Statement)
+import Rune.AST.Nodes (Expression, Statement, Type)
 import Rune.IR.IRHelpers
   ( makeLabel,
     newTemp,
@@ -13,6 +13,7 @@ import Rune.IR.IRHelpers
     popLoopContext,
     pushLoopContext,
     registerVar,
+    astTypeToIRType,
   )
 import Rune.IR.Nodes
   ( IRGen,
@@ -46,21 +47,24 @@ type GenBlockCallback = [Statement] -> IRGen [IRInstruction]
 --     JUMP .L.loop_header<n>
 -- .L.loop_end<n>:
 --
-genForTo :: GenExprCallback -> GenBlockCallback -> String -> Maybe Expression -> Expression -> [Statement] -> IRGen [IRInstruction]
-genForTo genExpr genBlock var start end body = do
+genForTo :: GenExprCallback -> GenBlockCallback -> String -> Maybe Type -> Maybe Expression -> Expression -> [Statement] -> IRGen [IRInstruction]
+genForTo genExpr genBlock var varType start end body = do
   idx <- nextLabelIndex
   let headerLbl = makeLabel "loop_header" idx
       bodyLbl = makeLabel "body" idx
       endLbl = makeLabel "loop_end" idx
 
+  -- Determine the type of the loop variable
+  let loopVarType = maybe IRI32 astTypeToIRType varType
+
   initInstrs <- case start of
     Just startExpr -> do
-      (i, op, typ) <- genExpr startExpr
-      pure (i <> [IRASSIGN var op typ])
+      (i, op, _) <- genExpr startExpr
+      pure (i <> [IRASSIGN var op loopVarType])
     Nothing ->
-      pure [IRASSIGN var (IRConstInt 0) IRI32]
+      pure [IRASSIGN var (IRConstInt 0) loopVarType]
 
-  registerVar var (IRTemp var IRI32) IRI32
+  registerVar var (IRTemp var loopVarType) loopVarType
 
   (endInstrs, endOp, _) <- genExpr end
   cmpTemp <- newTemp "cmp" IRBool
@@ -69,12 +73,24 @@ genForTo genExpr genBlock var start end body = do
   bodyInstrs <- genBlock body
   popLoopContext
 
+  -- Extract start value to determine comparison direction
+  let startVal = case initInstrs of
+        (_ : IRASSIGN _ (IRConstInt s) _ : _) -> Just s
+        (IRASSIGN _ (IRConstInt s) _ : _) -> Just s
+        _ -> Nothing
+      
+      -- Determine comparison direction based on start and end values
+      cmpInstr = case (startVal, endOp) of
+        (Just s, IRConstInt e) | s > e -> IRCMP_GT cmpTemp (IRTemp var loopVarType) endOp
+        (Nothing, IRConstInt e) | e < 0 -> IRCMP_GT cmpTemp (IRTemp var loopVarType) endOp
+        _ -> IRCMP_LT cmpTemp (IRTemp var loopVarType) endOp
+
   pure $
     mconcat
       [ initInstrs,
         [IRLABEL headerLbl],
         endInstrs,
-        [IRCMP_LT cmpTemp (IRTemp var IRI32) endOp],
+        [cmpInstr],
         [IRJUMP_FALSE (IRTemp cmpTemp IRBool) endLbl],
         [IRLABEL bodyLbl],
         bodyInstrs,

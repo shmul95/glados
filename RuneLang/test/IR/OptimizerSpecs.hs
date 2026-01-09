@@ -170,7 +170,7 @@ testRenameInstr = testGroup "renameInstr"
 testSimplify :: TestTree
 testSimplify = testGroup "Simplification"
   [ testCase "simplifyOp propagates constants" $
-      let st = OptState (M.singleton "c" (IRConstInt 42)) M.empty False
+      let st = OptState (M.singleton "c" (IRConstInt 42)) M.empty False M.empty
           (res, _) = runState (simplifyOp (IRTemp "c" IRI64)) st
           (res2, _) = runState (simplifyOp (IRTemp "u" IRI64)) st
       in do
@@ -179,7 +179,7 @@ testSimplify = testGroup "Simplification"
 
   , testCase "simplifyInstr simplifies operands" $
       let consts = M.fromList [("c", IRConstInt 10), ("d", IRConstInt 20)]
-          st = OptState consts M.empty False
+          st = OptState consts M.empty False M.empty
           
           c = IRTemp "c" IRI64
           d = IRTemp "d" IRI64
@@ -195,18 +195,19 @@ testSimplify = testGroup "Simplification"
         check (IRGET_FIELD "x" c "f" "f2" IRI64) (IRGET_FIELD "x" (IRConstInt 10) "f" "f2" IRI64)
         check (IRSET_FIELD c "f" "f2" d) (IRSET_FIELD (IRConstInt 10) "f" "f2" (IRConstInt 20))
         
-        check (IRADD_OP "x" c d IRI64) (IRADD_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
-        check (IRSUB_OP "x" c d IRI64) (IRSUB_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
-        check (IRMUL_OP "x" c d IRI64) (IRMUL_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
-        check (IRDIV_OP "x" c d IRI64) (IRDIV_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
-        check (IRMOD_OP "x" c d IRI64) (IRMOD_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
+        -- The optimizer now does constant folding, so these become IRASSIGN
+        check (IRADD_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 30) IRI64)
+        check (IRSUB_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt (-10)) IRI64)
+        check (IRMUL_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 200) IRI64)
+        check (IRDIV_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 0) IRI64)
+        check (IRMOD_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 10) IRI64)
         
-        check (IRCMP_EQ "x" c d) (IRCMP_EQ "x" (IRConstInt 10) (IRConstInt 20))
-        check (IRCMP_NEQ "x" c d) (IRCMP_NEQ "x" (IRConstInt 10) (IRConstInt 20))
-        check (IRCMP_LT "x" c d) (IRCMP_LT "x" (IRConstInt 10) (IRConstInt 20))
-        check (IRCMP_LTE "x" c d) (IRCMP_LTE "x" (IRConstInt 10) (IRConstInt 20))
-        check (IRCMP_GT "x" c d) (IRCMP_GT "x" (IRConstInt 10) (IRConstInt 20))
-        check (IRCMP_GTE "x" c d) (IRCMP_GTE "x" (IRConstInt 10) (IRConstInt 20))
+        check (IRCMP_EQ "x" c d) (IRASSIGN "x" (IRConstBool False) IRBool)
+        check (IRCMP_NEQ "x" c d) (IRASSIGN "x" (IRConstBool True) IRBool)
+        check (IRCMP_LT "x" c d) (IRASSIGN "x" (IRConstBool True) IRBool)
+        check (IRCMP_LTE "x" c d) (IRASSIGN "x" (IRConstBool True) IRBool)
+        check (IRCMP_GT "x" c d) (IRASSIGN "x" (IRConstBool False) IRBool)
+        check (IRCMP_GTE "x" c d) (IRASSIGN "x" (IRConstBool False) IRBool)
         
         check (IRAND_OP "x" c d IRI64) (IRAND_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
         check (IROR_OP "x" c d IRI64) (IROR_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
@@ -225,18 +226,18 @@ testSimplify = testGroup "Simplification"
 testOptimizationLogic :: TestTree
 testOptimizationLogic = testGroup "Logic"
   [ testCase "emitInstr adds instruction to result" $
-      let st = OptState M.empty M.empty False
+      let st = OptState M.empty M.empty False M.empty
           (res, _) = runState (emitInstr (IRRET Nothing) []) st
       in res @?= [IRRET Nothing]
 
   , testCase "optimizeBlock processes list" $
-      let st = OptState M.empty M.empty False
+      let st = OptState M.empty M.empty False M.empty
           instrs = [IRASSIGN "x" (IRConstInt 1) IRI64, IRRET (Just (IRTemp "x" IRI64))]
           (res, _) = runState (optimizeBlock instrs) st
       in res @?= [IRRET (Just (IRConstInt 1))]
 
   , testCase "optimizeInstr: IRASSIGN updates consts and removes if safe" $
-      let st = OptState M.empty M.empty False
+      let st = OptState M.empty M.empty False M.empty
           instr = IRASSIGN "x" (IRConstInt 42) IRI64
           (res, newSt) = runState (optimizeInstr instr []) st
       in do
@@ -244,7 +245,7 @@ testOptimizationLogic = testGroup "Logic"
         M.lookup "x" (osConsts newSt) @?= Just (IRConstInt 42)
 
   , testCase "optimizeInstr: IRASSIGN kept if osKeepAssignments is True" $
-      let st = OptState M.empty M.empty True
+      let st = OptState M.empty M.empty True M.empty
           instr = IRASSIGN "x" (IRConstInt 42) IRI64
           (res, newSt) = runState (optimizeInstr instr []) st
       in do
@@ -252,7 +253,7 @@ testOptimizationLogic = testGroup "Logic"
         M.lookup "x" (osConsts newSt) @?= Just (IRConstInt 42)
 
   , testCase "optimizeInstr: IRLABEL resets constants" $
-      let st = OptState (M.singleton "x" (IRConstInt 1)) M.empty False
+      let st = OptState (M.singleton "x" (IRConstInt 1)) M.empty False M.empty
           instr = IRLABEL (IRLabel "l")
           (res, newSt) = runState (optimizeInstr instr []) st
       in do
@@ -262,7 +263,7 @@ testOptimizationLogic = testGroup "Logic"
   , testCase "optimizeInstr: Inlines simple function" $
       let callee = IRFunction "min" [] (Just IRI64) [IRRET (Just (IRConstInt 5))] False
           funcs = M.singleton "min" callee
-          st = OptState M.empty funcs False
+          st = OptState M.empty funcs False M.empty
           
           instr = IRCALL "res" "min" [] (Just IRI64)
           (res, st') = runState (optimizeInstr instr []) st
@@ -275,7 +276,7 @@ testOptimizationLogic = testGroup "Logic"
       let body = replicate 20 (IRINC (IRTemp "x" IRI64))
           callee = IRFunction "big" [] Nothing body False
           funcs = M.singleton "big" callee
-          st = OptState M.empty funcs False
+          st = OptState M.empty funcs False M.empty
           
           instr = IRCALL "res" "big" [] Nothing
           (res, _) = runState (optimizeInstr instr []) st
@@ -287,14 +288,15 @@ testOptimizationLogic = testGroup "Logic"
                    , IRADD_OP "sum" (IRParam "a" IRI64) (IRConstInt 1) IRI64
                    , IRRET (Just (IRTemp "sum" IRI64))
                    ] False
-          st = OptState M.empty M.empty False
+          st = OptState M.empty M.empty False M.empty
           args = [IRConstInt 10]
           
           (res, _) = runState (inlineFunction "r" "add" callee args []) st
           
           prefix = "add_r_"
+          -- The optimizer now folds IRConstInt 10 + 1 = 11, 
+          -- and assigns directly to sum
           expected = [ IRALLOC (prefix ++ "sum") IRI64
-                     , IRADD_OP (prefix ++ "sum") (IRConstInt 10) (IRConstInt 1) IRI64
                      ]
       in res @?= expected
   ]

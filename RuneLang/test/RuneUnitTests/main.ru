@@ -1,12 +1,15 @@
 somewhere
 {
-    def test_operators() -> null;
-    def test_maths() -> null;
+    def test_features() -> null;
+    def test_std() -> null;
 }
 
-def main() -> i32
+/**
+* public
+*/
+
+export def main() -> null
 {
-    test_operators();
-    test_maths();
-    return 0;
+    test_features();
+    test_std();
 }

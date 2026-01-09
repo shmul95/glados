@@ -43,6 +43,8 @@ operatorMap =
     (OpAssign, "="),
     (OpLt, "<"),
     (OpGt, ">"),
+    (OpBitNot, "~"),
+    (OpBitAnd, "&"),
     (OpErrorProp, "?")
   ]
 

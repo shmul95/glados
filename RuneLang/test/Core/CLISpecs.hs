@@ -1,6 +1,7 @@
 module Core.CLISpecs (cliTests) where
 
 import CLI
+import Rune.Pipelines (LibraryOptions(..))
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, assertBool, testCase)
 import System.IO.Silently (capture)
@@ -81,6 +82,9 @@ testCaseWithSetup name setup teardown test =
     test
     teardown
 
+defaultLibOpts :: LibraryOptions
+defaultLibOpts = LibraryOptions False False [] []
+
 --
 -- private
 --
@@ -91,29 +95,30 @@ actionDerivingTests =
     "Deriving Show/Eq Coverage"
     [ testCase "Show coverage for all constructors" $ do
         let action1 = ShowUsage
-            action2 = CompileAll "in" (Just "out")
+            action2 = CompileAll "in" (Just "out") defaultLibOpts
             action3 = Interpret "run"
-            action4 = CompileAll "file" Nothing
-            action5 = CompileAllMany ["f1", "f2"] Nothing
+            action4 = CompileAll "file" Nothing defaultLibOpts
+            action5 = CompileAllMany ["f1", "f2"] Nothing defaultLibOpts
         assertEqual "Show ShowUsage" "ShowUsage" (show action1)
-        assertEqual "Show Compile Just" "CompileAll \"in\" (Just \"out\")" (show action2)
+        assertEqual "Show Compile Just" ("CompileAll \"in\" (Just \"out\") (" ++ show defaultLibOpts ++ ")") (show action2)
         assertEqual "Show Interpret" "Interpret \"run\"" (show action3)
-        assertEqual "Show Compile Nothing" "CompileAll \"file\" Nothing" (show action4)
-        assertEqual "Show CompileAllMany" "CompileAllMany [\"f1\",\"f2\"] Nothing" (show action5)
+        assertEqual "Show Compile Nothing" ("CompileAll \"file\" Nothing (" ++ show defaultLibOpts ++ ")") (show action4)
+        assertEqual "Show CompileAllMany" ("CompileAllMany [\"f1\",\"f2\"] Nothing (" ++ show defaultLibOpts ++ ")") (show action5)
     , testCase "Eq coverage" $ do
-        let c1 = CompileAll "f" Nothing
-            c2 = CompileAll "f" Nothing
-            c3 = CompileAllMany ["f1", "f2"] Nothing
+        let c1 = CompileAll "f" Nothing defaultLibOpts
+            c2 = CompileAll "f" Nothing defaultLibOpts
+            c3 = CompileAllMany ["f1", "f2"] Nothing defaultLibOpts
             i1 = Interpret "f"
             s1 = ShowUsage
         assertEqual "Equal actions (Compile)" c1 c2
-        assertBool "Unequal actions (file)" (CompileAll "f" Nothing /= CompileAll "g" Nothing)
-        assertBool "Unequal actions (output)" (CompileAll "f" Nothing /= CompileAll "f" (Just "out"))
+        assertBool "Unequal actions (file)" (CompileAll "f" Nothing defaultLibOpts /= CompileAll "g" Nothing defaultLibOpts)
+        assertBool "Unequal actions (output)" (CompileAll "f" Nothing defaultLibOpts /= CompileAll "f" (Just "out") defaultLibOpts)
         assertBool "Unequal actions (Compile/Interpret)" (c1 /= i1)
         assertBool "Unequal actions (Interpret/ShowUsage)" (i1 /= s1)
         assertBool "Unequal actions (Compile/ShowUsage)" (c1 /= s1)
         assertBool "Unequal actions (Compile/CompileAllMany)" (c1 /= c3)
     ]
+
 
 compileRuleDerivingTests :: TestTree
 compileRuleDerivingTests =
@@ -168,23 +173,23 @@ parseBuildSuccessTests :: TestTree
 parseBuildSuccessTests =
   testGroup
     "Build Command Success Parsing"
-    [ shouldParseTo ["build", "input.ru"] (CompileAll "input.ru" Nothing),
-      shouldParseTo ["-b", "input.ru"] (CompileAll "input.ru" Nothing),
-      shouldParseTo ["--build", "input.ru"] (CompileAll "input.ru" Nothing),
-      shouldParseTo ["build", "input.ru", "-o", "output.bin"] (CompileAll "input.ru" (Just "output.bin")),
-      shouldParseTo ["--build", "input.ru", "--output", "output.bin"] (CompileAll "input.ru" (Just "output.bin")),
-      shouldParseTo ["build", "input.o"] (CompileObjToExec "input.o" Nothing),
-      shouldParseTo ["-b", "input.o"] (CompileObjToExec "input.o" Nothing),
-      shouldParseTo ["--build", "input.o"] (CompileObjToExec "input.o" Nothing),
-      shouldParseTo ["build", "input.o", "-o", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin")),
-      shouldParseTo ["--build", "input.o", "--output", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin")),
+    [ shouldParseTo ["build", "input.ru"] (CompileAll "input.ru" Nothing defaultLibOpts),
+      shouldParseTo ["-b", "input.ru"] (CompileAll "input.ru" Nothing defaultLibOpts),
+      shouldParseTo ["--build", "input.ru"] (CompileAll "input.ru" Nothing defaultLibOpts),
+      shouldParseTo ["build", "input.ru", "-o", "output.bin"] (CompileAll "input.ru" (Just "output.bin") defaultLibOpts),
+      shouldParseTo ["--build", "input.ru", "--output", "output.bin"] (CompileAll "input.ru" (Just "output.bin") defaultLibOpts),
+      shouldParseTo ["build", "input.o"] (CompileObjToExec "input.o" Nothing defaultLibOpts),
+      shouldParseTo ["-b", "input.o"] (CompileObjToExec "input.o" Nothing defaultLibOpts),
+      shouldParseTo ["--build", "input.o"] (CompileObjToExec "input.o" Nothing defaultLibOpts),
+      shouldParseTo ["build", "input.o", "-o", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin") defaultLibOpts),
+      shouldParseTo ["--build", "input.o", "--output", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin") defaultLibOpts),
        shouldParseTo ["build", "-c", "input.ru"] (CompileToObj "input.ru" Nothing),
        shouldParseTo ["--build", "-c", "input.asm"] (CompileToObj "input.asm" Nothing),
        shouldParseTo ["build", "-S", "input.ru"] (CreateAsm "input.ru" Nothing),
        shouldParseTo ["build", "-c", "input.ru", "-o", "output.o"] (CompileToObj "input.ru" (Just "output.o")),
        shouldParseTo ["build", "-S", "input.ru", "--output", "output.asm"] (CreateAsm "input.ru" (Just "output.asm")),
-       shouldParseTo ["build", "input1.ru", "input2.ru"] (CompileAllMany ["input1.ru", "input2.ru"] Nothing),
-       shouldParseTo ["build", "input1.ru", "input2.ru", "-o", "output.bin"] (CompileAllMany ["input1.ru", "input2.ru"] (Just "output.bin"))
+       shouldParseTo ["build", "input1.ru", "input2.ru"] (CompileAllMany ["input1.ru", "input2.ru"] Nothing defaultLibOpts),
+       shouldParseTo ["build", "input1.ru", "input2.ru", "-o", "output.bin"] (CompileAllMany ["input1.ru", "input2.ru"] (Just "output.bin") defaultLibOpts)
      ]
 
 parseBuildFailureTests :: TestTree
@@ -370,17 +375,17 @@ isSourceFileTests =
   testGroup
     "isSourceFile Tests"
     [ testCase ".ru file returns CompileAll" $ do
-        let result = isSourceFile "input.ru" Nothing
-        assertEqual "Should return CompileAll" (CompileAll "input.ru" Nothing) result
+        let result = isSourceFile "input.ru" Nothing defaultLibOpts
+        assertEqual "Should return CompileAll" (CompileAll "input.ru" Nothing defaultLibOpts) result
     , testCase ".ru file with output returns CompileAll" $ do
-        let result = isSourceFile "input.ru" (Just "output.bin")
-        assertEqual "Should return CompileAll" (CompileAll "input.ru" (Just "output.bin")) result
+        let result = isSourceFile "input.ru" (Just "output.bin") defaultLibOpts
+        assertEqual "Should return CompileAll" (CompileAll "input.ru" (Just "output.bin") defaultLibOpts) result
     , testCase ".o file returns CompileObjToExec" $ do
-        let result = isSourceFile "input.o" Nothing
-        assertEqual "Should return CompileObjToExec" (CompileObjToExec "input.o" Nothing) result
+        let result = isSourceFile "input.o" Nothing defaultLibOpts
+        assertEqual "Should return CompileObjToExec" (CompileObjToExec "input.o" Nothing defaultLibOpts) result
     , testCase ".o file with output returns CompileObjToExec" $ do
-        let result = isSourceFile "input.o" (Just "output.bin")
-        assertEqual "Should return CompileObjToExec" (CompileObjToExec "input.o" (Just "output.bin")) result
+        let result = isSourceFile "input.o" (Just "output.bin") defaultLibOpts
+        assertEqual "Should return CompileObjToExec" (CompileObjToExec "input.o" (Just "output.bin") defaultLibOpts) result
     ]
 
 determineCompileRuleTests :: TestTree
@@ -438,14 +443,14 @@ runCLIActionTests =
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) Nothing)) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) Nothing defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt compilation" True
         )
     , testCaseWithSetup "runCLI (CompileAll file Just out) uses specified output"
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) (Just (testFolder ++ "specified.bin")))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileAll (testFolder ++ testFile) (Just (testFolder ++ "specified.bin")) defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt compilation" True
         )
     , testCaseWithSetup "runCLI (CompileAllMany files Nothing) compiles multiple sources"
@@ -454,7 +459,7 @@ runCLIActionTests =
           createFile (testFolder ++ "second.ru"))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileAllMany [testFolder ++ "first.ru", testFolder ++ "second.ru"] Nothing)) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileAllMany [testFolder ++ "first.ru", testFolder ++ "second.ru"] Nothing defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt multi compilation" True
         )
     , testCaseWithSetup "runCLI (CompileToObj file Nothing) uses default output file by replacing input extension with .o"
@@ -489,14 +494,14 @@ runCLIActionTests =
         (createFile (testFolder ++ "test_compile.o"))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileObjToExec (testFolder ++ "test_compile.o") Nothing)) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileObjToExec (testFolder ++ "test_compile.o") Nothing defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt executable generation" True
         )
     , testCaseWithSetup "runCLI (CompileObjToExec file Just out) uses specified output"
         (createFile (testFolder ++ "test_compile.o"))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileObjToExec (testFolder ++ "test_compile.o") (Just (testFolder ++ "custom.exe")))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileObjToExec (testFolder ++ "test_compile.o") (Just (testFolder ++ "custom.exe")) defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt executable generation" True
         )
     ]

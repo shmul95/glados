@@ -15,7 +15,7 @@ where
 module Rune.IR.Generator.Expression.Call.Error (genErrorCall) where
 #endif
 
-import Control.Monad (unless, when)
+import Control.Monad (unless)
 import Control.Monad.State (gets, modify)
 import Rune.AST.Nodes (Expression)
 import Rune.IR.Generator.Expression.Call.Show
@@ -33,8 +33,8 @@ import Rune.IR.Nodes (IRGen, GenState(..), IRInstruction (..), IROperand (..), I
 
 type GenExprCallback = Expression -> IRGen ([IRInstruction], IROperand, IRType)
 
-stderrOperand :: IROperand
-stderrOperand = IRGlobal "stderr" (IRPtr IRNull)
+stderrFd :: IROperand
+stderrFd = IRConstInt 2
 
 --
 -- public
@@ -55,7 +55,7 @@ genErrorCall genExpr arg = do
 getErrorFunc :: IROperand -> IRType -> String
 getErrorFunc _ (IRStruct s) = "error_" <> s
 getErrorFunc _ (IRPtr (IRStruct s)) = "error_" <> s
-getErrorFunc _ _ = "fprintf"
+getErrorFunc _ _ = "dprintf"
 
 --
 -- def error(value: bool) -> null
@@ -75,21 +75,16 @@ genErrorBoolCall instrs op = do
 genErrorCharCall :: [IRInstruction] -> IROperand -> IRGen ([IRInstruction], IROperand, IRType)
 genErrorCharCall instrs op = genErrorPrintfCall instrs op IRChar
 
---
--- generic fprintf fallback for other types
---
-
 genErrorPrintfCall :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
 genErrorPrintfCall instrs op typ = do
   let funcName = getErrorFunc op typ
       (prep, finalOp) = prepareAddr op typ
 
   registerCall funcName
-  when (funcName == "fprintf") $ registerCall "stderr"
   (fmtInstrs, callArgs) <- genShowFmtCall op typ finalOp
 
   let args = case funcName of
-        "fprintf" -> stderrOperand : callArgs
+        "dprintf" -> stderrFd : callArgs
         _ -> callArgs
       callInstr = IRCALL "" funcName args Nothing
   return (instrs <> prep <> fmtInstrs <> [callInstr], IRTemp "t_null" IRNull, IRNull)
@@ -116,16 +111,15 @@ mkErrorBoolFunc = do
         { irFuncBody =
             [ IRJUMP_TRUE (IRParam "value" IRBool) (makeLabel "bool_true" idx)
             , IRADDR tFalse strFalse (IRPtr IRChar)
-            , IRCALL "" "fprintf" [stderrOperand, IRTemp tFalse (IRPtr IRChar)] Nothing
+            , IRCALL "" "dprintf" [stderrFd, IRTemp tFalse (IRPtr IRChar)] Nothing
             , IRJUMP (makeLabel "bool_end" idx)
             , IRLABEL (makeLabel "bool_true" idx)
             , IRADDR tTrue strTrue (IRPtr IRChar)
-            , IRCALL "" "fprintf" [stderrOperand, IRTemp tTrue (IRPtr IRChar)] Nothing
+            , IRCALL "" "dprintf" [stderrFd, IRTemp tTrue (IRPtr IRChar)] Nothing
             , IRLABEL (makeLabel "bool_end" idx)
             , IRRET Nothing
             ]
         }
 
   modify $ \s -> s { gsGlobals = IRFunctionDef func : gsGlobals s }
-  registerCall "fprintf"
-  registerCall "stderr"
+  registerCall "dprintf"

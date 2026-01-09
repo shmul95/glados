@@ -33,7 +33,8 @@ testEmitBinaryOp = testGroup "emitBinaryOp"
       let sm = Map.singleton "dest" (-4)
           instrs = emitBinaryOp sm "dest" "add" (IRConstInt 1) (IRConstInt 2) IRI32
       in do
-        assertBool "Contains add instruction" $ any ("add eax, ebx" ==) (map (drop 4) instrs)
+        -- Now uses immediate operand optimization: add eax, 2
+        assertBool "Contains add instruction" $ any (isInfixOf "add eax") instrs
         assertBool "Stores result" $ any ("mov dword [rbp-4], eax" ==) (map (drop 4) instrs)
 
   , testCase "Redirects to float op" $

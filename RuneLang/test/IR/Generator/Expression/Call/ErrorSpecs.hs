@@ -62,30 +62,29 @@ test_error_bool_dispatch = testCase "genErrorCall with Bool dispatches to error_
         assertBool "error_bool function should be defined" $ any isErrorBoolDef (gsGlobals state)
 
 test_error_char_dispatch :: TestTree
-test_error_char_dispatch = testCase "genErrorCall with Char dispatches to fprintf (not putchar)" $ do
+test_error_char_dispatch = testCase "genErrorCall with Char dispatches to dprintf" $ do
     case runState (runExceptT $ genErrorCall genExprSimple (ExprLitChar dummyPos 'x')) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
-      (Right (instrs, _, typ), state) -> do
+      (Right (instrs, _, typ), _) -> do
         typ @?= IRNull
-        assertBool "Should contain call to fprintf" $ any (isCallTo "fprintf") instrs
-        assertBool "Should register stderr" $ Set.member "stderr" (gsCalledFuncs state)
+        assertBool "Should contain call to dprintf" $ any (isCallTo "dprintf") instrs
+        -- stderr registration removed
 
 test_error_i64_dispatch :: TestTree
-test_error_i64_dispatch = testCase "genErrorCall with IRI64 uses fprintf with stderr and %ld" $ do
+test_error_i64_dispatch = testCase "genErrorCall with IRI64 uses dprintf with fd 2 and %ld" $ do
     case runState (runExceptT $ genErrorCall genExprSimple (ExprLitInt dummyPos 42)) emptyState of
       (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
       (Right (instrs, _, typ), state) -> do
         typ @?= IRNull
-        assertBool "Should call fprintf" $ any (isCallTo "fprintf") instrs
-        assertBool "Should register stderr" $ Set.member "stderr" (gsCalledFuncs state)
+        assertBool "Should call dprintf" $ any (isCallTo "dprintf") instrs
         
         let formatStrs = [v | IRGlobalDef _ (IRGlobalStringVal v) <- gsGlobals state]
         assertBool "Should register %ld" $ any ("%ld" `isPrefixOf`) formatStrs
         
-        case filter (isCallTo "fprintf") instrs of
-          [IRCALL _ _ (stderrArg:_) _] -> do
-            stderrArg @?= IRGlobal "stderr" (IRPtr IRNull)
-          _ -> assertFailure "Expected exactly one fprintf call with stderr as first argument"
+        case filter (isCallTo "dprintf") instrs of
+          [IRCALL _ _ (fdArg:_) _] -> do
+            fdArg @?= IRConstInt 2
+          _ -> assertFailure "Expected exactly one dprintf call with fd 2 as first argument"
 
 test_error_struct_dispatch :: TestTree
 test_error_struct_dispatch = testCase "genErrorCall with IRStruct uses error_StructName" $ do
@@ -104,7 +103,7 @@ test_get_error_func_logic = testGroup "getErrorFunc logic"
   , testCase "Struct Ptr" $ 
       getErrorFunc (IRTemp "p" (IRPtr (IRStruct "Pos"))) (IRPtr (IRStruct "Pos")) @?= "error_Pos"
   , testCase "Primitive" $ 
-      getErrorFunc (IRConstInt 0) IRI32 @?= "fprintf"
+      getErrorFunc (IRConstInt 0) IRI32 @?= "dprintf"
   ]
 
 test_ensure_error_bool_func_idempotency :: TestTree
@@ -117,19 +116,18 @@ test_ensure_error_bool_func_idempotency = testCase "ensureErrorBoolFunc adds def
         length defs @?= 1
 
 test_mk_error_bool_func_content :: TestTree
-test_mk_error_bool_func_content = testCase "mkErrorBoolFunc generates correct body with fprintf and stderr" $ do
+test_mk_error_bool_func_content = testCase "mkErrorBoolFunc generates correct body with dprintf" $ do
   case runState (runExceptT mkErrorBoolFunc) emptyState of
     (Left err, _) -> assertFailure $ "Unexpected error: " ++ err
     (Right _, state) -> do
-      assertBool "fprintf should be registered" $ Set.member "fprintf" (gsCalledFuncs state)
-      assertBool "stderr should be registered" $ Set.member "stderr" (gsCalledFuncs state)
+      assertBool "dprintf should be registered" $ Set.member "dprintf" (gsCalledFuncs state)
       
       case gsGlobals state of
         (IRFunctionDef f : _) -> do
           irFuncName f @?= "error_bool"
           let body = irFuncBody f
           assertBool "Should contain IRJUMP_TRUE" $ any (\i -> case i of IRJUMP_TRUE {} -> True; _ -> False) body
-          assertBool "Should contain fprintf calls" $ any (isCallTo "fprintf") body
-          assertBool "Calls should include stderr as first arg" $ 
-            any (\i -> case i of IRCALL _ "fprintf" (IRGlobal "stderr" _ : _) _ -> True; _ -> False) body
+          assertBool "Should contain dprintf calls" $ any (isCallTo "dprintf") body
+          assertBool "Calls should include fd 2 as first arg" $ 
+            any (\i -> case i of IRCALL _ "dprintf" (IRConstInt 2 : _) _ -> True; _ -> False) body
         _ -> assertFailure "Function definition not found in globals"

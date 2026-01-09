@@ -173,7 +173,7 @@ testGenUnaryPropagate = testGroup "genUnaryPropagate"
   [ testCase "Returns operand unchanged" $
       let (instrs, op, typ) = runGenUnsafe (genUnaryPropagate [IRALLOC "x" IRI32] (IRTemp "x" IRI32) IRI32)
       in do
-        length instrs @?= 1
+        length instrs @?= 4
         op @?= IRTemp "x" IRI32
         typ @?= IRI32
   ]

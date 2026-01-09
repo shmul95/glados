@@ -92,6 +92,9 @@ removeFileIfExists fp = do
   exists <- doesFileExist fp
   when exists (removeFile fp)
 
+defaultLibOpts :: LibraryOptions
+defaultLibOpts = LibraryOptions False False [] []
+
 --
 -- private
 --
@@ -102,22 +105,22 @@ compileModeDerivingTests =
     "Deriving Show/Eq Coverage for CompileMode"
     [ testCase "Show coverage for all CompileMode constructors" $ do
         let mode1 = ToObject
-            mode2 = ToExecutable
+            mode2 = ToExecutable defaultLibOpts
             mode3 = ToAssembly
-            mode4 = FullCompile
+            mode4 = FullCompile defaultLibOpts
         assertEqual "Show ToObject" "ToObject" (show mode1)
-        assertEqual "Show ToExecutable" "ToExecutable" (show mode2)
+        assertEqual "Show ToExecutable" ("ToExecutable (" ++ show defaultLibOpts ++ ")") (show mode2)
         assertEqual "Show ToAssembly" "ToAssembly" (show mode3)
-        assertEqual "Show FullCompile" "FullCompile" (show mode4)
+        assertEqual "Show FullCompile" ("FullCompile (" ++ show defaultLibOpts ++ ")") (show mode4)
     , testCase "ShowList coverage for CompileMode" $ do
-        let modes = [ToObject, ToExecutable]
+        let modes = [ToObject, ToExecutable defaultLibOpts]
         assertBool "Show list" (length (show modes) > 0)
     , testCase "Eq coverage for CompileMode" $ do
         let obj1 = ToObject
             obj2 = ToObject
-            exe1 = ToExecutable
+            exe1 = ToExecutable defaultLibOpts
             asm1 = ToAssembly
-            full1 = FullCompile
+            full1 = FullCompile defaultLibOpts
         assertEqual "Equal modes (ToObject)" obj1 obj2
         assertBool "Unequal modes (ToObject/ToExecutable)" (obj1 /= exe1)
         assertBool "Unequal modes (ToObject/ToAssembly)" (obj1 /= asm1)
@@ -126,6 +129,7 @@ compileModeDerivingTests =
         assertBool "Unequal modes (ToExecutable/FullCompile)" (exe1 /= full1)
         assertBool "Unequal modes (ToAssembly/FullCompile)" (asm1 /= full1)
     ]
+
 
 pipelinesValidTests :: TestTree
 pipelinesValidTests =
@@ -215,7 +219,7 @@ test_compilePipeline_success = do
             (\(outFile, h) -> hClose h >> removeFile outFile)
             (\(outFile, h) -> do
                 hClose h
-                res <- catchExitCode (compilePipeline inFile outFile FullCompile)
+                res <- catchExitCode (compilePipeline inFile outFile (FullCompile defaultLibOpts))
                 assertEqual "compilePipeline should succeed" ExitSuccess res
                 exists <- doesFileExist outFile
                 assertBool "Output file should exist" exists)
@@ -389,7 +393,7 @@ test_compileAsmToObject_success = do
     (\(objFile, h) -> do
       hClose h
       removeFileIfExists objFile
-      compileAsmToObject asmContent objFile
+      compileAsmToObject asmContent objFile False
       exists <- doesFileExist objFile
       assertBool "compileAsmToObject should create .o file" exists)
 
@@ -401,7 +405,7 @@ test_compileAsmToObject_failure = do
     (\(objFile, _) -> removeFileIfExists objFile)
     (\(objFile, h) -> do
       hClose h
-      caught <- catch (compileAsmToObject invalidAsm objFile >> return False)
+      caught <- catch (compileAsmToObject invalidAsm objFile False >> return False)
         (\case
           ExitFailure 84 -> return True
           _ -> return False)
@@ -410,7 +414,7 @@ test_compileAsmToObject_failure = do
 test_compileAsmToObject_injection_safe :: IO ()
 test_compileAsmToObject_injection_safe = do
   let asmContent = "section .text\nglobal main\nmain:\n mov rax, 60\n xor rdi, rdi\n syscall"
-  caught <- catch (compileAsmToObject asmContent "/tmp/test.o; echo pwned > /tmp/pwned.txt" >> return False)
+  caught <- catch (compileAsmToObject asmContent "/tmp/test.o; echo pwned > /tmp/pwned.txt" False >> return False)
     (\case ExitFailure 84 -> return True; _ -> return False)
   assertBool "compileAsmToObject should reject injection" caught
   pwned <- doesFileExist "/tmp/pwned.txt"
@@ -425,8 +429,8 @@ test_compileObjectIntoExecutable_injection_safe = do
     (\(objFile, _) -> removeFileIfExists objFile)
     (\(objFile, h) -> do
       hClose h
-      compileAsmToObject asmContent objFile
-      caught <- catch (compileObjectIntoExecutable objFile "/tmp/test.bin; echo pwned > /tmp/pwned2.txt" >> return False)
+      compileAsmToObject asmContent objFile False
+      caught <- catch (compileObjectIntoExecutable objFile "/tmp/test.bin; echo pwned > /tmp/pwned2.txt" defaultLibOpts >> return False)
         (\case ExitFailure 84 -> return True; _ -> return False)
       assertBool "compileObjectIntoExecutable should reject injection" caught
       pwned <- doesFileExist "/tmp/pwned2.txt"
@@ -475,9 +479,9 @@ test_compileObjectIntoExecutable_success = do
         (\(obj, h) -> hClose h >> removeFileIfExists obj)
         (\(obj, h) -> do
             hClose h
-            compileAsmToObject asmContent obj
+            compileAsmToObject asmContent obj False
             let exe = obj ++ ".exe"
-            res <- catchExitCode (compileObjectIntoExecutable obj exe)
+            res <- catchExitCode (compileObjectIntoExecutable obj exe defaultLibOpts)
             exists <- doesFileExist exe
             removeFileIfExists exe
             assertEqual "compileObjectIntoExecutable success" ExitSuccess res
@@ -492,7 +496,7 @@ test_compileMultiplePipeline_success = do
           (\(out, h) -> hClose h >> removeFileIfExists out)
           (\(out, h) -> do
             hClose h
-            res <- catchExitCode (compileMultiplePipeline [fp1, fp2] out)
+            res <- catchExitCode (compileMultiplePipeline [fp1, fp2] out defaultLibOpts)
             exists <- doesFileExist out
             removeFileIfExists out
             assertEqual "compileMultiplePipeline success" ExitSuccess res
@@ -500,6 +504,6 @@ test_compileMultiplePipeline_success = do
 
 test_compileMultiplePipeline_no_inputs :: IO ()
 test_compileMultiplePipeline_no_inputs = do
-  res <- catchExitCode (compileMultiplePipeline [] "out")
+  res <- catchExitCode (compileMultiplePipeline [] "out" defaultLibOpts)
   removeFileIfExists "out"
   assertEqual "compileMultiplePipeline should fail without inputs" (ExitFailure 84) res

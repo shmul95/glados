@@ -1,8 +1,12 @@
-module Lib (escapeString, isPrintable, fixpoint) where
+module Lib (escapeString, isPrintable, fixpoint, (>*>)) where
 
 --
 -- public
 --
+
+(>*>) :: (a -> b -> c) -> b -> a -> c
+(>*>) = flip
+infixl 4 >*>
 
 isPrintable :: Char -> Bool
 isPrintable c = c >= ' ' && c <= '~'

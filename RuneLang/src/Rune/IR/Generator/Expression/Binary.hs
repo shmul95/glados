@@ -49,6 +49,7 @@ getResultType Gt _ = IRBool
 getResultType Gte _ = IRBool
 getResultType And _ = IRBool
 getResultType Or _ = IRBool
+getResultType BitAnd t = t
 getResultType _ t = t
 
 mkInstr :: BinaryOp -> String -> IROperand -> IROperand -> IRType -> IRInstruction
@@ -59,6 +60,7 @@ mkInstr Div = IRDIV_OP
 mkInstr Mod = IRMOD_OP
 mkInstr And = IRAND_OP
 mkInstr Or = IROR_OP
+mkInstr BitAnd = IRBAND_OP
 mkInstr Eq = \r a b _ -> IRCMP_EQ r a b
 mkInstr Neq = \r a b _ -> IRCMP_NEQ r a b
 mkInstr Lt = \r a b _ -> IRCMP_LT r a b

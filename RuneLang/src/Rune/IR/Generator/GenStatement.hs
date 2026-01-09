@@ -42,7 +42,7 @@ genStatement (StmtReturn _ Nothing) = pure [IRRET Nothing]
 genStatement (StmtReturn _ (Just e)) = genReturnExpr e
 genStatement (StmtIf _ cond t Nothing) = genIfNoElse genExpression genBlock cond t
 genStatement (StmtIf _ cond t (Just e)) = genIfElse genExpression genBlock cond t e
-genStatement (StmtFor _ v _ s e b) = genForTo genExpression genBlock v s e b
+genStatement (StmtFor _ v t s e b) = genForTo genExpression genBlock v t s e b
 genStatement (StmtForEach _ v _ it b) = genForEach genExpression genBlock v it b
 genStatement (StmtLoop _ body) = genLoop genBlock body
 genStatement (StmtStop _) = genStop
@@ -69,15 +69,10 @@ genVarDecl name maybeType expr = do
   (instrs, op, inferredType) <- genExpression expr
 
   let finalType = genVarType maybeType inferredType
+      assignInstr = IRASSIGN name op finalType
 
-  case op of
-    IRTemp _ _ -> do
-      registerVar name op finalType
-      pure instrs
-    _ -> do
-      let assignInstr = IRASSIGN name op finalType
-      registerVar name (IRTemp name finalType) finalType
-      pure (instrs <> [assignInstr])
+  registerVar name (IRTemp name finalType) finalType
+  pure (instrs <> [assignInstr])
 
 
 genVarType :: Maybe Type -> IRType -> IRType

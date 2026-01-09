@@ -31,6 +31,7 @@ import qualified Data.Set as S
 import Control.Monad.State
 import Data.Maybe (fromMaybe)
 import Data.Bifunctor (first)
+import Data.Bits ((.&.))
 
 --
 -- Types
@@ -38,11 +39,13 @@ import Data.Bifunctor (first)
 
 type ConstMap = M.Map String IROperand
 type FuncMap = M.Map String IRFunction
+type UseCount = M.Map String Int
 
 data OptState = OptState
   { osConsts :: ConstMap,
     osFuncs :: FuncMap,
-    osKeepAssignments :: Bool
+    osKeepAssignments :: Bool,
+    osUseCounts :: UseCount
   }
 
 type OptM = State OptState
@@ -53,12 +56,13 @@ type OptM = State OptState
 
 runIROptimizer :: IRProgram -> IRProgram
 runIROptimizer (IRProgram name tops) = IRProgram name $ filter isAlive optimized
+
   where
     optimized = optimizeTopLevel (funcMap tops) <$> tops
     optFuncs  = funcMap optimized
     roots     = if M.member "main" optFuncs then S.singleton "main" else M.keysSet optFuncs
     reachable = getReachable optFuncs roots
-
+    
     isAlive (IRFunctionDef f) = S.member (irFuncName f) reachable
     isAlive _                 = True
 
@@ -89,11 +93,198 @@ optimizeTopLevel funcs (IRFunctionDef f) = IRFunctionDef (optimizeFunction funcs
 optimizeTopLevel _ other = other
 
 optimizeFunction :: FuncMap -> IRFunction -> IRFunction
-optimizeFunction funcs f = f { irFuncBody = newBody }
+optimizeFunction funcs f = f { irFuncBody = finalBody }
   where
     hasCF = any isControlFlow (irFuncBody f)
-    initialState = OptState M.empty funcs hasCF
-    (newBody, _) = runState (optimizeBlock (irFuncBody f)) initialState
+    initialState = OptState M.empty funcs hasCF M.empty
+    (optimizedBody, _) = runState (optimizeBlock (irFuncBody f)) initialState
+    useCounts = countUses optimizedBody
+    withPeephole = peepholeOptimize useCounts optimizedBody
+    withIncDec = map singleInstrOpt withPeephole  -- Convert x = x + 1 to INC x
+    withJumpThread = jumpThreading withIncDec
+    useCountsAfterPeep = countUses withJumpThread
+    finalBody = eliminateDeadCode useCountsAfterPeep withJumpThread
+
+-- Single instruction optimizations (e.g., x = x + 1 -> INC x)
+singleInstrOpt :: IRInstruction -> IRInstruction
+-- x = x + 1  ->  INC x
+singleInstrOpt (IRADD_OP dest (IRTemp src ty1) (IRConstInt 1) _)
+  | dest == src = IRINC (IRTemp src ty1)
+-- x = 1 + x  ->  INC x
+singleInstrOpt (IRADD_OP dest (IRConstInt 1) (IRTemp src ty1) _)
+  | dest == src = IRINC (IRTemp src ty1)
+-- x = x - 1  ->  DEC x
+singleInstrOpt (IRSUB_OP dest (IRTemp src ty1) (IRConstInt 1) _)
+  | dest == src = IRDEC (IRTemp src ty1)
+singleInstrOpt instr = instr
+
+-- Count variable uses
+countUses :: [IRInstruction] -> UseCount
+countUses = foldr countInstr M.empty
+  where
+    countInstr inst uc = foldr incUse uc (getOperands inst)
+    incUse (IRTemp t _) m = M.insertWith (+) t 1 m
+    incUse _ m = m
+    
+getOperands :: IRInstruction -> [IROperand]
+getOperands (IRASSIGN _ op _) = [op]
+getOperands (IRSTORE a v) = [a, v]
+getOperands (IRLOAD _ a _) = [a]
+getOperands (IRDEREF _ a _) = [a]
+getOperands (IRLOAD_OFFSET _ ptr offset _) = [ptr, offset]
+getOperands (IRGET_FIELD _ s _ _ _) = [s]
+getOperands (IRSET_FIELD s _ _ v) = [s, v]
+getOperands (IRALLOC_ARRAY _ _ ops) = ops
+getOperands (IRGET_ELEM _ arr idx _) = [arr, idx]
+getOperands (IRSET_ELEM arr idx val) = [arr, idx, val]
+getOperands (IRADD_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRSUB_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRMUL_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRDIV_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRMOD_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRSHR_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRSHL_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRBAND_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRBNOT_OP _ o _) = [o]
+getOperands (IRCMP_EQ _ o1 o2) = [o1, o2]
+getOperands (IRCMP_NEQ _ o1 o2) = [o1, o2]
+getOperands (IRCMP_LT _ o1 o2) = [o1, o2]
+getOperands (IRCMP_LTE _ o1 o2) = [o1, o2]
+getOperands (IRCMP_GT _ o1 o2) = [o1, o2]
+getOperands (IRCMP_GTE _ o1 o2) = [o1, o2]
+getOperands (IRAND_OP _ o1 o2 _) = [o1, o2]
+getOperands (IROR_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_TRUE o _) = [o]
+getOperands (IRJUMP_FALSE o _) = [o]
+getOperands (IRJUMP_EQ0 o _) = [o]
+getOperands (IRJUMP_LT o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_LTE o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_GT o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_GTE o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_EQ o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_NEQ o1 o2 _) = [o1, o2]
+getOperands (IRCALL _ _ args _) = args
+getOperands (IRRET (Just o)) = [o]
+getOperands (IRINC o) = [o]
+getOperands (IRDEC o) = [o]
+getOperands (IRJUMP_TEST_NZ o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_TEST_Z o1 o2 _) = [o1, o2]
+getOperands _ = []
+
+-- Dead code elimination
+eliminateDeadCode :: UseCount -> [IRInstruction] -> [IRInstruction]
+eliminateDeadCode uc = filter (not . isDead)
+  where
+    isDead (IRASSIGN t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRALLOC t _) = M.findWithDefault 0 t uc == 0
+    isDead (IRLOAD t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRDEREF t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRLOAD_OFFSET t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRGET_FIELD t _ _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRALLOC_ARRAY t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRGET_ELEM t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRADD_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRSUB_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRMUL_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRDIV_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRMOD_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRSHR_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRSHL_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRBAND_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRBNOT_OP t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRCMP_EQ t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRCMP_NEQ t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRCMP_LT t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRCMP_LTE t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRCMP_GT t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRCMP_GTE t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRAND_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IROR_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRADDR t _ _) = M.findWithDefault 0 t uc == 0
+    isDead _ = False
+
+-- Peephole optimizations
+peepholeOptimize :: UseCount -> [IRInstruction] -> [IRInstruction]
+peepholeOptimize _ [] = []
+peepholeOptimize _ [x] = [x]
+peepholeOptimize uc (i1:i2:rest) = case tryPeephole uc i1 i2 of
+  Just optimized -> peepholeOptimize uc (optimized ++ rest)
+  Nothing -> i1 : peepholeOptimize uc (i2:rest)
+
+tryPeephole :: UseCount -> IRInstruction -> IRInstruction -> Maybe [IRInstruction]
+tryPeephole _ (IRASSIGN t1 op1 _) (IRASSIGN t2 (IRTemp t _) ty2)
+  | t1 == t = Just [IRASSIGN t2 op1 ty2]
+tryPeephole _ (IRADD_OP t1 op (IRConstInt 0) _) (IRASSIGN t2 (IRTemp t _) ty2)
+  | t1 == t = Just [IRASSIGN t2 op ty2]
+tryPeephole _ (IRSUB_OP t1 op (IRConstInt 0) _) (IRASSIGN t2 (IRTemp t _) ty2)
+  | t1 == t = Just [IRASSIGN t2 op ty2]
+tryPeephole _ (IRMUL_OP t1 _ (IRConstInt 0) _) (IRASSIGN t2 (IRTemp t _) ty2)
+  | t1 == t = Just [IRASSIGN t2 (IRConstInt 0) ty2]
+tryPeephole _ (IRMUL_OP t1 op (IRConstInt 1) _) (IRASSIGN t2 (IRTemp t _) ty2)
+  | t1 == t = Just [IRASSIGN t2 op ty2]
+tryPeephole _ (IRDIV_OP t1 op (IRConstInt 1) _) (IRASSIGN t2 (IRTemp t _) ty2)
+  | t1 == t = Just [IRASSIGN t2 op ty2]
+-- combine OP + ASSIGN when temp is used exactly once
+tryPeephole uc (IRSHR_OP t1 op shift ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRSHR_OP t2 op shift ty1]
+tryPeephole uc (IRSHL_OP t1 op shift ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRSHL_OP t2 op shift ty1]
+tryPeephole uc (IRBAND_OP t1 op mask ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRBAND_OP t2 op mask ty1]
+tryPeephole uc (IRMUL_OP t1 o1 o2 ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRMUL_OP t2 o1 o2 ty1]
+tryPeephole uc (IRADD_OP t1 o1 o2 ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRADD_OP t2 o1 o2 ty1]
+tryPeephole uc (IRSUB_OP t1 o1 o2 ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRSUB_OP t2 o1 o2 ty1]
+tryPeephole uc (IRDIV_OP t1 o1 o2 ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRDIV_OP t2 o1 o2 ty1]
+tryPeephole uc (IRMOD_OP t1 o1 o2 ty1) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRMOD_OP t2 o1 o2 ty1]
+-- combine BAND + JUMP_NEQ 0 -> JUMP_TEST_NZ (eliminates temporary)
+tryPeephole uc (IRBAND_OP t1 op mask _) (IRJUMP_NEQ (IRTemp t _) (IRConstInt 0) lbl)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRJUMP_TEST_NZ op mask lbl]
+tryPeephole uc (IRBAND_OP t1 op mask _) (IRJUMP_EQ (IRTemp t _) (IRConstInt 0) lbl)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRJUMP_TEST_Z op mask lbl]
+tryPeephole _ _ _ = Nothing
+
+-- jump threading: CMP + JUMP -> Direct JUMP
+jumpThreading :: [IRInstruction] -> [IRInstruction]
+jumpThreading [] = []
+jumpThreading [x] = [x]
+jumpThreading (cmp:jmp:rest)
+  | canThreadJump cmp jmp = jumpThreading (threadJump cmp jmp : rest)
+jumpThreading (x:xs) = x : jumpThreading xs
+
+canThreadJump :: IRInstruction -> IRInstruction -> Bool
+canThreadJump (IRCMP_LT t _ _) (IRJUMP_FALSE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_LT t _ _) (IRJUMP_TRUE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_LTE t _ _) (IRJUMP_FALSE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_LTE t _ _) (IRJUMP_TRUE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_GT t _ _) (IRJUMP_FALSE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_GT t _ _) (IRJUMP_TRUE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_GTE t _ _) (IRJUMP_FALSE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_GTE t _ _) (IRJUMP_TRUE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_EQ t _ _) (IRJUMP_FALSE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_EQ t _ _) (IRJUMP_TRUE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_NEQ t _ _) (IRJUMP_FALSE (IRTemp t' _) _) = t == t'
+canThreadJump (IRCMP_NEQ t _ _) (IRJUMP_TRUE (IRTemp t' _) _) = t == t'
+canThreadJump _ _ = False
+
+threadJump :: IRInstruction -> IRInstruction -> IRInstruction
+threadJump (IRCMP_LT _ o1 o2) (IRJUMP_FALSE _ lbl) = IRJUMP_GTE o1 o2 lbl
+threadJump (IRCMP_LT _ o1 o2) (IRJUMP_TRUE _ lbl) = IRJUMP_LT o1 o2 lbl
+threadJump (IRCMP_LTE _ o1 o2) (IRJUMP_FALSE _ lbl) = IRJUMP_GT o1 o2 lbl
+threadJump (IRCMP_LTE _ o1 o2) (IRJUMP_TRUE _ lbl) = IRJUMP_LTE o1 o2 lbl
+threadJump (IRCMP_GT _ o1 o2) (IRJUMP_FALSE _ lbl) = IRJUMP_LTE o1 o2 lbl
+threadJump (IRCMP_GT _ o1 o2) (IRJUMP_TRUE _ lbl) = IRJUMP_GT o1 o2 lbl
+threadJump (IRCMP_GTE _ o1 o2) (IRJUMP_FALSE _ lbl) = IRJUMP_LT o1 o2 lbl
+threadJump (IRCMP_GTE _ o1 o2) (IRJUMP_TRUE _ lbl) = IRJUMP_GTE o1 o2 lbl
+threadJump (IRCMP_EQ _ o1 o2) (IRJUMP_FALSE _ lbl) = IRJUMP_NEQ o1 o2 lbl
+threadJump (IRCMP_EQ _ o1 o2) (IRJUMP_TRUE _ lbl) = IRJUMP_EQ o1 o2 lbl
+threadJump (IRCMP_NEQ _ o1 o2) (IRJUMP_FALSE _ lbl) = IRJUMP_EQ o1 o2 lbl
+threadJump (IRCMP_NEQ _ o1 o2) (IRJUMP_TRUE _ lbl) = IRJUMP_NEQ o1 o2 lbl
+threadJump _ other = other
 
 optimizeBlock :: [IRInstruction] -> OptM [IRInstruction]
 optimizeBlock [] = return []
@@ -151,6 +342,12 @@ isControlFlow (IRJUMP _) = True
 isControlFlow (IRJUMP_TRUE _ _) = True
 isControlFlow (IRJUMP_FALSE _ _) = True
 isControlFlow (IRJUMP_EQ0 _ _) = True
+isControlFlow (IRJUMP_LT {}) = True
+isControlFlow (IRJUMP_LTE {}) = True
+isControlFlow (IRJUMP_GT {}) = True
+isControlFlow (IRJUMP_GTE {}) = True
+isControlFlow (IRJUMP_EQ {}) = True
+isControlFlow (IRJUMP_NEQ {}) = True
 isControlFlow _ = False
 
 simplifyInstr :: IRInstruction -> OptM IRInstruction
@@ -161,25 +358,137 @@ simplifyInstr (IRLOAD t addr ty) = IRLOAD t <$> simplifyOp addr <*> pure ty
 simplifyInstr (IRDEREF t addr ty) = IRDEREF t <$> simplifyOp addr <*> pure ty
 simplifyInstr (IRGET_FIELD t s f f2 ty) = IRGET_FIELD t <$> simplifyOp s <*> pure f <*> pure f2 <*> pure ty
 simplifyInstr (IRSET_FIELD s f f2 v) = IRSET_FIELD <$> simplifyOp s <*> pure f <*> pure f2 <*> simplifyOp v
-simplifyInstr (IRADD_OP t o1 o2 ty) = IRADD_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
-simplifyInstr (IRSUB_OP t o1 o2 ty) = IRSUB_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
-simplifyInstr (IRMUL_OP t o1 o2 ty) = IRMUL_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
-simplifyInstr (IRDIV_OP t o1 o2 ty) = IRDIV_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
-simplifyInstr (IRMOD_OP t o1 o2 ty) = IRMOD_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
-simplifyInstr (IRCMP_EQ t o1 o2) = IRCMP_EQ t <$> simplifyOp o1 <*> simplifyOp o2
-simplifyInstr (IRCMP_NEQ t o1 o2) = IRCMP_NEQ t <$> simplifyOp o1 <*> simplifyOp o2
-simplifyInstr (IRCMP_LT t o1 o2) = IRCMP_LT t <$> simplifyOp o1 <*> simplifyOp o2
-simplifyInstr (IRCMP_LTE t o1 o2) = IRCMP_LTE t <$> simplifyOp o1 <*> simplifyOp o2
-simplifyInstr (IRCMP_GT t o1 o2) = IRCMP_GT t <$> simplifyOp o1 <*> simplifyOp o2
-simplifyInstr (IRCMP_GTE t o1 o2) = IRCMP_GTE t <$> simplifyOp o1 <*> simplifyOp o2
-simplifyInstr (IRAND_OP t o1 o2 ty) = IRAND_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
-simplifyInstr (IROR_OP t o1 o2 ty) = IROR_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
+simplifyInstr (IRALLOC_ARRAY t ty elems) = IRALLOC_ARRAY t ty <$> mapM simplifyOp elems
+simplifyInstr (IRGET_ELEM t arr idx ty) = IRGET_ELEM t <$> simplifyOp arr <*> simplifyOp idx <*> pure ty
+simplifyInstr (IRSET_ELEM arr idx val) = IRSET_ELEM <$> simplifyOp arr <*> simplifyOp idx <*> simplifyOp val
+simplifyInstr (IRBNOT_OP t o ty) = IRBNOT_OP t <$> simplifyOp o <*> pure ty
+
+simplifyInstr (IRADD_OP t o1 o2 ty) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstInt (a + b)) ty
+    (IRConstInt 0, op) -> IRASSIGN t op ty
+    (op, IRConstInt 0) -> IRASSIGN t op ty
+    _ -> IRADD_OP t o1' o2' ty
+
+simplifyInstr (IRSUB_OP t o1 o2 ty) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstInt (a - b)) ty
+    (op, IRConstInt 0) -> IRASSIGN t op ty
+    _ -> IRSUB_OP t o1' o2' ty
+
+simplifyInstr (IRMUL_OP t o1 o2 ty) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstInt (a * b)) ty
+    (_, IRConstInt 0) -> IRASSIGN t (IRConstInt 0) ty
+    (IRConstInt 0, _) -> IRASSIGN t (IRConstInt 0) ty
+    (op, IRConstInt 1) -> IRASSIGN t op ty
+    (IRConstInt 1, op) -> IRASSIGN t op ty
+    (op, IRConstInt 2) -> IRADD_OP t op op ty
+    (IRConstInt 2, op) -> IRADD_OP t op op ty
+    _ -> IRMUL_OP t o1' o2' ty
+
+simplifyInstr (IRDIV_OP t o1 o2 ty) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) | b /= 0 -> IRASSIGN t (IRConstInt (a `div` b)) ty
+    (op, IRConstInt 1) -> IRASSIGN t op ty
+    -- division by power of 2 -> shift right (for positive divisors)
+    (op, IRConstInt n) | n > 0 && isPowerOf2 n -> IRSHR_OP t op (IRConstInt (log2 n)) ty
+    _ -> IRDIV_OP t o1' o2' ty
+
+simplifyInstr (IRMOD_OP t o1 o2 ty) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) | b /= 0 -> IRASSIGN t (IRConstInt (a `mod` b)) ty
+    -- modulo by power of 2 -> bitwise AND with (n-1)
+    (op, IRConstInt n) | n > 0 && isPowerOf2 n -> IRBAND_OP t op (IRConstInt (n - 1)) ty
+    _ -> IRMOD_OP t o1' o2' ty
+
+simplifyInstr (IRCMP_EQ t o1 o2) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstBool (a == b)) IRBool
+    _ -> IRCMP_EQ t o1' o2'
+
+simplifyInstr (IRCMP_NEQ t o1 o2) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstBool (a /= b)) IRBool
+    _ -> IRCMP_NEQ t o1' o2'
+
+simplifyInstr (IRCMP_LT t o1 o2) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstBool (a < b)) IRBool
+    _ -> IRCMP_LT t o1' o2'
+
+simplifyInstr (IRCMP_LTE t o1 o2) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstBool (a <= b)) IRBool
+    _ -> IRCMP_LTE t o1' o2'
+
+simplifyInstr (IRCMP_GT t o1 o2) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstBool (a > b)) IRBool
+    _ -> IRCMP_GT t o1' o2'
+
+simplifyInstr (IRCMP_GTE t o1 o2) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstInt a, IRConstInt b) -> IRASSIGN t (IRConstBool (a >= b)) IRBool
+    _ -> IRCMP_GTE t o1' o2'
+
+simplifyInstr (IRAND_OP t o1 o2 ty) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstBool False, _) -> IRASSIGN t (IRConstBool False) ty
+    (_, IRConstBool False) -> IRASSIGN t (IRConstBool False) ty
+    (IRConstBool True, op) -> IRASSIGN t op ty
+    (op, IRConstBool True) -> IRASSIGN t op ty
+    _ -> IRAND_OP t o1' o2' ty
+
+simplifyInstr (IROR_OP t o1 o2 ty) = do
+  o1' <- simplifyOp o1
+  o2' <- simplifyOp o2
+  pure $ case (o1', o2') of
+    (IRConstBool True, _) -> IRASSIGN t (IRConstBool True) ty
+    (_, IRConstBool True) -> IRASSIGN t (IRConstBool True) ty
+    (IRConstBool False, op) -> IRASSIGN t op ty
+    (op, IRConstBool False) -> IRASSIGN t op ty
+    _ -> IROR_OP t o1' o2' ty
 simplifyInstr (IRJUMP_TRUE o l) = IRJUMP_TRUE <$> simplifyOp o <*> pure l
 simplifyInstr (IRJUMP_FALSE o l) = IRJUMP_FALSE <$> simplifyOp o <*> pure l
 simplifyInstr (IRJUMP_EQ0 o l) = IRJUMP_EQ0 <$> simplifyOp o <*> pure l
+simplifyInstr (IRJUMP_LT o1 o2 l) = IRJUMP_LT <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_LTE o1 o2 l) = IRJUMP_LTE <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_GT o1 o2 l) = IRJUMP_GT <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_GTE o1 o2 l) = IRJUMP_GTE <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_EQ o1 o2 l) = IRJUMP_EQ <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
+simplifyInstr (IRJUMP_NEQ o1 o2 l) = IRJUMP_NEQ <$> simplifyOp o1 <*> simplifyOp o2 <*> pure l
 simplifyInstr (IRRET (Just o)) = IRRET . Just <$> simplifyOp o
 simplifyInstr (IRINC o) = IRINC <$> simplifyOp o
 simplifyInstr (IRDEC o) = IRDEC <$> simplifyOp o
+simplifyInstr (IRBAND_OP t o1 o2 ty) = IRBAND_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
+simplifyInstr (IRSHR_OP t o1 o2 ty) = IRSHR_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
+simplifyInstr (IRSHL_OP t o1 o2 ty) = IRSHL_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
+simplifyInstr (IRLOAD_OFFSET t ptr offset ty) = IRLOAD_OFFSET t <$> simplifyOp ptr <*> simplifyOp offset <*> pure ty
 simplifyInstr other = pure other
 
 simplifyOp :: IROperand -> OptM IROperand
@@ -201,6 +510,11 @@ renameInstr pre (IRSUB_OP t o1 o2 ty) = IRSUB_OP (pre <> t) (renameOp pre o1) (r
 renameInstr pre (IRMUL_OP t o1 o2 ty) = IRMUL_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
 renameInstr pre (IRDIV_OP t o1 o2 ty) = IRDIV_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
 renameInstr pre (IRMOD_OP t o1 o2 ty) = IRMOD_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRSHR_OP t o1 o2 ty) = IRSHR_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRSHL_OP t o1 o2 ty) = IRSHL_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRBAND_OP t o1 o2 ty) = IRBAND_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRBNOT_OP t o ty) = IRBNOT_OP (pre <> t) (renameOp pre o) ty
+renameInstr pre (IRLOAD_OFFSET t ptr offset ty) = IRLOAD_OFFSET (pre <> t) (renameOp pre ptr) (renameOp pre offset) ty
 renameInstr pre (IRCMP_EQ t o1 o2) = IRCMP_EQ (pre <> t) (renameOp pre o1) (renameOp pre o2)
 renameInstr pre (IRCMP_NEQ t o1 o2) = IRCMP_NEQ (pre <> t) (renameOp pre o1) (renameOp pre o2)
 renameInstr pre (IRCMP_LT t o1 o2) = IRCMP_LT (pre <> t) (renameOp pre o1) (renameOp pre o2)
@@ -214,6 +528,14 @@ renameInstr pre (IRJUMP (IRLabel l)) = IRJUMP (IRLabel (pre <> l))
 renameInstr pre (IRJUMP_TRUE o (IRLabel l)) = IRJUMP_TRUE (renameOp pre o) (IRLabel (pre <> l))
 renameInstr pre (IRJUMP_FALSE o (IRLabel l)) = IRJUMP_FALSE (renameOp pre o) (IRLabel (pre <> l))
 renameInstr pre (IRJUMP_EQ0 o (IRLabel l)) = IRJUMP_EQ0 (renameOp pre o) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_LT o1 o2 (IRLabel l)) = IRJUMP_LT (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_LTE o1 o2 (IRLabel l)) = IRJUMP_LTE (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_GT o1 o2 (IRLabel l)) = IRJUMP_GT (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_GTE o1 o2 (IRLabel l)) = IRJUMP_GTE (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_EQ o1 o2 (IRLabel l)) = IRJUMP_EQ (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_NEQ o1 o2 (IRLabel l)) = IRJUMP_NEQ (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_TEST_NZ o1 o2 (IRLabel l)) = IRJUMP_TEST_NZ (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
+renameInstr pre (IRJUMP_TEST_Z o1 o2 (IRLabel l)) = IRJUMP_TEST_Z (renameOp pre o1) (renameOp pre o2) (IRLabel (pre <> l))
 renameInstr pre (IRCALL t f args rt) = IRCALL (pre <> t) f (map (renameOp pre) args) rt
 renameInstr pre (IRRET o) = IRRET (fmap (renameOp pre) o)
 renameInstr pre (IRADDR t s ty) = IRADDR (pre <> t) (pre <> s) ty
@@ -242,3 +564,12 @@ operandType (IRConstBool _) = IRBool
 operandType IRConstNull = IRNull
 operandType (IRParam _ t) = t
 operandType (IRGlobal _ t) = t
+
+-- Check if n is a power of 2
+isPowerOf2 :: Int -> Bool
+isPowerOf2 n = n > 0 && (n .&. (n - 1)) == 0
+
+-- Calculate log2 for powers of 2
+log2 :: Int -> Int
+log2 1 = 0
+log2 n = 1 + log2 (n `div` 2)

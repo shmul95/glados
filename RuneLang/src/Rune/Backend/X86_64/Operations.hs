@@ -3,7 +3,9 @@
 module Rune.Backend.X86_64.Operations
   ( emitBinaryOp,
     emitDivOp,
-    emitModOp
+    emitModOp,
+    emitShiftOp,
+    emitBitNot
 #if defined(TESTING_EXPORT)
   ,
     emitFloatBinaryOp,
@@ -20,7 +22,7 @@ import Rune.Backend.Helpers (emit)
 import Rune.Backend.X86_64.Compare (isFloatType, loadFloatOperand)
 import Rune.Backend.X86_64.LoadStore (loadReg, stackAddr, storeReg)
 import Rune.Backend.X86_64.Registers (getRegisterName, x86_64FloatArgsRegisters)
-import Rune.IR.Nodes (IROperand, IRType (..))
+import Rune.IR.Nodes (IROperand(..), IRType (..))
 
 --
 -- public
@@ -31,6 +33,14 @@ emitBinaryOp :: Map String Int -> String -> String -> IROperand -> IROperand -> 
 emitBinaryOp sm dest asmOp leftOp rightOp t
   | isFloatType t = emitFloatBinaryOp sm dest asmOp leftOp rightOp t
   | asmOp == "imul" && t `elem` [IRI8, IRU8, IRI16, IRU16] = emitSmallMul sm dest leftOp rightOp t
+
+  -- use immediate value for small constants on right side
+  | isSmallImmediate rightOp =
+      let regL = getRegisterName "rax" t
+       in loadReg sm "rax" leftOp
+       <> [emit 1 $ asmOp <> " " <> regL <> ", " <> showImmediate rightOp]
+       <> [storeReg sm dest "rax" t]
+
   | otherwise =
       let regL = getRegisterName "rax" t
           regR = getRegisterName "rbx" t
@@ -38,6 +48,17 @@ emitBinaryOp sm dest asmOp leftOp rightOp t
        <> loadReg sm "rbx" rightOp
        <> [emit 1 $ asmOp <> " " <> regL <> ", " <> regR]
        <> [storeReg sm dest "rax" t]
+
+
+-- | check if operand is a small immediate that can be used directly
+isSmallImmediate :: IROperand -> Bool
+isSmallImmediate (IRConstInt n) = n >= -2147483648 && n <= 2147483647
+isSmallImmediate _ = False
+
+-- | show immediate value
+showImmediate :: IROperand -> String
+showImmediate (IRConstInt n) = show n
+showImmediate _ = "0"
 
 -- | emit dest = left / right
 emitDivOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
@@ -50,6 +71,24 @@ emitModOp :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [St
 emitModOp sm dest leftOp rightOp t
   | isFloatType t = [emit 1   "; TODO: floating point modulo not supported"]
   | otherwise = emitIntModOp sm dest leftOp rightOp t
+
+-- | emit dest = left >> right  or  dest = left << right (shift operations)
+emitShiftOp :: Map String Int -> String -> String -> IROperand -> IROperand -> IRType -> [String]
+emitShiftOp sm dest shiftInstr leftOp rightOp t
+
+  -- use immediate shift amount for constants
+  | isSmallImmediate rightOp =
+      let regL = getRegisterName "rax" t
+       in loadReg sm "rax" leftOp
+       <> [emit 1 $ shiftInstr <> " " <> regL <> ", " <> showImmediate rightOp]
+       <> [storeReg sm dest "rax" t]
+
+  | otherwise =
+      let regL = getRegisterName "rax" t
+       in loadReg sm "rax" leftOp
+       <> loadReg sm "rcx" rightOp
+       <> [emit 1 $ shiftInstr <> " " <> regL <> ", cl"]
+       <> [storeReg sm dest "rax" t]
 
 --
 -- private
@@ -210,3 +249,11 @@ emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
     store IRF32 = emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> xmmL
     store IRF64 = emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> xmmL
     store other = emit 1 $ "; TODO: unsupported float binary result type: " <> show other
+
+-- | emit dest = ~operand (bitwise NOT)
+emitBitNot :: Map String Int -> String -> IROperand -> IRType -> [String]
+emitBitNot sm dest op t =
+  let reg = getRegisterName "rax" t
+   in loadReg sm "rax" op
+   <> [emit 1 $ "not " <> reg]
+   <> [storeReg sm dest "rax" t]

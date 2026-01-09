@@ -1,3 +1,5 @@
+-- file: src/Rune/IR/Generator/Expression/Unary.hs
+
 {-# LANGUAGE CPP #-}
 
 #if defined(TESTING_EXPORT)
@@ -6,6 +8,7 @@ module Rune.IR.Generator.Expression.Unary
     genUnaryExpr,
     genUnaryNegate,
     genUnaryNot,
+    genUnaryBitNot,
     genUnaryPrefixInc,
     genUnaryPrefixDec,
     genUnaryPostfixInc,
@@ -21,7 +24,7 @@ where
 #endif
 
 import Rune.AST.Nodes (Expression, UnaryOp (..))
-import Rune.IR.IRHelpers (newTemp)
+import Rune.IR.IRHelpers (newTemp, nextLabelIndex, makeLabel)
 import Rune.IR.Nodes
   ( IRGen,
     IRInstruction (..),
@@ -51,6 +54,7 @@ genUnary genExpr op expr = do
 genUnaryExpr :: UnaryOp -> [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
 genUnaryExpr Negate = genUnaryNegate
 genUnaryExpr Not = genUnaryNot
+genUnaryExpr BitNot = genUnaryBitNot
 genUnaryExpr PrefixInc = genUnaryPrefixInc
 genUnaryExpr PrefixDec = genUnaryPrefixDec
 genUnaryExpr PostfixInc = genUnaryPostfixInc
@@ -68,6 +72,12 @@ genUnaryNot instrs operand _ = do
   t <- newTemp "t" IRBool
   let i = IRCMP_EQ t operand (IRConstBool False)
   return (instrs ++ [i], IRTemp t IRBool, IRBool)
+
+genUnaryBitNot :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
+genUnaryBitNot instrs operand typ = do
+  t <- newTemp "t" typ
+  let i = IRBNOT_OP t operand typ
+  return (instrs ++ [i], IRTemp t typ, typ)
 
 genUnaryPrefixInc :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
 genUnaryPrefixInc instrs operand typ =
@@ -88,4 +98,14 @@ genUnaryPostfixDec instrs operand typ = do
   return (instrs ++ [IRASSIGN t operand typ, IRDEC operand], IRTemp t typ, typ)
 
 genUnaryPropagate :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
-genUnaryPropagate instrs operand typ = return (instrs, operand, typ)
+genUnaryPropagate instrs operand typ = do
+  idx <- nextLabelIndex
+  let okLabel = makeLabel "propagate_ok" idx
+  
+  let propagation = 
+        [ IRJUMP_TRUE operand okLabel
+        , IRRET Nothing
+        , IRLABEL okLabel
+        ]
+
+  return (instrs ++ propagation, operand, typ)

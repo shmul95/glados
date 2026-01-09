@@ -96,8 +96,9 @@ sameArray (TypeArray a) (TypeArray b) = sameType a b
 sameArray _ _ = False
 
 sameType :: Type -> Type -> Bool
-sameType a b | isInt    a && isInt    b = True
-             | isUInt   a && isUInt   b = True
+sameType TypeAny _ = True
+sameType _ TypeAny = True
+sameType a b | isIntegerType a && isIntegerType b = True
              | isFloat  a && isFloat  b = True
              | isChar   a && isChar   b = True
              | isString a && isString b = True

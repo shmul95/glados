@@ -74,6 +74,16 @@ printInstruction (IRDIV_OP dest left right typ) =
   dest ++ ": " ++ printType typ ++ " = DIV " ++ printOperand left ++ ", " ++ printOperand right
 printInstruction (IRMOD_OP dest left right typ) =
   dest ++ ": " ++ printType typ ++ " = MOD " ++ printOperand left ++ ", " ++ printOperand right
+printInstruction (IRSHR_OP dest left right typ) =
+  dest ++ ": " ++ printType typ ++ " = SHR " ++ printOperand left ++ ", " ++ printOperand right
+printInstruction (IRSHL_OP dest left right typ) =
+  dest ++ ": " ++ printType typ ++ " = SHL " ++ printOperand left ++ ", " ++ printOperand right
+printInstruction (IRBAND_OP dest left right typ) =
+  dest ++ ": " ++ printType typ ++ " = BAND " ++ printOperand left ++ ", " ++ printOperand right
+printInstruction (IRBNOT_OP dest op typ) =
+  dest ++ ": " ++ printType typ ++ " = BNOT " ++ printOperand op
+printInstruction (IRLOAD_OFFSET dest ptr offset typ) =
+  dest ++ ": " ++ printType typ ++ " = LOAD_OFFSET " ++ printOperand ptr ++ "[" ++ printOperand offset ++ "]"
 printInstruction (IRCMP_EQ dest left right) =
   dest ++ " = CMP_EQ " ++ printOperand left ++ ", " ++ printOperand right
 printInstruction (IRCMP_NEQ dest left right) =
@@ -100,6 +110,22 @@ printInstruction (IRJUMP_FALSE op (IRLabel target)) =
   "JUMP_FALSE " ++ printOperand op ++ ", " ++ target
 printInstruction (IRJUMP_EQ0 op (IRLabel target)) =
   "JUMP_EQ0 " ++ printOperand op ++ ", " ++ target
+printInstruction (IRJUMP_LT o1 o2 (IRLabel target)) =
+  "JUMP_LT " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_LTE o1 o2 (IRLabel target)) =
+  "JUMP_LTE " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_GT o1 o2 (IRLabel target)) =
+  "JUMP_GT " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_GTE o1 o2 (IRLabel target)) =
+  "JUMP_GTE " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_EQ o1 o2 (IRLabel target)) =
+  "JUMP_EQ " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_NEQ o1 o2 (IRLabel target)) =
+  "JUMP_NEQ " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_TEST_NZ o1 o2 (IRLabel target)) =
+  "JUMP_TEST_NZ " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
+printInstruction (IRJUMP_TEST_Z o1 o2 (IRLabel target)) =
+  "JUMP_TEST_Z " ++ printOperand o1 ++ ", " ++ printOperand o2 ++ ", " ++ target
 printInstruction (IRCALL dest funcName args mbType) =
   let argsStr = intercalate ", " (map printOperand args)
       callStr = "CALL " ++ funcName ++ "(" ++ argsStr ++ ")"

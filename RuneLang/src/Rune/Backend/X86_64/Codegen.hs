@@ -3,11 +3,14 @@
 #if defined(TESTING_EXPORT)
 module Rune.Backend.X86_64.Codegen
   ( emitAssembly,
+    emitAssemblyLib,
     emitExterns,
     emitRoDataSection,
     emitDataSection,
     emitTextSection,
+    emitTextSectionLib,
     emitFunction,
+    emitFunctionLib,
     emitFunctionPrologue,
     emitFunctionEpilogue,
     emitParameters,
@@ -26,6 +29,9 @@ module Rune.Backend.X86_64.Codegen
     emitIncDecHelper,
     emitAddr,
     emitConditionalJump,
+    emitDirectCmpJump,
+    emitIntCmpJump,
+    emitFloatCmpJump,
     emitRmWarning,
     collectStaticArrays,
     isStaticOperand,
@@ -37,11 +43,13 @@ where
 #else
 module Rune.Backend.X86_64.Codegen
   ( emitAssembly,
+    emitAssemblyLib,
   )
 where
 #endif
 
 import Data.Map.Strict (Map)
+import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 
 import Rune.Backend.Helpers (calculateStackMap, collectTopLevels, emit, escapeString)
@@ -49,7 +57,7 @@ import Rune.Backend.Types (Extern, Function, Global)
 import Rune.Backend.X86_64.Compare (emitCompare, loadFloatOperand, isFloatType)
 import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.LoadStore (getTestReg, loadReg, loadRegWithExt, moveStackToStack, needsRegisterLoad, operandAddr, stackAddr, storeReg)
-import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp)
+import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp, emitShiftOp, emitBitNot)
 import Rune.Backend.X86_64.Registers (getMovType, getSizeSpecifier, getRegisterName, x86_64ArgsRegisters, x86_64FloatArgsRegisters)
 import Rune.IR.Nodes
   ( IRFunction (IRFunction),
@@ -73,7 +81,18 @@ emitAssembly (IRProgram _ topLevels) =
         emitExterns externs
           <> emitRoDataSection globals
           <> emitDataSection functions
-          <> emitTextSection functions
+          <> emitTextSectionGen Nothing functions
+          <> emitRmWarning
+
+-- | Emit assembly for library code (PIC-compatible, uses PLT for external calls)
+emitAssemblyLib :: IRProgram -> String
+emitAssemblyLib (IRProgram _ topLevels) =
+  let (externs, globals, functions) = collectTopLevels topLevels
+   in unlines $
+        emitExterns externs
+          <> emitRoDataSection globals
+          <> emitDataSection functions
+          <> emitTextSectionGen (Just externs) functions
           <> emitRmWarning
 
 --
@@ -96,6 +115,7 @@ emitRoDataSection :: [Global] -> [String]
 emitRoDataSection [] = []
 emitRoDataSection gs = "section .rodata" : map emitGlobal gs
   where
+    emitGlobal (name, IRGlobalStringVal "") = name <> " db 0"  -- empty string is just null terminator
     emitGlobal (name, IRGlobalStringVal val) = name <> " db " <> escapeString val <> ", 0"
     emitGlobal (name, IRGlobalFloatVal val IRF32) = name <> " dd " <> " " <> show val
     emitGlobal (name, IRGlobalFloatVal val IRF64) = name <> " dq " <> " " <> show val
@@ -114,8 +134,15 @@ emitDataSection fs =
        in [lbl <> ": " <> dir <> " " <> commaSep initVals]
 
 emitTextSection :: [Function] -> [String]
-emitTextSection [] = []
-emitTextSection fs = "section .text" : concatMap emitFunction fs
+emitTextSection = emitTextSectionGen Nothing
+
+-- | Emit text section for library (all exported functions are global, uses PLT)
+emitTextSectionLib :: [Function] -> [Extern] -> [String]
+emitTextSectionLib fs externs = emitTextSectionGen (Just externs) fs
+
+emitTextSectionGen :: Maybe [Extern] -> [Function] -> [String]
+emitTextSectionGen _ [] = []
+emitTextSectionGen mbExterns fs = "section .text" : concatMap (emitFunctionGen mbExterns) fs
 
 --
 -- function emission
@@ -133,24 +160,36 @@ emitTextSection fs = "section .text" : concatMap emitFunction fs
 --     pop rbp
 --     ret
 emitFunction :: Function -> [String]
-emitFunction fn@(IRFunction name params _ body _) =
+emitFunction = emitFunctionGen Nothing
+
+-- | Emit function for library (exports marked with 'export' become global, uses PLT for externs)
+emitFunctionLib :: [Extern] -> Function -> [String]
+emitFunctionLib externs = emitFunctionGen $ Just externs
+
+emitFunctionGen :: Maybe [Extern] -> Function -> [String]
+emitFunctionGen mbExterns fn@(IRFunction name params _ body _) =
   let (stackMap, frameSize) = calculateStackMap fn
       endLabel = ".L.function_end_" <> name
-      prologue = emitFunctionPrologue fn frameSize
+      prologue = emitFunctionPrologueGen mbExterns fn frameSize
       paramSetup = emitParameters params stackMap
-      bodyInstrs = concatMap (emitInstruction stackMap endLabel name) body
+      bodyInstrs = concatMap (emitInstructionGen mbExterns stackMap endLabel name) body
       epilogue = emitFunctionEpilogue endLabel
    in prologue <> paramSetup <> bodyInstrs <> epilogue
 
 emitFunctionPrologue :: Function -> Int -> [String]
-emitFunctionPrologue (IRFunction name _ _ _ isExport) frameSize =
-  let shouldExport = isExport || name == "main"
-  in ["global " <> name | shouldExport]
+emitFunctionPrologue = emitFunctionPrologueGen Nothing
+
+emitFunctionPrologueGen :: Maybe [Extern] -> Function -> Int -> [String]
+emitFunctionPrologueGen mbExterns (IRFunction name _ _ _ isExport) frameSize =
+  let shouldExport = case mbExterns of
+        Nothing -> isExport || name == "main"
+        Just _  -> isExport
+  in ["global " <> name <> ":function" | shouldExport]
     <> [ name <> ":"
        , emit 1 "push rbp"
        , emit 1 "mov rbp, rsp"
-       , emit 1 $ "sub rsp, " <> show frameSize
        ]
+    <> [emit 1 ("sub rsp, " <> show frameSize) | frameSize > 0]
 
 emitFunctionEpilogue :: String -> [String]
 emitFunctionEpilogue endLabel =
@@ -189,35 +228,51 @@ emitParameters params stackMap =
 
 -- | emit a single IR instruction to nasm
 emitInstruction :: Map String Int -> String -> String -> IRInstruction -> [String]
-emitInstruction sm _ _ (IRASSIGN dest op t) = emitAssign sm dest op t
-emitInstruction _ _ _ (IRLABEL (IRLabel lbl)) = [lbl <> ":"]
-emitInstruction _ _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " <> lbl]
-emitInstruction sm _ _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
-emitInstruction sm _ _ (IRJUMP_FALSE op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
-emitInstruction sm _ _ (IRJUMP_TRUE op (IRLabel lbl)) = emitConditionalJump sm op "jne" lbl
-emitInstruction sm _ _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
-emitInstruction sm endLbl _ (IRRET mbOp) = emitRet sm endLbl mbOp
-emitInstruction sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
-emitInstruction sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray sm fn dest elemType values
-emitInstruction sm _ _ (IRGET_ELEM dest targetOp indexOp elemType) = emitGetElem sm dest targetOp indexOp elemType
-emitInstruction sm _ _ (IRSET_ELEM targetOp indexOp valueOp) = emitSetElem sm targetOp indexOp valueOp
-emitInstruction sm _ _ (IRINC op) = emitIncDec sm op "add"
-emitInstruction sm _ _ (IRDEC op) = emitIncDec sm op "sub"
-emitInstruction sm _ _ (IRADDR dest source typ) = emitAddr sm dest source typ
-emitInstruction sm _ _ (IRADD_OP dest l r t) = emitBinaryOp sm dest "add" l r t
-emitInstruction sm _ _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
-emitInstruction sm _ _ (IRMUL_OP dest l r t) = emitBinaryOp sm dest "imul" l r t
-emitInstruction sm _ _ (IRDIV_OP dest l r t) = emitDivOp sm dest l r t
-emitInstruction sm _ _ (IRMOD_OP dest l r t) = emitModOp sm dest l r t
-emitInstruction sm _ _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
-emitInstruction sm _ _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
-emitInstruction sm _ _ (IRCMP_EQ dest l r) = emitCompare sm dest Cmp.CmpEQ l r
-emitInstruction sm _ _ (IRCMP_NEQ dest l r) = emitCompare sm dest Cmp.CmpNEQ l r
-emitInstruction sm _ _ (IRCMP_LT dest l r) = emitCompare sm dest Cmp.CmpLT l r
-emitInstruction sm _ _ (IRCMP_LTE dest l r) = emitCompare sm dest Cmp.CmpLTE l r
-emitInstruction sm _ _ (IRCMP_GT dest l r) = emitCompare sm dest Cmp.CmpGT l r
-emitInstruction sm _ _ (IRCMP_GTE dest l r) = emitCompare sm dest Cmp.CmpGTE l r
-emitInstruction _ _ _ instr = [emit 1 $ "; TODO: " <> show instr]
+emitInstruction = emitInstructionGen Nothing
+
+emitInstructionGen :: Maybe [Extern] -> Map String Int -> String -> String -> IRInstruction -> [String]
+emitInstructionGen _ sm _ _ (IRASSIGN dest op t) = emitAssign sm dest op t
+emitInstructionGen _ _ _ _ (IRLABEL (IRLabel lbl)) = [lbl <> ":"]
+emitInstructionGen _ _ _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " <> lbl]
+emitInstructionGen _ sm _ _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_FALSE op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_TRUE op (IRLabel lbl)) = emitConditionalJump sm op "jne" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_LT o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jl" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_LTE o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jle" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_GT o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jg" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_GTE o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jge" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_EQ o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "je" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_NEQ o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jne" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_TEST_NZ o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jnz" lbl
+emitInstructionGen _ sm _ _ (IRJUMP_TEST_Z o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jz" lbl
+emitInstructionGen mbExterns sm _ _ (IRCALL dest funcName args mbType) = emitCallGen mbExterns sm dest funcName args mbType
+emitInstructionGen _ sm endLbl _ (IRRET mbOp) = emitRet sm endLbl mbOp
+emitInstructionGen _ sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
+emitInstructionGen _ sm _ _ (IRLOAD_OFFSET dest ptr offset typ) = emitLoadOffset sm dest ptr offset typ
+emitInstructionGen _ sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray sm fn dest elemType values
+emitInstructionGen _ sm _ _ (IRGET_ELEM dest targetOp indexOp elemType) = emitGetElem sm dest targetOp indexOp elemType
+emitInstructionGen _ sm _ _ (IRSET_ELEM targetOp indexOp valueOp) = emitSetElem sm targetOp indexOp valueOp
+emitInstructionGen _ sm _ _ (IRINC op) = emitIncDec sm op "add"
+emitInstructionGen _ sm _ _ (IRDEC op) = emitIncDec sm op "sub"
+emitInstructionGen _ sm _ _ (IRADDR dest source typ) = emitAddr sm dest source typ
+emitInstructionGen _ sm _ _ (IRADD_OP dest l r t) = emitBinaryOp sm dest "add" l r t
+emitInstructionGen _ sm _ _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
+emitInstructionGen _ sm _ _ (IRMUL_OP dest l r t) = emitBinaryOp sm dest "imul" l r t
+emitInstructionGen _ sm _ _ (IRDIV_OP dest l r t) = emitDivOp sm dest l r t
+emitInstructionGen _ sm _ _ (IRMOD_OP dest l r t) = emitModOp sm dest l r t
+emitInstructionGen _ sm _ _ (IRSHR_OP dest l r t) = emitShiftOp sm dest "sar" l r t
+emitInstructionGen _ sm _ _ (IRSHL_OP dest l r t) = emitShiftOp sm dest "sal" l r t
+emitInstructionGen _ sm _ _ (IRBAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
+emitInstructionGen _ sm _ _ (IRBNOT_OP dest op t) = emitBitNot sm dest op t
+emitInstructionGen _ sm _ _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
+emitInstructionGen _ sm _ _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
+emitInstructionGen _ sm _ _ (IRCMP_EQ dest l r) = emitCompare sm dest Cmp.CmpEQ l r
+emitInstructionGen _ sm _ _ (IRCMP_NEQ dest l r) = emitCompare sm dest Cmp.CmpNEQ l r
+emitInstructionGen _ sm _ _ (IRCMP_LT dest l r) = emitCompare sm dest Cmp.CmpLT l r
+emitInstructionGen _ sm _ _ (IRCMP_LTE dest l r) = emitCompare sm dest Cmp.CmpLTE l r
+emitInstructionGen _ sm _ _ (IRCMP_GT dest l r) = emitCompare sm dest Cmp.CmpGT l r
+emitInstructionGen _ sm _ _ (IRCMP_GTE dest l r) = emitCompare sm dest Cmp.CmpGTE l r
+emitInstructionGen _ _ _ _ instr = [emit 1 $ "; TODO: " <> show instr]
 
 -- | emit dest = op
 emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
@@ -273,7 +328,10 @@ emitAssign sm dest op t =
 
 -- | emit call dest = funcName(args)
 emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
-emitCall sm dest funcName args mbType =
+emitCall = emitCallGen Nothing
+
+emitCallGen :: Maybe [Extern] -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
+emitCallGen mbExterns sm dest funcName args mbType =
   let argSetup    = setupCallArgs sm args
       firstFloatType =
         foldr
@@ -283,22 +341,26 @@ emitCall sm dest funcName args mbType =
           Nothing
           args
       printfFixup = printfFixupHelp firstFloatType x86_64FloatArgsRegisters
-      callInstr   = [emit 1 $ "call " <> funcName]
+      usePlt      = case mbExterns of
+                      Just externs -> funcName `elem` externs
+                      Nothing      -> False
+      callTarget  = if usePlt then funcName <> " wrt ..plt" else funcName
+      callInstr   = [emit 1 $ "call " <> callTarget]
       retSave     = saveCallResult sm dest mbType
    in argSetup <> printfFixup <> callInstr <> retSave
   where
     printfFixupHelp (Just IRF32) (floatReg:_)
-      | funcName == "printf" || funcName == "fprintf" =
+      | funcName `elem` ["printf", "dprintf"] =
         [ emit 1 $ "cvtss2sd " <> floatReg <> ", " <> floatReg
         , emit 1   "mov eax, 1"
         ]
     printfFixupHelp (Just IRF64) (_:_) 
-      | funcName == "printf" || funcName == "fprintf" =
+      | funcName `elem` ["printf", "dprintf"] =
         [ emit 1 "mov eax, 1" ]
     printfFixupHelp Nothing _
-      | funcName == "printf" || funcName == "fprintf" = [emit 1 "xor eax, eax"]
+      | funcName `elem` ["printf", "dprintf"] = [emit 1 "xor eax, eax"]
     printfFixupHelp _ _
-      | funcName == "printf" || funcName == "fprintf" = []
+      | funcName `elem` ["printf", "dprintf"] = []
     printfFixupHelp _ _ = []
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
@@ -367,6 +429,18 @@ emitDeref sm dest ptr typ =
   , emit 1 $ getMovType typ <> " [rax]"
   , storeReg sm dest "rax" typ
   ]
+
+-- | Load a value of given type from pointer + byte offset
+-- ptr[offset] where we load sizeof(typ) bytes
+emitLoadOffset :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitLoadOffset sm dest ptr offset typ =
+  let sizeSpec = getSizeSpecifier typ
+      reg = getRegisterName "rax" typ
+   in loadReg sm "rdi" ptr
+   <> loadRegWithExt sm ("rsi", offset)
+   <> [ emit 1 $ "mov " <> reg <> ", " <> sizeSpec <> " [rdi + rsi]"
+      , storeReg sm dest "rax" typ
+      ]
 
 emitAllocArray :: Map String Int -> String -> String -> IRType -> [IROperand] -> [String]
 emitAllocArray sm fnName dest elemType values =
@@ -461,6 +535,54 @@ emitConditionalJump sm op jumpInstr lbl =
   loadRegWithExt sm ("rax", op)
     <> [emit 1 $ "test " <> getTestReg op <> ", " <> getTestReg op]
     <> [emit 1 $ jumpInstr <> " " <> lbl]
+
+emitDirectCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitDirectCmpJump sm op1 op2 jumpInstr lbl =
+  let typ1 = getOperandType op1
+      typ2 = getOperandType op2
+      isFloat = maybe False isFloatType typ1 || maybe False isFloatType typ2
+  in if isFloat
+     then emitFloatCmpJump sm op1 op2 jumpInstr lbl
+     else emitIntCmpJump sm op1 op2 jumpInstr lbl
+
+emitIntCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitIntCmpJump sm op1 op2 jumpInstr lbl =
+  let typ1 = fromMaybe IRI64 $ getOperandType op1
+      typ2 = fromMaybe IRI64 $ getOperandType op2
+      regSize = getSizeSpecifier typ1
+      reg1 = getRegisterName "rax" typ1
+  in loadRegWithExt sm ("rax", op1)
+     <> case op2 of
+          IRConstInt 0 -> [emit 1 $ "test " <> reg1 <> ", " <> reg1]
+          IRConstInt n | n >= -2147483648 && n <= 2147483647 && regSize /= "byte" ->
+            [emit 1 $ "cmp " <> reg1 <> ", " <> show n]
+          _ -> loadRegWithExt sm ("rbx", op2)
+               <> [emit 1 $ "cmp " <> reg1 <> ", " <> getRegisterName "rbx" typ2]
+     <> [emit 1 $ jumpInstr <> " " <> lbl]
+
+emitFloatCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitFloatCmpJump sm op1 op2 jumpInstr lbl =
+  let typ = fromMaybe IRF64 $ getOperandType op1
+  in loadFloatOperand sm "xmm0" op1 typ
+     <> loadFloatOperand sm "xmm1" op2 typ
+     <> (case typ of
+           IRF32 -> [emit 1 "ucomiss xmm0, xmm1"]
+           _     -> [emit 1 "ucomisd xmm0, xmm1"])
+     <> [emit 1 $ jumpInstr <> " " <> lbl]
+
+-- | Emit test instruction followed by conditional jump
+-- test op1, op2 sets ZF based on op1 AND op2
+emitTestJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
+emitTestJump sm op1 op2 jumpInstr lbl =
+  let typ1 = fromMaybe IRI64 $ getOperandType op1
+      reg1 = getRegisterName "rax" typ1
+  in loadRegWithExt sm ("rax", op1)
+     <> case op2 of
+          IRConstInt n | n >= -2147483648 && n <= 2147483647 ->
+            [emit 1 $ "test " <> reg1 <> ", " <> show n]
+          _ -> loadRegWithExt sm ("rbx", op2)
+               <> [emit 1 $ "test " <> reg1 <> ", " <> getRegisterName "rbx" typ1]
+     <> [emit 1 $ jumpInstr <> " " <> lbl]
 
 emitRmWarning :: [String]
 emitRmWarning =
