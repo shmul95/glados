@@ -1,9 +1,6 @@
-def errorln(message: string) -> null
-{
-    error("[-] FAILED\t");
-    error(message);
-    error('\n');
-}
+/**
+* public
+*/
 
 export def assert(condition: bool, message: string) -> null
 {
@@ -12,3 +9,15 @@ export def assert(condition: bool, message: string) -> null
     }
     show("[+] PASSED\n")
 }
+
+/**
+* private
+*/
+
+def errorln(message: string) -> null
+{
+    error("[-] FAILED\t");
+    error(message);
+    error('\n');
+}
+

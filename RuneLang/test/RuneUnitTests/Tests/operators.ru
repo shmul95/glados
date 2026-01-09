@@ -1,22 +1,8 @@
 somewhere { def assert(condition: bool, message: string) -> null; }
 
-def operators(a: any, b: any) -> null
-{
-    assert(a > b, "Failure: a > b");
-    assert(!(a < b), "Failure: a < b should be false");
-    assert(not(a == b), "Failure: a == b should be false");
-}
-
-def test_logical(a: bool, b: bool) -> null
-{
-    assert(a && a, "Failure: true && true");
-    assert(!(a and b), "Failure: true && false should be false");
-    assert(not(b && b), "Failure: false && false should be false");
-
-    assert(a or a, "Failure: true || true");
-    assert(a || b, "Failure: true || false");
-    assert(not(b || b), "Failure: false || false should be false");
-}
+/**
+* public
+*/
 
 export def test_operators() -> null
 {
@@ -35,5 +21,28 @@ export def test_operators() -> null
 
     operators('z', 'a');
 
-    test_logical(true, false);
+    logical(true, false);
 }
+
+/**
+* private
+*/
+
+def operators(a: any, b: any) -> null
+{
+    assert(a > b, "Failure: a > b");
+    assert(!(a < b), "Failure: a < b should be false");
+    assert(not(a == b), "Failure: a == b should be false");
+}
+
+def logical(a: bool, b: bool) -> null
+{
+    assert(a && a, "Failure: true && true");
+    assert(!(a and b), "Failure: true && false should be false");
+    assert(not(b && b), "Failure: false && false should be false");
+
+    assert(a or a, "Failure: true || true");
+    assert(a || b, "Failure: true || false");
+    assert(not(b || b), "Failure: false || false should be false");
+}
+

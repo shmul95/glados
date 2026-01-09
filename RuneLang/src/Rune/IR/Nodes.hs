@@ -116,6 +116,10 @@ data IRInstruction
   | IRMUL_OP String IROperand IROperand IRType
   | IRDIV_OP String IROperand IROperand IRType
   | IRMOD_OP String IROperand IROperand IRType
+  | -- bitwise operations
+    IRSHR_OP String IROperand IROperand IRType  -- shift right (for div by power of 2)
+  | IRSHL_OP String IROperand IROperand IRType  -- shift left (for mul by power of 2)
+  | IRBAND_OP String IROperand IROperand IRType -- bitwise AND (for mod by power of 2)
   | -- comparison
     IRCMP_EQ String IROperand IROperand
   | IRCMP_NEQ String IROperand IROperand
@@ -132,6 +136,14 @@ data IRInstruction
   | IRJUMP_TRUE IROperand IRLabel
   | IRJUMP_FALSE IROperand IRLabel
   | IRJUMP_EQ0 IROperand IRLabel
+  | IRJUMP_LT IROperand IROperand IRLabel
+  | IRJUMP_LTE IROperand IROperand IRLabel
+  | IRJUMP_GT IROperand IROperand IRLabel
+  | IRJUMP_GTE IROperand IROperand IRLabel
+  | IRJUMP_EQ IROperand IROperand IRLabel
+  | IRJUMP_NEQ IROperand IROperand IRLabel
+  | IRJUMP_TEST_NZ IROperand IROperand IRLabel
+  | IRJUMP_TEST_Z IROperand IROperand IRLabel
   | -- function
     IRCALL String String [IROperand] (Maybe IRType)
   | IRRET (Maybe IROperand)
