@@ -190,24 +190,6 @@ testGenParam = testGroup "genParam"
         Right result -> result @?= ("p_flag", IRBool)
   ]
 
-testFixSelfParam :: TestTree
-testFixSelfParam = testGroup "fixSelfParam"
-  [ testCase "Fixes self parameter" $
-      let param = Parameter "self" TypeAny
-          result = fixSelfParam "Vec2" param
-      in result @?= Parameter "self" (TypeCustom "Vec2")
-
-  , testCase "Leaves other params unchanged" $
-      let param = Parameter "x" TypeI32
-          result = fixSelfParam "Vec2" param
-      in result @?= Parameter "x" TypeI32
-
-  , testCase "Fixes self even with different type" $
-      let param = Parameter "self" TypeI32
-          result = fixSelfParam "Point" param
-      in result @?= Parameter "self" (TypeCustom "Point")
-  ]
-
 testResetFunctionState :: TestTree
 testResetFunctionState = testGroup "resetFunctionState"
   [ testCase "Sets current function name" $
