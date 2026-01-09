@@ -35,17 +35,19 @@ export def compare(a: string, b: string) -> i32
         char_b: char = b[i];
 
         if char_a < char_b {
-            return -1;
+            -1
         } else if char_a > char_b {
-            return 1;
+            1
         }
+
         ++i;
     }
 
     if len_a < len_b {
-        return -1;
+        -1
     } else if len_a > len_b {
-        return 1;
+        1
     }
+
     return 0;
 }
