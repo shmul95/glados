@@ -4,7 +4,8 @@ module Rune.Backend.X86_64.Operations
   ( emitBinaryOp,
     emitDivOp,
     emitModOp,
-    emitShiftOp
+    emitShiftOp,
+    emitBitNot
 #if defined(TESTING_EXPORT)
   ,
     emitFloatBinaryOp,
@@ -248,3 +249,11 @@ emitFloatBinaryOp sm dest asmOp leftOp rightOp t =
     store IRF32 = emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> xmmL
     store IRF64 = emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> xmmL
     store other = emit 1 $ "; TODO: unsupported float binary result type: " <> show other
+
+-- | emit dest = ~operand (bitwise NOT)
+emitBitNot :: Map String Int -> String -> IROperand -> IRType -> [String]
+emitBitNot sm dest op t =
+  let reg = getRegisterName "rax" t
+   in loadReg sm "rax" op
+   <> [emit 1 $ "not " <> reg]
+   <> [storeReg sm dest "rax" t]

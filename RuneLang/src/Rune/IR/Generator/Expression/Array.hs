@@ -56,6 +56,7 @@ genIndex genExpr target idx = do
   
   elemType <- case targetType of
     IRPtr (IRArray t _) -> return t
+    IRPtr t -> return t  -- string indexing: *char -> char
     _ -> throwError $ "genIndex: expected array type, got " <> show targetType
   
   tempName <- newTemp "elem" elemType

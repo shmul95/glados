@@ -131,6 +131,7 @@ getOperands (IRASSIGN _ op _) = [op]
 getOperands (IRSTORE a v) = [a, v]
 getOperands (IRLOAD _ a _) = [a]
 getOperands (IRDEREF _ a _) = [a]
+getOperands (IRLOAD_OFFSET _ ptr offset _) = [ptr, offset]
 getOperands (IRGET_FIELD _ s _ _ _) = [s]
 getOperands (IRSET_FIELD s _ _ v) = [s, v]
 getOperands (IRALLOC_ARRAY _ _ ops) = ops
@@ -144,6 +145,7 @@ getOperands (IRMOD_OP _ o1 o2 _) = [o1, o2]
 getOperands (IRSHR_OP _ o1 o2 _) = [o1, o2]
 getOperands (IRSHL_OP _ o1 o2 _) = [o1, o2]
 getOperands (IRBAND_OP _ o1 o2 _) = [o1, o2]
+getOperands (IRBNOT_OP _ o _) = [o]
 getOperands (IRCMP_EQ _ o1 o2) = [o1, o2]
 getOperands (IRCMP_NEQ _ o1 o2) = [o1, o2]
 getOperands (IRCMP_LT _ o1 o2) = [o1, o2]
@@ -165,6 +167,8 @@ getOperands (IRCALL _ _ args _) = args
 getOperands (IRRET (Just o)) = [o]
 getOperands (IRINC o) = [o]
 getOperands (IRDEC o) = [o]
+getOperands (IRJUMP_TEST_NZ o1 o2 _) = [o1, o2]
+getOperands (IRJUMP_TEST_Z o1 o2 _) = [o1, o2]
 getOperands _ = []
 
 -- Dead code elimination
@@ -175,6 +179,7 @@ eliminateDeadCode uc = filter (not . isDead)
     isDead (IRALLOC t _) = M.findWithDefault 0 t uc == 0
     isDead (IRLOAD t _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRDEREF t _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRLOAD_OFFSET t _ _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRGET_FIELD t _ _ _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRALLOC_ARRAY t _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRGET_ELEM t _ _ _) = M.findWithDefault 0 t uc == 0
@@ -186,6 +191,7 @@ eliminateDeadCode uc = filter (not . isDead)
     isDead (IRSHR_OP t _ _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRSHL_OP t _ _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRBAND_OP t _ _ _) = M.findWithDefault 0 t uc == 0
+    isDead (IRBNOT_OP t _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRCMP_EQ t _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRCMP_NEQ t _ _) = M.findWithDefault 0 t uc == 0
     isDead (IRCMP_LT t _ _) = M.findWithDefault 0 t uc == 0
@@ -355,6 +361,7 @@ simplifyInstr (IRSET_FIELD s f f2 v) = IRSET_FIELD <$> simplifyOp s <*> pure f <
 simplifyInstr (IRALLOC_ARRAY t ty elems) = IRALLOC_ARRAY t ty <$> mapM simplifyOp elems
 simplifyInstr (IRGET_ELEM t arr idx ty) = IRGET_ELEM t <$> simplifyOp arr <*> simplifyOp idx <*> pure ty
 simplifyInstr (IRSET_ELEM arr idx val) = IRSET_ELEM <$> simplifyOp arr <*> simplifyOp idx <*> simplifyOp val
+simplifyInstr (IRBNOT_OP t o ty) = IRBNOT_OP t <$> simplifyOp o <*> pure ty
 
 simplifyInstr (IRADD_OP t o1 o2 ty) = do
   o1' <- simplifyOp o1
@@ -478,6 +485,10 @@ simplifyInstr (IRJUMP_NEQ o1 o2 l) = IRJUMP_NEQ <$> simplifyOp o1 <*> simplifyOp
 simplifyInstr (IRRET (Just o)) = IRRET . Just <$> simplifyOp o
 simplifyInstr (IRINC o) = IRINC <$> simplifyOp o
 simplifyInstr (IRDEC o) = IRDEC <$> simplifyOp o
+simplifyInstr (IRBAND_OP t o1 o2 ty) = IRBAND_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
+simplifyInstr (IRSHR_OP t o1 o2 ty) = IRSHR_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
+simplifyInstr (IRSHL_OP t o1 o2 ty) = IRSHL_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
+simplifyInstr (IRLOAD_OFFSET t ptr offset ty) = IRLOAD_OFFSET t <$> simplifyOp ptr <*> simplifyOp offset <*> pure ty
 simplifyInstr other = pure other
 
 simplifyOp :: IROperand -> OptM IROperand
@@ -502,6 +513,8 @@ renameInstr pre (IRMOD_OP t o1 o2 ty) = IRMOD_OP (pre <> t) (renameOp pre o1) (r
 renameInstr pre (IRSHR_OP t o1 o2 ty) = IRSHR_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
 renameInstr pre (IRSHL_OP t o1 o2 ty) = IRSHL_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
 renameInstr pre (IRBAND_OP t o1 o2 ty) = IRBAND_OP (pre <> t) (renameOp pre o1) (renameOp pre o2) ty
+renameInstr pre (IRBNOT_OP t o ty) = IRBNOT_OP (pre <> t) (renameOp pre o) ty
+renameInstr pre (IRLOAD_OFFSET t ptr offset ty) = IRLOAD_OFFSET (pre <> t) (renameOp pre ptr) (renameOp pre offset) ty
 renameInstr pre (IRCMP_EQ t o1 o2) = IRCMP_EQ (pre <> t) (renameOp pre o1) (renameOp pre o2)
 renameInstr pre (IRCMP_NEQ t o1 o2) = IRCMP_NEQ (pre <> t) (renameOp pre o1) (renameOp pre o2)
 renameInstr pre (IRCMP_LT t o1 o2) = IRCMP_LT (pre <> t) (renameOp pre o1) (renameOp pre o2)

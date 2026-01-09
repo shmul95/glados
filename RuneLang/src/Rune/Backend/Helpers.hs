@@ -81,6 +81,7 @@ collectVars acc (IRASSIGN n _ t) = Map.insert n t acc
 collectVars acc (IRALLOC n t) = Map.insert n t acc
 collectVars acc (IRLOAD n _ t) = Map.insert n t acc
 collectVars acc (IRDEREF n _ t) = Map.insert n t acc
+collectVars acc (IRLOAD_OFFSET n _ _ t) = Map.insert n t acc
 collectVars acc (IRGET_FIELD n _ _ _ t) = Map.insert n t acc
 collectVars acc (IRGET_ELEM n _ _ t) = Map.insert n t acc
 
@@ -100,6 +101,7 @@ collectVars acc (IRMOD_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRSHR_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRSHL_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRBAND_OP n _ _ t) = Map.insert n t acc
+collectVars acc (IRBNOT_OP n _ t) = Map.insert n t acc
 collectVars acc (IRCMP_EQ n _ _) = Map.insert n IRBool acc
 collectVars acc (IRCMP_NEQ n _ _) = Map.insert n IRBool acc
 collectVars acc (IRCMP_LT n _ _) = Map.insert n IRBool acc

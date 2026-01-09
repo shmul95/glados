@@ -105,6 +105,7 @@ exprType s@(fs, _) (ExprCall _ fn args) = do
 exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
   where
     extractArrayType (TypeArray inner) = Right inner
+    extractArrayType TypeString = Right TypeChar
     extractArrayType TypeAny = Right TypeAny
     extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
 
@@ -132,6 +133,8 @@ assignVarType vs v file line col t =
 
 
 isTypeCompatible :: Type -> Type -> Bool
+isTypeCompatible TypeAny _ = True
+isTypeCompatible _ TypeAny = True
 isTypeCompatible expected actual
   | sameType expected actual = True
   | actual == TypeI32 && isIntegerType expected = True

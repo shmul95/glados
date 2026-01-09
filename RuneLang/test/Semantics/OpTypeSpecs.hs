@@ -42,11 +42,15 @@ opTypeSemanticsTests =
             sameType (TypeCustom "A") TypeI32 @?= False,
         
           testCase "returns False for different type families" $ do
-            sameType TypeI32 TypeU32 @?= False
             sameType TypeI32 TypeF32 @?= False
             sameType TypeU32 TypeF32 @?= False
             sameType TypeI32 TypeBool @?= False
-            sameType TypeF32 TypeChar @?= False
+            sameType TypeF32 TypeChar @?= False,
+
+          testCase "returns True for mixed signed/unsigned integer types" $ do
+            sameType TypeI32 TypeU32 @?= True
+            sameType TypeI64 TypeU64 @?= True
+            sameType TypeI8 TypeU16 @?= True
         ],
 
       testGroup "iHTBinary function" 
@@ -77,10 +81,10 @@ opTypeSemanticsTests =
             iHTBinary Div TypeU8  TypeU16 @?= Right TypeU16
             iHTBinary Mod TypeF32 TypeF64 @?= Right TypeF64,
         
-          testCase "rejects operations between different type families" $
+          testCase "allows mixed signed/unsigned integer operations" $
             case iHTBinary Add TypeI32 TypeU32 of
-              Left _ -> return ()
-              Right _  -> assertFailure "Should have failed for incompatible types",
+              Left _ -> assertFailure "Should allow mixed signed/unsigned integer operations"
+              Right _ -> return (),
         
           testCase "rejects int and float mixing" $
             case iHTBinary Add TypeI32 TypeF32 of

@@ -23,7 +23,7 @@ import Rune.IR.Generator.Expression.Struct (genAccess, genStructInit)
 import Rune.IR.Generator.Expression.Unary (genUnary)
 import Rune.IR.Generator.Expression.Array (genLitArray, genIndex)
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
-import Rune.IR.IRHelpers (astTypeToIRType)
+import Rune.IR.IRHelpers (astTypeToIRType, newTemp)
 
 --
 -- public
@@ -60,6 +60,25 @@ genVar name = do
     Nothing -> throwError $ "genVar: variable not found in symbol table: " <> name
 
 genCast :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
+genCast genExpr (ExprIndex _ target idx) astType = do
+  -- Special case: casting indexed string/pointer access to larger type
+  -- This loads sizeof(targetType) bytes from ptr+offset
+  (targetInstrs, targetOp, targetType) <- genExpr target
+  (idxInstrs, idxOp, _) <- genExpr idx
+  let resultType = astTypeToIRType astType
+  
+  -- Check if this is a pointer type being indexed and cast to u64/i64
+  case (targetType, resultType) of
+    (IRPtr _, t) | t `elem` [IRU64, IRI64] -> do
+      -- Load 8 bytes from pointer at offset
+      tempName <- newTemp "word" resultType
+      let loadInstr = IRLOAD_OFFSET tempName targetOp idxOp resultType
+      pure (targetInstrs <> idxInstrs <> [loadInstr], IRTemp tempName resultType, resultType)
+    _ -> do
+      -- Regular cast: evaluate the index expression then cast
+      (instrs, op, _) <- genExpr (ExprIndex undefined target idx)
+      pure (instrs, op, resultType)
+
 genCast genExpr expr astType = do
   (instrs, op, _) <- genExpr expr
   let targetType = astTypeToIRType astType

@@ -67,7 +67,9 @@ data TokenKind
   | OpGte -- >=
   | OpAnd -- &&
   | OpOr -- ||
+  | OpBitAnd -- &
   | OpNot -- !
+  | OpBitNot -- ~
   | OpErrorProp -- ?
   | OpArrow -- ->
   | OpSquigArrow -- ~>

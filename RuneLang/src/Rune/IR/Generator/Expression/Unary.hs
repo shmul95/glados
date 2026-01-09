@@ -6,6 +6,7 @@ module Rune.IR.Generator.Expression.Unary
     genUnaryExpr,
     genUnaryNegate,
     genUnaryNot,
+    genUnaryBitNot,
     genUnaryPrefixInc,
     genUnaryPrefixDec,
     genUnaryPostfixInc,
@@ -51,6 +52,7 @@ genUnary genExpr op expr = do
 genUnaryExpr :: UnaryOp -> [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
 genUnaryExpr Negate = genUnaryNegate
 genUnaryExpr Not = genUnaryNot
+genUnaryExpr BitNot = genUnaryBitNot
 genUnaryExpr PrefixInc = genUnaryPrefixInc
 genUnaryExpr PrefixDec = genUnaryPrefixDec
 genUnaryExpr PostfixInc = genUnaryPostfixInc
@@ -68,6 +70,12 @@ genUnaryNot instrs operand _ = do
   t <- newTemp "t" IRBool
   let i = IRCMP_EQ t operand (IRConstBool False)
   return (instrs ++ [i], IRTemp t IRBool, IRBool)
+
+genUnaryBitNot :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
+genUnaryBitNot instrs operand typ = do
+  t <- newTemp "t" typ
+  let i = IRBNOT_OP t operand typ
+  return (instrs ++ [i], IRTemp t typ, typ)
 
 genUnaryPrefixInc :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
 genUnaryPrefixInc instrs operand typ =

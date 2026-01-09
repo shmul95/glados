@@ -53,7 +53,7 @@ import Rune.Backend.Types (Extern, Function, Global)
 import Rune.Backend.X86_64.Compare (emitCompare, loadFloatOperand, isFloatType)
 import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.LoadStore (getTestReg, loadReg, loadRegWithExt, moveStackToStack, needsRegisterLoad, operandAddr, stackAddr, storeReg)
-import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp, emitShiftOp)
+import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp, emitShiftOp, emitBitNot)
 import Rune.Backend.X86_64.Registers (getMovType, getSizeSpecifier, getRegisterName, x86_64ArgsRegisters, x86_64FloatArgsRegisters)
 import Rune.IR.Nodes
   ( IRFunction (IRFunction),
@@ -100,6 +100,7 @@ emitRoDataSection :: [Global] -> [String]
 emitRoDataSection [] = []
 emitRoDataSection gs = "section .rodata" : map emitGlobal gs
   where
+    emitGlobal (name, IRGlobalStringVal "") = name <> " db 0"  -- empty string is just null terminator
     emitGlobal (name, IRGlobalStringVal val) = name <> " db " <> escapeString val <> ", 0"
     emitGlobal (name, IRGlobalFloatVal val IRF32) = name <> " dd " <> " " <> show val
     emitGlobal (name, IRGlobalFloatVal val IRF64) = name <> " dq " <> " " <> show val
@@ -210,6 +211,7 @@ emitInstruction sm _ _ (IRJUMP_TEST_Z o1 o2 (IRLabel lbl)) = emitTestJump sm o1 
 emitInstruction sm _ _ (IRCALL dest funcName args mbType) = emitCall sm dest funcName args mbType
 emitInstruction sm endLbl _ (IRRET mbOp) = emitRet sm endLbl mbOp
 emitInstruction sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
+emitInstruction sm _ _ (IRLOAD_OFFSET dest ptr offset typ) = emitLoadOffset sm dest ptr offset typ
 emitInstruction sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray sm fn dest elemType values
 emitInstruction sm _ _ (IRGET_ELEM dest targetOp indexOp elemType) = emitGetElem sm dest targetOp indexOp elemType
 emitInstruction sm _ _ (IRSET_ELEM targetOp indexOp valueOp) = emitSetElem sm targetOp indexOp valueOp
@@ -224,6 +226,7 @@ emitInstruction sm _ _ (IRMOD_OP dest l r t) = emitModOp sm dest l r t
 emitInstruction sm _ _ (IRSHR_OP dest l r t) = emitShiftOp sm dest "sar" l r t
 emitInstruction sm _ _ (IRSHL_OP dest l r t) = emitShiftOp sm dest "sal" l r t
 emitInstruction sm _ _ (IRBAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
+emitInstruction sm _ _ (IRBNOT_OP dest op t) = emitBitNot sm dest op t
 emitInstruction sm _ _ (IRAND_OP dest l r t) = emitBinaryOp sm dest "and" l r t
 emitInstruction sm _ _ (IROR_OP dest l r t) = emitBinaryOp sm dest "or" l r t
 emitInstruction sm _ _ (IRCMP_EQ dest l r) = emitCompare sm dest Cmp.CmpEQ l r
@@ -382,6 +385,18 @@ emitDeref sm dest ptr typ =
   , emit 1 $ getMovType typ <> " [rax]"
   , storeReg sm dest "rax" typ
   ]
+
+-- | Load a value of given type from pointer + byte offset
+-- ptr[offset] where we load sizeof(typ) bytes
+emitLoadOffset :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitLoadOffset sm dest ptr offset typ =
+  let sizeSpec = getSizeSpecifier typ
+      reg = getRegisterName "rax" typ
+   in loadReg sm "rdi" ptr
+   <> loadRegWithExt sm ("rsi", offset)
+   <> [ emit 1 $ "mov " <> reg <> ", " <> sizeSpec <> " [rdi + rsi]"
+      , storeReg sm dest "rax" typ
+      ]
 
 emitAllocArray :: Map String Int -> String -> String -> IRType -> [IROperand] -> [String]
 emitAllocArray sm fnName dest elemType values =
