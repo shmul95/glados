@@ -25,6 +25,7 @@ EXAMPLE_FILES = glob_files("RuneLang/test/RuneUnitTests", "ru")
 
 EXPECTED_STDOUT = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 EXPECTED_RETURN = 0
+EXPECTED_LINES = 93
 
 GREEN = "\033[32m"
 RED = "\033[31m"
@@ -94,8 +95,8 @@ def verify_output(run: subprocess.CompletedProcess) -> None:
     cleaned = strip_ansi(run.stdout)
     lines = [line for line in cleaned.splitlines() if line.strip()]
 
-    if len(lines) != 91:
-        print_ko(f"Expected 91 lines, got {len(lines)}.")
+    if len(lines) != EXPECTED_LINES:
+        print_ko(f"Expected {EXPECTED_LINES} lines, got {len(lines)}.")
         raise SystemExit(ERROR)
 
     for i, line in enumerate(lines, 1):
