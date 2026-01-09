@@ -37,7 +37,7 @@ where
 
 import Control.Concurrent.Async (mapConcurrently)
 import Control.Exception (IOException, try, bracket)
-import Control.Monad ((>=>), when)
+import Control.Monad ((>=>), when, unless)
 
 import Data.Bifunctor (first)
 import Data.Functor ((<&>))
@@ -90,7 +90,7 @@ rpathArg :: FilePath -> String
 rpathArg home = "-Wl,-rpath," <> home <> "/.local/lib"
 
 compilePipeline :: FilePath -> FilePath -> CompileMode -> IO ()
-compilePipeline inFile outFile = modeToAction inFile outFile
+compilePipeline = modeToAction
   where
     modeToAction inf outf = \case
       FullCompile libOpts  -> compileFullPipeline inf outf libOpts
@@ -139,7 +139,7 @@ compileRuneSources runeFiles isLib =
       results <- mapConcurrently (compileRuneFile forLib) files
       let (errors, successes) = partitionEithers results
       mapM_ logErrorNoExit errors
-      when (not $ null errors) $ exitWith (ExitFailure 84)
+      unless (null errors) $ exitWith (ExitFailure 84)
       pure successes
 
 compileRuneFile :: Bool -> FilePath -> IO (Either String FilePath)
