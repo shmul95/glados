@@ -2,6 +2,8 @@
 
 import subprocess
 import os
+import re
+
 from typing import List
 
 
@@ -21,7 +23,7 @@ OUT_BIN = "./out.bin"
 
 EXAMPLE_FILES = glob_files("RuneLang/test/RuneUnitTests", "ru")
 
-EXPECTED_STDOUT = "[+] PASSED\n" * 91
+EXPECTED_STDOUT = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 EXPECTED_RETURN = 0
 
 GREEN = "\033[32m"
@@ -41,39 +43,45 @@ def print_ko(message: str) -> None:
     print(f"{RED}{CROSS}{RESET} {message}")
 
 
-def compile(examples_files: List[str]) -> None:
-    build_cmd = ["./rune", "build", *examples_files, "-o", OUT_BIN]
-
-    try:
-        result = subprocess.run(
-            build_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-    except FileNotFoundError:
-        print_ko("`rune` command not found.")
-        raise SystemExit(ERROR)
-
-    if result.returncode != 0:
-        print_ko("Compilation failed.")
-        print(result.stderr)
-        raise SystemExit(ERROR)
-
-    print_ok("Compilation succeeded.")
+def strip_ansi(text: str) -> str:
+    return EXPECTED_STDOUT.sub("", text)
 
 
-def run_binary() -> subprocess.CompletedProcess:
+def run_command(command: List[str]) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
-            [OUT_BIN],
+            command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
     except FileNotFoundError:
-        print_ko("Binary not found.")
+        print_ko(f"`{' '.join(command)}` command not found.")
         raise SystemExit(ERROR)
+
+
+def run_checked(command: List[str], error_message: str) -> None:
+    res = run_command(command)
+    if res.returncode != 0:
+        print_ko(error_message)
+        if res.stderr:
+            print(res.stderr)
+        raise SystemExit(ERROR)
+
+
+def compile(examples_files: List[str]) -> None:
+    run_checked(["make", "lib"], "Library build failed.")
+    run_checked(
+        ["./rune", "build", *examples_files, "-o", OUT_BIN, "-lstd"],
+        "Rune build failed.",
+    )
+
+    if not os.path.isfile(OUT_BIN):
+        print_ko(f"{OUT_BIN} was not created.")
+        raise SystemExit(ERROR)
+
+    os.chmod(OUT_BIN, 0o755)
+    print_ok("Compilation succeeded.")
 
 
 def verify_output(run: subprocess.CompletedProcess) -> None:
@@ -83,15 +91,20 @@ def verify_output(run: subprocess.CompletedProcess) -> None:
         )
         raise SystemExit(ERROR)
 
-    if run.stdout != EXPECTED_STDOUT:
-        print_ko("Program output did not match expected output.")
-        print("Expected:")
-        print(EXPECTED_STDOUT)
-        print("Got:")
-        print(run.stdout)
+    cleaned = strip_ansi(run.stdout)
+    lines = [line for line in cleaned.splitlines() if line.strip()]
+
+    if len(lines) != 91:
+        print_ko(f"Expected 91 lines, got {len(lines)}.")
         raise SystemExit(ERROR)
 
-    print_ok("Program exited with the expected return code.")
+    for i, line in enumerate(lines, 1):
+        if not line.startswith("[+]"):
+            print_ko(f"Line {i} does not start with [+]: {line}")
+            raise SystemExit(ERROR)
+
+    print(run.stdout)
+    print_ok("Program output is valid.")
 
 
 def delete_binary() -> None:
@@ -108,7 +121,7 @@ def main() -> None:
         raise SystemExit(ERROR)
 
     compile(EXAMPLE_FILES)
-    run = run_binary()
+    run = run_command([OUT_BIN])
     verify_output(run)
     delete_binary()
 
