@@ -1,22 +1,15 @@
 somewhere
 {
-    def test_operators() -> null;
-    def test_maths() -> null;
-    def test_loops() -> null;
-    def test_arrays() -> null;
-    def test_errors() -> null;
+    def test_features() -> null;
+    def test_std() -> null;
 }
 
 /**
 * public
 */
 
-export def main() -> i32
+export def main() -> null
 {
-    test_operators();
-    test_maths();
-    test_loops();
-    test_arrays();
-    test_errors();
-    return 0;
+    test_features();
+    test_std();
 }
