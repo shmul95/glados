@@ -32,6 +32,7 @@ RED = "\033[31m"
 RESET = "\033[0m"
 CHECK = "✓"
 CROSS = "✗"
+VALID = f"[{CHECK}]"
 
 ERROR = 84
 
@@ -100,8 +101,8 @@ def verify_output(run: subprocess.CompletedProcess) -> None:
         raise SystemExit(ERROR)
 
     for i, line in enumerate(lines, 1):
-        if not line.startswith("[+]"):
-            print_ko(f"Line {i} does not start with [+]: {line}")
+        if not line.startswith(VALID):
+            print_ko(f"Test failed at line: {i}: {line}")
             raise SystemExit(ERROR)
 
     print(run.stdout)
