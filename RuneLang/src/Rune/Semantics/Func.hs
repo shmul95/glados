@@ -1,4 +1,18 @@
+{-# LANGUAGE CPP #-}
+
+#if defined(TESTING_EXPORT)
+module Rune.Semantics.Func
+  ( findFunc
+  , findDefs
+  , transformStructMethods
+  , mangleFuncName
+  , hasDuplicate
+  , findDuplicateMap
+  )
+where
+#else
 module Rune.Semantics.Func (findFunc) where
+#endif
 
 import Control.Monad (foldM)
 import qualified Data.HashMap.Strict as HM
@@ -39,12 +53,9 @@ findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 findDefs s (DefFunction name params rType _ _) =
     let paramTypes = map paramType params
         newSign = (rType, paramTypes)
-        msg = "\n\tFuncAlreadyExist: %s was already defined, use override"
+        msg = "FuncAlreadyExist: %s was already defined, use override"
     in case HM.lookup name s of
-      Just existing -> 
-        if newSign `elem` existing
-          then Right s
-          else Left $ printf msg name
+      Just _ -> Left $ printf msg name
       Nothing -> Right $ HM.insert name [newSign] s
 
 -- | find override function definitions
