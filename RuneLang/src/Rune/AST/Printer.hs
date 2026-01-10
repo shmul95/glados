@@ -323,6 +323,7 @@ showType TypeAny = "any"
 showType TypeNull = "null"
 showType (TypeCustom s) = s
 showType (TypeArray t) = "[" <> showType t <> "]"
+showType (TypePtr t) = "*" <> showType t
 
 showBinaryOp :: BinaryOp -> String
 showBinaryOp Add = "+"
