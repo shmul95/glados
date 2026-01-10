@@ -169,6 +169,7 @@ getOperands (IRINC o) = [o]
 getOperands (IRDEC o) = [o]
 getOperands (IRJUMP_TEST_NZ o1 o2 _) = [o1, o2]
 getOperands (IRJUMP_TEST_Z o1 o2 _) = [o1, o2]
+getOperands (IRCAST _ o _ _) = [o]
 getOperands _ = []
 
 -- Dead code elimination
@@ -300,12 +301,10 @@ optimizeInstr inst@(IRASSIGN target op _) rest =
   >> gets osKeepAssignments
   >>= \keep -> if keep then emitInstr inst rest else optimizeBlock rest
 
--- reset remembered values at labels only if assignments can be removed
+-- reset remembered values at labels
 optimizeInstr inst@(IRLABEL _) rest =
-  gets osKeepAssignments >>= \keep ->
-    if keep
-      then emitInstr inst rest  -- keep osConsts when assignments are preserved
-      else modify' (\s -> s { osConsts = M.empty }) >> emitInstr inst rest
+  modify' (\s -> s { osConsts = M.empty })
+  >> emitInstr inst rest
 
 -- inline small/simple function calls
 optimizeInstr (IRCALL target fun args retType) rest =
