@@ -7,8 +7,6 @@ somewhere
 
     def allocate(size: u64) ~> *any;
     def liberate(ptr: *any) -> bool;
-
-    def errorln(value: any) -> null;
 }
 
 /**
@@ -27,7 +25,8 @@ export def open_file(path: string) ~> i32
 
     if fd < 0 {
         error("io: failed to open file: ");
-        errorln(path)
+        error(path);
+        error('\n')
     }
     fd
 }
@@ -75,7 +74,8 @@ export def read_file(fd: i32, size: u64) ~> string
 
     if bytes_read < 0 {
         liberate(buffer);
-        errorln("io: error while reading file content")
+        error("io: error while reading file content");
+        error('\n')
     }
 
     buffer[bytes_read] = '\0';
@@ -95,7 +95,8 @@ export def read_all(path: string) ~> string
     if file_size < 0 {
         close_file(fd);
         error("io: failed to get file size: ");
-        errorln(path)
+        error(path);
+        error('\n')
     }
 
     content = read_file(fd, file_size : u64)?;
