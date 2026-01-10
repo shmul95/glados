@@ -141,6 +141,8 @@ escapeChar =
     [ char 'n' >> return '\n',
       char 't' >> return '\t',
       char 'r' >> return '\r',
+      char 'v' >> return '\v',
+      char 'f' >> return '\f',
       char '\\' >> return '\\',
       char '"' >> return '"',
       char '\'' >> return '\'',

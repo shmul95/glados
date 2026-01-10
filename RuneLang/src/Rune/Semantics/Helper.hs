@@ -57,9 +57,7 @@ checkParamType s@(fs, _, _) fname file line col es =
     Nothing         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
     Just []         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
     Just [sig]      -> checkSingle sig
-    Just (sig:sigs) -> case checkSingle sig of
-                         Left _ -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
-                         Right r  -> Right r
+    Just sigs       -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
   where
     checkSingle :: (Type, [Type]) -> Either SemanticError String
     checkSingle (_, at) =
@@ -146,6 +144,11 @@ assignVarType vs v file line col t =
 isTypeCompatible :: Type -> Type -> Bool
 isTypeCompatible TypeAny _ = True
 isTypeCompatible _ TypeAny = True
+isTypeCompatible (TypePtr _) TypeNull = True
+isTypeCompatible TypeNull (TypePtr _) = True
+isTypeCompatible (TypePtr TypeAny) (TypePtr _) = True
+isTypeCompatible (TypePtr _) (TypePtr TypeAny) = True
+isTypeCompatible (TypePtr a) (TypePtr b) = isTypeCompatible a b
 isTypeCompatible expected actual
   | sameType expected actual = True
   | actual == TypeI32 && isIntegerType expected = True
