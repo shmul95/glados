@@ -18,7 +18,7 @@ export def assert(condition: bool, message: string) -> bool
     true
 }
 
-export override def assert(str1: string, str2: string, message: string) -> bool
+export def assert_eq(str1: string, str2: string, message: string) -> bool
 {
     assert(compare(str1, str2) == 0, message)
 }
