@@ -54,9 +54,7 @@ checkParamType s@(fs, _) fname file line col es =
     Nothing         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
     Just []         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
     Just [sig]      -> checkSingle sig
-    Just (sig:sigs) -> case checkSingle sig of
-                         Left _ -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
-                         Right r  -> Right r
+    Just sigs       -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
   where
     checkSingle :: (Type, [Type]) -> Either SemanticError String
     checkSingle (_, at) =

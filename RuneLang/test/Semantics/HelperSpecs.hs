@@ -310,7 +310,7 @@ checkParamTypeTests = testGroup "checkParamType Tests"
           Right _ -> assertFailure "Expected error")
   , testCase "Overloaded - Match i32" $ 
       (case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprVar dummyPos "x"] of 
-          Right name -> name @?= "overloaded"
+          Right name -> name @?= "i32_overloaded_i32"
           Left _ -> assertFailure "Expected success")
   , testCase "Overloaded - Match f32 (mangle)" $ 
       (case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprVar dummyPos "f"] of 

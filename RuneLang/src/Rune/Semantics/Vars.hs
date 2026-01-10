@@ -78,7 +78,7 @@ verifVars (Program n defs) = do
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
-      finalFuncStack = stFuncs finalState
+      finalFuncStack = mangleFuncStack $ stFuncs finalState
   
   pure (Program n allDefs, finalFuncStack)
 

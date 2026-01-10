@@ -1,3 +1,8 @@
+somewhere
+{
+    def compare(str1: string, str2: string) -> i32;
+}
+
 /**
 * public
 */
@@ -11,6 +16,11 @@ export def assert(condition: bool, message: string) -> bool
 
     showln(message);
     true
+}
+
+export def assert_eq(str1: string, str2: string, message: string) -> bool
+{
+    assert(compare(str1, str2) == 0, message)
 }
 
 /**
