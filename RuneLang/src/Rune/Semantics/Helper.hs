@@ -13,8 +13,8 @@ module Rune.Semantics.Helper
   , fixSelfType
   ) where
 
-import Data.Maybe (fromMaybe)
-import Data.List (intercalate)
+import Data.Maybe (fromMaybe, isNothing)
+import Data.List (intercalate, isPrefixOf)
 import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
@@ -53,25 +53,28 @@ formatSemanticError (SemanticError file line col expected got ctx) =
 checkParamType :: Stack -> String -> String -> Int -> Int -> [Expression] -> Either SemanticError String
 checkParamType s@(fs, _, _) fname file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
-  in case HM.lookup fname fs of
-    Nothing         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    Just []         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    Just [sig]      -> checkSingle sig
-    Just sigs       -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
+      -- Find all entries that match: either exact match or mangled version of fname
+      candidates = HM.filterWithKey (\k _ -> k == fname || (fname ++ "_") `isPrefixOf` k) fs
+  in case HM.toList candidates of
+    [] -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
+    sigs ->
+      let matches = [(name, ret, args) | (name, (ret, args)) <- sigs, isNothing (checkEachParam s file line col 0 es args)]
+      in case matches of
+        [] -> Left $ mkError (printf "matching signature for %s" fname) "no matching overload"
+        [(name, _, _)] -> Right name
+        candidates' -> Right $ selectMostSpecificName candidates'
   where
-    checkSingle :: (Type, [Type]) -> Either SemanticError String
-    checkSingle (_, at) =
-      case checkEachParam s file line col 0 es at of
-        Nothing  -> Right fname
-        Just err -> Left err
-
-    -- if multiple signature so mangle name
-    checkAll :: SemanticError -> [(Type, [Type])] -> Either SemanticError String
-    checkAll err_msg [] = Left err_msg
-    checkAll err_msg ((ret, at):rest) =
-      case checkEachParam s file line col 0 es at of
-        Nothing  -> Right $ mangleName fname ret at
-        Just _   -> checkAll err_msg rest
+    selectMostSpecificName :: [(String, Type, [Type])] -> String
+    selectMostSpecificName = fst3 . selectMostSpecific
+    
+    selectMostSpecific :: [(String, Type, [Type])] -> (String, Type, [Type])
+    selectMostSpecific = foldr1 moreSpecific
+      where
+        moreSpecific s1@(_, _, args1) s2@(_, _, args2) =
+          if countTypeAny args1 < countTypeAny args2 then s1 else s2
+    
+    countTypeAny = length . filter (== TypeAny)
+    fst3 (a, _, _) = a
 
 
 mangleName :: String -> Type -> [Type] -> String
@@ -102,14 +105,14 @@ exprType s (ExprBinary _ op a b)    = do
   b' <- exprType s b
   iHTBinary op a' b'
 
-exprType s (ExprUnary _ _ expr)     = exprType s expr -- assume the op don't change the type
-exprType (_, vs, _) (ExprVar _ name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+exprType s (ExprUnary _ _ expr)     = exprType s expr
+exprType (_, vs, _) (ExprVar _ name) = Right $ fromMaybe TypeAny (HM.lookup name vs)
 
 exprType s@(fs, _, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 
-exprType _ (ExprCall _ _ _) = Right TypeAny -- can't determine function name, must be changed at later stage
+exprType _ (ExprCall _ _ _) = Right TypeAny
 
 exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
   where
@@ -194,25 +197,26 @@ checkEachParam _ file line col i es [] =
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name at =
-  case HM.lookup name fs of
-    Nothing   -> Nothing
-    Just []   -> Nothing
-    Just sigs ->
+  let candidates = HM.filterWithKey (\k _ -> k == name || (name ++ "_") `isPrefixOf` k) fs
+  in case HM.toList candidates of
+    [] -> Nothing
+    sigs ->
       case filter (match at) sigs of
-        [(rt, _)] -> Just rt
-        matches@(_:_) -> Just . fst $ mostSpecific matches
-        _         -> Nothing
+        [(_, (rt, _))] -> Just rt
+        matches@(_:_) -> 
+          let (_, (rt, _)) = selectMostSpecific matches
+          in Just rt
+        _ -> Nothing
   where
-    match :: [Type] -> (Type, [Type]) -> Bool
-    match act (_, expec) =
+    match :: [Type] -> (String, (Type, [Type])) -> Bool
+    match act (_, (_, expec)) =
       length act == length expec &&
       and (zipWith isTypeCompatible expec act)
 
-    mostSpecific :: [(Type, [Type])] -> (Type, [Type])
-    mostSpecific = foldr1 moreSpecific
+    selectMostSpecific :: [(String, (Type, [Type]))] -> (String, (Type, [Type]))
+    selectMostSpecific = foldr1 moreSpecific
     
-    moreSpecific :: (Type, [Type]) -> (Type, [Type]) -> (Type, [Type])
-    moreSpecific s1@(_, params1) s2@(_, params2)
+    moreSpecific s1@(_, (_, params1)) s2@(_, (_, params2))
       | specificity params1 > specificity params2 = s1
       | otherwise = s2
     

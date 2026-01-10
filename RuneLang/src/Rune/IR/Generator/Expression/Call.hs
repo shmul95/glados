@@ -34,11 +34,7 @@ genCall genExpr funcName args = do
   fs <- gets gsFuncStack
 
   -- INFO: lookup for the resolved function signature
-  let funcSignature = do
-        sigs <- HM.lookup funcName fs
-        case sigs of
-          [(retType, paramTypes)] -> Just (retType, paramTypes)
-          _                       -> Nothing
+  let funcSignature = HM.lookup funcName fs
 
   -- INFO: generate arguments, using parameter type context
   argsData <- case funcSignature of
@@ -65,7 +61,6 @@ genCall genExpr funcName args = do
   let callInstr = IRCALL retTemp funcName ops (Just retType)
 
   pure (allInstrs <> [callInstr], IRTemp retTemp retType, retType)
-
 
 genArgWithContext :: GenExprCallback -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genArgWithContext genExpr expr expectedType = do

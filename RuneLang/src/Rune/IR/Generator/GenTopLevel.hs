@@ -90,7 +90,6 @@ genStruct (DefStruct name fields methods) = do
 genStruct _ = pure []
 
 -- | generate IR for a struct method
--- Vec2f.magnitude() -> magnitude_Vec2f
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
 genStructMethod _ (DefFunction methName params retType body _) =
   genFunction (DefFunction methName params retType body False)

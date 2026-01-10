@@ -14,7 +14,7 @@ import Rune.AST.Nodes (Type, TopLevelDef)
 --
 
 type VarStack = HashMap String Type
-type FuncStack = HashMap String [(Type, [Type])]
+type FuncStack = HashMap String (Type, [Type])
 type StructStack = HashMap String TopLevelDef
 type Stack = (FuncStack, VarStack, StructStack)
 

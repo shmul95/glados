@@ -49,6 +49,8 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
+import Debug.Trace (trace)
+
 --
 -- state monad
 --
@@ -76,7 +78,7 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = fs
+        { stFuncs = trace (show fs) fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
@@ -110,17 +112,8 @@ getDefName (DefOverride n _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
 getDefName (DefSomewhere {}) = ""
 
-
 mangleFuncStack :: FuncStack -> FuncStack
-mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
-  where
-    expandOverloads acc name sigs
-      | length sigs > 1 = foldr (addMangled name) acc sigs
-      | otherwise = acc
-
-    addMangled name (ret, args) acc =
-        let mName = mangleName name ret args
-        in HM.insert mName [(ret, args)] acc
+mangleFuncStack fs = fs
 
 --
 -- verif
@@ -128,24 +121,18 @@ mangleFuncStack fs = HM.foldlWithKey' expandOverloads fs fs
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport) = do
-  fs <- gets stFuncs
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
       paramTypes = map paramType params
-
-      name' = case HM.lookup name fs of
-          Just sigs | length sigs > 1 -> mangleName name r_t paramTypes
-          _ -> name
-
+      mangledName = mangleName name r_t paramTypes
   body' <- verifScope vs body
-  pure $ DefFunction name' params r_t body' isExport
+  pure $ DefFunction mangledName params r_t body' isExport
 
 verifTopLevel (DefOverride name params r_t body isExport) = do
   let paramTypes = map paramType params
-      name' = mangleName name r_t paramTypes
+      mangledName = mangleName name r_t paramTypes
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
-
   body' <- verifScope vs body
-  pure $ DefOverride name' params r_t body' isExport
+  pure $ DefOverride mangledName params r_t body' isExport
 
 verifTopLevel (DefStruct name fields methods) = do
   methods' <- mapM (verifMethod name) methods
@@ -456,7 +443,7 @@ registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
 registerInstantiation name def retTy argTys =
   modify $ \st -> st
     { stNewDefs      = stNewDefs st <> [def]
-    , stFuncs        = HM.insertWith (<>) name [(retTy, argTys)] (stFuncs st)
+    , stFuncs        = HM.insert name (retTy, argTys) (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
