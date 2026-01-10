@@ -19,7 +19,7 @@ export def allocate(size: u64) ~> *any
     ptr = malloc(size);
 
     if ptr == null {
-        error("allocate: memory allocation failed.\n");
+        error("allocate: memory allocation failed.\n")
     }
     ptr
 }
@@ -50,7 +50,7 @@ export def reallocate(ptr: *any, size: u64) ~> *any
     new_ptr = realloc(ptr, size);
 
     if new_ptr == null {
-        error("reallocate: memory reallocation failed.\n");
+        error("reallocate: memory reallocation failed.\n")
     }
 
     new_ptr
