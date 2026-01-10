@@ -17,7 +17,13 @@ import qualified Rune.Lexer.Tokens as T
 --
 
 parseType :: Parser Type
-parseType = chainPostfix parseBaseType parseArraySuffix
+parseType = parsePtrType <|> chainPostfix parseBaseType parseArraySuffix
+
+parsePtrType :: Parser Type
+parsePtrType = do
+  _ <- expect T.OpMul
+  t <- parseType
+  pure (TypePtr t)
 
 parseIdentifier :: Parser String
 parseIdentifier =
