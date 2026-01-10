@@ -135,6 +135,11 @@ assignVarType vs v file line col t =
 isTypeCompatible :: Type -> Type -> Bool
 isTypeCompatible TypeAny _ = True
 isTypeCompatible _ TypeAny = True
+isTypeCompatible (TypePtr _) TypeNull = True
+isTypeCompatible TypeNull (TypePtr _) = True
+isTypeCompatible (TypePtr TypeAny) (TypePtr _) = True
+isTypeCompatible (TypePtr _) (TypePtr TypeAny) = True
+isTypeCompatible (TypePtr a) (TypePtr b) = isTypeCompatible a b
 isTypeCompatible expected actual
   | sameType expected actual = True
   | actual == TypeI32 && isIntegerType expected = True

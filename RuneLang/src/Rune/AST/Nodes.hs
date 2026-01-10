@@ -48,6 +48,7 @@ data Type
   | TypeNull
   | TypeCustom String
   | TypeArray Type
+  | TypePtr Type
   deriving (Eq, Ord)
 
 instance Show Type where
@@ -68,6 +69,7 @@ instance Show Type where
   show  TypeNull      = "null"
   show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
+  show (TypePtr t)    = "*" <> show t
 
 data BinaryOp
   = Add

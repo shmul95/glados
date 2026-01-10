@@ -95,7 +95,8 @@ astTypeToIRType TypeNull = IRNull
 astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
 astTypeToIRType (TypeArray elemType) = IRPtr (IRArray (astTypeToIRType elemType) 0)
-astTypeToIRType TypeAny = error "Unsupported type conversion from AST to IR: TypeAny"
+astTypeToIRType (TypePtr t) = IRPtr (astTypeToIRType t)
+astTypeToIRType TypeAny = IRPtr IRNull
 
 irTypeToASTType :: IRType -> Type
 irTypeToASTType IRI8 = TypeI8
@@ -116,7 +117,8 @@ irTypeToASTType (IRPtr IRChar) = TypeString
 irTypeToASTType (IRPtr (IRStruct s)) = TypeCustom s
 irTypeToASTType (IRArray t _) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr (IRArray t _)) = TypeArray (irTypeToASTType t)
-irTypeToASTType (IRPtr _) = TypeAny
+irTypeToASTType (IRPtr IRNull) = TypeAny
+irTypeToASTType (IRPtr t) = TypePtr (irTypeToASTType t)
 
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers

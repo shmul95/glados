@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 
 #define TESTING_EXPORT
 
@@ -13,7 +12,6 @@ import Control.Monad.Except (runExceptT)
 import qualified Data.Map.Strict as Map
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
-import Control.Exception (evaluate, try, SomeException(..))
 import Rune.IR.IRHelpers
 import Rune.IR.Nodes (GenState(..), IRType(..), IROperand(..), IRInstruction(..), IRLabel(..), IRTopLevel(..), IRGlobalValue(..))
 import Rune.AST.Nodes (Type(..))
@@ -90,17 +88,10 @@ testAstTypeToIRType = testGroup "astTypeToIRType"
   , testCase "Converts complex types" $ do
       astTypeToIRType (TypeCustom "MyStruct") @?= IRStruct "MyStruct"
       astTypeToIRType TypeString @?= IRPtr IRChar
- , testCase "Throws error on unsupported type (e.g., TypeAny)" $ do
-    let criticalMsg = "Unsupported type conversion from AST to IR"
-    
-    result <- try @SomeException (evaluate $ astTypeToIRType TypeAny)
-    
-    case result of
-      Left (SomeException e) -> 
-        if take (length criticalMsg) (show e) == criticalMsg
-          then return ()
-          else assertFailure $ "Exception message did not start with critical part: " ++ criticalMsg ++ ". Full message: " ++ show e
-      Right _ -> assertFailure "Expected an error for unsupported type, but no exception was thrown"
+  , testCase "Converts pointer types" $ do
+      astTypeToIRType (TypePtr TypeI32) @?= IRPtr IRI32
+      astTypeToIRType (TypePtr TypeAny) @?= IRPtr (IRPtr IRNull)
+      astTypeToIRType TypeAny @?= IRPtr IRNull
   ]
 
 testIRTypeToAstType :: TestTree
@@ -123,7 +114,8 @@ testIRTypeToAstType = testGroup "irTypeToASTType"
       irTypeToASTType (IRStruct "MyStruct") @?= TypeCustom "MyStruct"
       irTypeToASTType (IRPtr IRChar) @?= TypeString
       irTypeToASTType (IRPtr (IRStruct "MyStruct")) @?= TypeCustom "MyStruct"
-      irTypeToASTType (IRPtr IRI32) @?= TypeAny
+      irTypeToASTType (IRPtr IRI32) @?= TypePtr TypeI32
+      irTypeToASTType (IRPtr IRNull) @?= TypeAny
   ]
 
 testSizeOfIRType :: TestTree

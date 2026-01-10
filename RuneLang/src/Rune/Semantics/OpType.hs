@@ -95,6 +95,10 @@ sameArray :: Type -> Type -> Bool
 sameArray (TypeArray a) (TypeArray b) = sameType a b
 sameArray _ _ = False
 
+samePtr :: Type -> Type -> Bool
+samePtr (TypePtr a) (TypePtr b) = sameType a b
+samePtr _ _ = False
+
 sameType :: Type -> Type -> Bool
 sameType TypeAny _ = True
 sameType _ TypeAny = True
@@ -106,6 +110,7 @@ sameType a b | isIntegerType a && isIntegerType b = True
              | isNull   a && isNull   b = True
              | sameStruct a b           = True
              | sameArray a b            = True
+             | samePtr a b              = True
              | otherwise                = False
 
 isIntegerType :: Type -> Bool
