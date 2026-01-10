@@ -22,8 +22,7 @@ parseType = parsePtrType <|> chainPostfix parseBaseType parseArraySuffix
 parsePtrType :: Parser Type
 parsePtrType = do
   _ <- expect T.OpMul
-  t <- parseType
-  pure (TypePtr t)
+  TypePtr <$> parseType
 
 parseIdentifier :: Parser String
 parseIdentifier =
