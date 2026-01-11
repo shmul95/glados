@@ -42,7 +42,7 @@ struct Vec
     def get(self, index: u64) ~> any
     {
         if index >= self.size {
-            error("Index out of bounds")
+            error("Vec::get: index out of bounds\n")
         }
         self.data[index]
     }
@@ -72,7 +72,7 @@ struct Vec
     def pop(self) ~> any
     {
         if self.size == 0 {
-            error("Cannot pop from an empty vector")
+            error("Vec::pop: cannot pop from an empty vector\n")
         }
         self.size = self.size - 1;
         self.data[self.size]
