@@ -143,6 +143,34 @@ testGenExpression = testGroup "genExpression"
         case op of
           IRTemp name IRF32 -> assertBool "Cast temp should start with 'cast'" ("cast" `isPrefixOf` name)
           _ -> assertBool ("Expected IRTemp with IRF32, got: " ++ show op) False
+
+  , testCase "Generates sizeof for primitive type" $
+      let (_, op, typ) = runGenUnsafe (genExpression (ExprSizeof dummyPos (Left TypeI32)))
+      in do
+        op @?= IRConstInt 4
+        typ @?= IRU64
+
+  , testCase "Generates sizeof for struct type" $
+      let state = emptyState 
+            { gsStructs = Map.singleton "Point" [("x", IRI32), ("y", IRI32)] }
+          res = evalState (runExceptT (genExpression (ExprSizeof dummyPos (Left (TypeCustom "Point"))))) state
+      in case res of
+           Right (_, op, typ) -> do
+             op @?= IRConstInt 8
+             typ @?= IRU64
+           Left err -> assertBool ("Sizeof struct failed: " ++ err) False
+
+  , testCase "Generates sizeof for expression" $
+      let (_, op, typ) = runGenUnsafe (genExpression (ExprSizeof dummyPos (Right (ExprLitInt dummyPos 42))))
+      in do
+        op @?= IRConstInt 4 -- sizeof(i32)
+        typ @?= IRU64
+
+  , testCase "Generates sizeof for array type" $
+      let (_, op, typ) = runGenUnsafe (genExpression (ExprSizeof dummyPos (Left (TypeArray TypeI32))))
+      in do
+        op @?= IRConstInt 8 -- sizeof(ptr)
+        typ @?= IRU64
   ]
 
 testGenVar :: TestTree

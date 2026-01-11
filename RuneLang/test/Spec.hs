@@ -59,6 +59,7 @@ import Backend.X86_64.CompareSpecs (compareTests)
 import Backend.X86_64.CodegenSpecs (codegenTests)
 import Backend.X86_64.LoadStoreSpecs (loadStoreTests)
 import Backend.X86_64.OperationsSpecs (operationsTests)
+import Backend.X86_64.StructSpecs (structTests)
 
 --
 -- public
@@ -166,4 +167,5 @@ backendSpecs =
     , codegenTests
     , loadStoreTests
     , operationsTests
+    , structTests
     ]

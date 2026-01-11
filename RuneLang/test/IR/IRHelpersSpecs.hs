@@ -122,24 +122,24 @@ testIRTypeToAstType = testGroup "irTypeToASTType"
 testSizeOfIRType :: TestTree
 testSizeOfIRType = testGroup "sizeOfIRType"
   [ testCase "Integer sizes" $ do
-      sizeOfIRType IRI8 @?= 1
-      sizeOfIRType IRI16 @?= 2
-      sizeOfIRType IRI32 @?= 4
-      sizeOfIRType IRI64 @?= 8
+      sizeOfIRType Map.empty IRI8 @?= 1
+      sizeOfIRType Map.empty IRI16 @?= 2
+      sizeOfIRType Map.empty IRI32 @?= 4
+      sizeOfIRType Map.empty IRI64 @?= 8
   , testCase "Unsigned Integer sizes" $ do
-      sizeOfIRType IRU8 @?= 1
-      sizeOfIRType IRU16 @?= 2
-      sizeOfIRType IRU32 @?= 4
-      sizeOfIRType IRU64 @?= 8
+      sizeOfIRType Map.empty IRU8 @?= 1
+      sizeOfIRType Map.empty IRU16 @?= 2
+      sizeOfIRType Map.empty IRU32 @?= 4
+      sizeOfIRType Map.empty IRU64 @?= 8
   , testCase "Float sizes" $ do
-      sizeOfIRType IRF32 @?= 4
-      sizeOfIRType IRF64 @?= 8
+      sizeOfIRType Map.empty IRF32 @?= 4
+      sizeOfIRType Map.empty IRF64 @?= 8
   , testCase "Other sizes" $ do
-      sizeOfIRType IRBool @?= 1
-      sizeOfIRType IRChar @?= 1
-      sizeOfIRType IRNull @?= 8
-      sizeOfIRType (IRPtr IRI32) @?= 8
-      sizeOfIRType (IRStruct "S") @?= 8
+      sizeOfIRType Map.empty IRBool @?= 1
+      sizeOfIRType Map.empty IRChar @?= 1
+      sizeOfIRType Map.empty IRNull @?= 8
+      sizeOfIRType Map.empty (IRPtr IRI32) @?= 8
+      sizeOfIRType Map.empty (IRStruct "S") @?= 8
   ]
 
 testSignedTypeOfWidth :: TestTree

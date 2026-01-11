@@ -3,7 +3,7 @@ module Semantics.StructSpecs (structSemanticsTests) where
 import qualified Data.HashMap.Strict as HM
 import Data.List (isInfixOf)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?), assertFailure)
+import Test.Tasty.HUnit (testCase, (@?), (@?=), assertFailure)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Struct
@@ -20,7 +20,19 @@ structSemanticsTests =
     , checkFieldsTests
     , checkMethodsTests
     , validateFieldTypeTests
+    , helperTests
     ]
+
+helperTests :: TestTree
+helperTests = testGroup "Helpers"
+  [ testCase "getStructPos returns dummy position" $
+      let def = DefStruct "S" [] []
+          pos = getStructPos def
+      in pos @?= SourcePos "<unknown>" 0 0
+  , testCase "mkError formats error message" $
+      let msg = mkError (SourcePos "f.ru" 1 1) "expected" "got"
+      in "f.ru:1:1" `isInfixOf` msg @? "Should contain position"
+  ]
 
 --
 -- test groups for each function

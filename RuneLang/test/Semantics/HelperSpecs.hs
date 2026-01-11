@@ -114,7 +114,7 @@ assignVarTypeTests = testGroup "assignVarType Tests"
       in assignVarType vs "x" "test.ru" 1 1 TypeI32 @?= Right (HM.fromList [("y", TypeF32), ("x", TypeI32)])
   , testCase "New variable (TypeAny) - no change" $ 
       let vs = HM.fromList [("y", TypeF32)]
-      in assignVarType vs "x" "test.ru" 1 1 TypeAny @?= Right vs
+      in assignVarType vs "x" "test.ru" 1 1 TypeAny @?= Right (HM.insert "x" TypeAny vs)
   , testCase "Existing variable (TypeAny -> concrete)" $ 
       let vs = HM.fromList [("x", TypeAny)]
       in assignVarType vs "x" "test.ru" 1 1 TypeI32 @?= Right (HM.fromList [("x", TypeI32)])
