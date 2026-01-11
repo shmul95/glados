@@ -119,8 +119,11 @@ parseSizeof :: Parser Expression
 parseSizeof = do
   pos <- getCurrentPos
   _   <- expect T.KwSizeof
-  val <- (Left <$> try (between (expect T.LParen) (expect T.RParen) parseType))
-         <|> (Right <$> parseUnary)
+  val <- choice
+    [ Left <$> try (between (expect T.LParen) (expect T.RParen) parseType),
+      Right <$> try parseUnary,
+      Left <$> parseType
+    ]
   pure $ ExprSizeof pos val
 
 parsePostfix :: Parser Expression
