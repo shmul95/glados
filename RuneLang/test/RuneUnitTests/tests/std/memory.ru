@@ -2,6 +2,7 @@ somewhere
 {
     def assert(condition: bool, message: string) -> bool;
 
+    def initialize(ptr: *any, size: u64, value: u8) ~> *any;
     def allocate(size: u64) ~> *any;
     def liberate(ptr: *any) -> bool;
     def reallocate(ptr: *any, size: u64) ~> *any;
@@ -13,6 +14,7 @@ somewhere
 
 export def test_memory() -> null
 {
+    test_initialize();
     test_allocate();
     test_liberate();
     test_reallocate();
@@ -23,6 +25,29 @@ export def test_memory() -> null
 /**
 * private
 */
+
+def test_initialize() -> null
+{
+    ptr: *any = allocate(100)?;
+    ptr_ret: *any = initialize(ptr, 100, 0xFF);
+
+    assert(ptr_ret == ptr, "Initialize: should return the same pointer");
+
+    ptr2: *any = initialize(allocate(50)?, 50, 0x00);
+    assert(ptr2 != null, "Initialize: chained allocation and initialization");
+    
+    initialize(ptr2, 0, 0xAA);
+    assert(true, "Initialize: handling size 0 without crash");
+
+    bytes: *u8 = ptr as *u8;
+
+    initialize(ptr, 10, 42);
+    assert(bytes[0] == 42, "Initialize: first byte correctly set");
+    assert(bytes[9] == 42, "Initialize: last byte correctly set");
+
+    assert(liberate(ptr), "Initialize: cleanup ptr");
+    assert(liberate(ptr2), "Initialize: cleanup ptr2");
+}
 
 def test_allocate() -> null
 {
