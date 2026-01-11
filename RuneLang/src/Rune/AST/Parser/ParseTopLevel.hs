@@ -146,18 +146,20 @@ parseParameter = parseSelfParam <|> parseTypedParam
 
 parseSelfParam :: Parser Parameter
 parseSelfParam =
-  Parameter "self" TypeAny <$ expectIdent "self"
+  Parameter "self" TypeAny False <$ expectIdent "self"
 
 --
 -- typed parameters
 --
 
 parseTypedParam :: Parser Parameter
-parseTypedParam =
-  Parameter
-    <$> parseIdentifier
-    <*> (expect T.Colon *> parseType)
-    <|> failParse "Expected typed parameter (name: type)"
+parseTypedParam = do
+  name <- parseIdentifier
+  _ <- expect T.Colon
+  pType <- parseType
+  isVariadic <- check T.Ellipsis
+  when isVariadic advance
+  pure $ Parameter name pType isVariadic
 
 --
 -- return type
