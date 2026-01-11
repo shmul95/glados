@@ -3,6 +3,16 @@ struct Vec2f
     x: f32;
     y: f32;
 
+    def new() -> Vec2f
+    {
+        Vec2f { x: 0.0, y: 0.0 }
+    }
+
+    override def new(x: f32, y: f32) -> Vec2f
+    {
+        Vec2f { x: x, y: y }
+    }
+
     def add(self, other: Vec2f) -> Vec2f
     {
         Vec2f {
@@ -11,6 +21,13 @@ struct Vec2f
         }
     }
 
+    override def add(self, f: f32) -> Vec2f
+    {
+        Vec2f {
+            x: self.x + f,
+            y: self.y + f
+        }
+    }
 }
 
 override def show(v: Vec2f) -> null
@@ -25,8 +42,10 @@ override def show(v: Vec2f) -> null
 def main() -> null
 {
     a = Vec2f { x: 1.0, y: 2.0 };
-    b = Vec2f { x: 3.0, y: 4.0 };
+    b = Vec2f.new(3.0, 4.0);
+
     c = a.add(b);
+    d = a.add(5.0);
 
     show(c);
 }

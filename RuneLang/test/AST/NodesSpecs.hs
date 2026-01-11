@@ -224,9 +224,9 @@ testExpressionAccessors =
   testGroup
     "Expression Accessors"
     [ testCase "ExprCall accessors" $
-        let expr = ExprCall {exprPos = dummyPos, callName = "foo", callArgs = [dummyExpr]}
+        let expr = ExprCall {exprPos = dummyPos, callName = ExprVar dummyPos "foo", callArgs = [dummyExpr]}
          in do
-              callName expr @?= "foo"
+              callName expr @?= ExprVar dummyPos "foo"
               callArgs expr @?= [dummyExpr]
     , testCase "ExprStructInit accessors" $
         let expr = ExprStructInit {exprPos = dummyPos, initStructName = "Point", initFields = [("x", dummyExpr)]}
@@ -265,7 +265,7 @@ testGetExprPos =
     [ testCase "All Expression constructors" $ do
         getExprPos (ExprBinary dummyPos Add dummyExpr dummyExpr) @?= dummyPos
         getExprPos (ExprUnary dummyPos Negate dummyExpr) @?= dummyPos
-        getExprPos (ExprCall dummyPos "f" []) @?= dummyPos
+        getExprPos (ExprCall dummyPos (ExprVar dummyPos "f") []) @?= dummyPos
         getExprPos (ExprStructInit dummyPos "S" []) @?= dummyPos
         getExprPos (ExprAccess dummyPos dummyExpr "x") @?= dummyPos
         getExprPos (ExprIndex dummyPos dummyExpr dummyExpr) @?= dummyPos

@@ -1,4 +1,12 @@
-module Lib (escapeString, isPrintable, fixpoint, (>*>)) where
+module Lib (
+  escapeString,
+  isPrintable,
+  fixpoint,
+  (>*>),
+  alignTo,
+  align8,
+  alignSize
+) where
 
 --
 -- public
@@ -27,3 +35,13 @@ fixpoint f x
   | x == x'   = x
   | otherwise = fixpoint f x'
   where x' = f x
+
+alignTo :: Int -> Int -> Int
+alignTo a x =
+  ((x + a - 1) `div` a) * a
+
+align8 :: Int -> Int
+align8 = alignTo 8
+
+alignSize :: Int -> Int
+alignSize size = min 8 $ max 1 size

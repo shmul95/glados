@@ -23,6 +23,7 @@ import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Generator.Statement.ControlFlow (genIfElse, genIfNoElse, genNext, genStop)
 import Rune.IR.Generator.Statement.Loops (genForEach, genForTo, genLoop)
 import Rune.IR.Generator.Expression.Array (genIndexAssign)
+import Rune.IR.Generator.Expression.Struct (genAccessAssign)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar, newFloatGlobal)
 import Rune.IR.Nodes
   ( IRGen,
@@ -83,6 +84,7 @@ genVarType Nothing inferred = inferred
 
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]
 genAssignment (ExprIndex _ target idx) rvalue = genIndexAssign genExpression target idx rvalue
+genAssignment (ExprAccess _ target field) rvalue = genAccessAssign genExpression target field rvalue
 genAssignment lvalue rvalue = do
   (lInstrs, lOp, _) <- genExpression lvalue
   (rInstrs, rOp, rType) <- genExpression rvalue

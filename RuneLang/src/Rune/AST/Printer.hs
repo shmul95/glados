@@ -233,8 +233,11 @@ visitExpression (ExprUnary _ op val) = do
   visitExpression val
   dedent
 visitExpression (ExprCall _ name args) = do
-  emit $ "ExprCall " <> name
+  emit "ExprCall"
+  indent
+  emitBlock "Target:" (newLine >> visitExpression name)
   emitBlock "Arguments:" (mapM_ (\a -> newLine >> visitExpression a) args)
+  dedent
 visitExpression (ExprStructInit _ name fields) = do
   emit $ "ExprStructInit " <> name
   emitBlock "Fields:" (mapM_ emitInitField fields)
@@ -271,6 +274,14 @@ visitExpression (ExprLitChar _ c) = emit $ "ExprLitChar " <> show c
 visitExpression (ExprLitBool _ b) = emit $ "ExprLitBool " <> show b
 visitExpression (ExprLitNull _) = emit "ExprLitNull"
 visitExpression (ExprVar _ v) = emit $ "ExprVar " <> v
+visitExpression (ExprSizeof _ val) = do
+  emit "ExprSizeof"
+  indent
+  newLine
+  case val of
+    Left t  -> emit $ "Type: " <> showType t
+    Right e -> visitExpression e
+  dedent
 
 --
 -- private helpers

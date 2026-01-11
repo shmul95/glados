@@ -123,26 +123,26 @@ saveCallResultTests :: TestTree
 saveCallResultTests = testGroup "saveCallResult"
   [
     testCase "no destination" $
-      let result = saveCallResult Map.empty "" Nothing
+      let result = saveCallResult Map.empty Map.empty "" Nothing
       in assertBool "should be empty" $ null result
   , testCase "integer return" $
       let sm = Map.fromList [("res", -8)]
-          result = saveCallResult sm "res" (Just IRI32)
+          result = saveCallResult Map.empty sm "res" (Just IRI32)
       in assertBool "should store eax to stack" $
            any (== "    mov dword [rbp-8], eax") result
   , testCase "float return" $
       let sm = Map.fromList [("fres", -8)]
-          result = saveCallResult sm "fres" (Just IRF32)
+          result = saveCallResult Map.empty sm "fres" (Just IRF32)
       in assertBool "should store xmm0 to stack" $
            any (== "    movss dword [rbp-8], xmm0") result
   , testCase "void return" $
       let sm = Map.fromList [("vres", -8)]
-          result = saveCallResult sm "vres" Nothing
+          result = saveCallResult Map.empty sm "vres" Nothing
       in assertBool "should store rax to stack" $
            any (== "    mov qword [rbp-8], rax") result
   , testCase "f64 return" $
       let sm = Map.fromList [("dres", -16)]
-          result = saveCallResult sm "dres" (Just IRF64)
+          result = saveCallResult Map.empty sm "dres" (Just IRF64)
       in assertBool "should store xmm0 to stack" $
            any (== "    movsd qword [rbp-16], xmm0") result
   ]
@@ -192,7 +192,7 @@ emitCallTests = testGroup "emitCall"
     testCase "standard function call (non-printf)" $
       let sm = Map.fromList [("arg", -4), ("res", -8)]
           args = [IRTemp "arg" IRI32]
-          result = emitCall sm "res" "custom_func" args (Just IRI32)
+          result = emitCall Map.empty sm "res" "custom_func" args (Just IRI32)
       in assertBool "should setup args and call without printf fixup" $
            any (== "    movsxd rdi, dword [rbp-4]") result &&
            any (== "    call custom_func") result &&
@@ -201,27 +201,27 @@ emitCallTests = testGroup "emitCall"
   , testCase "printf with IRF32 argument" $
       let sm = Map.fromList [("f", -4)]
           args = [IRTemp "f" IRF32]
-          result = emitCall sm "" "printf" args Nothing
+          result = emitCall Map.empty sm "" "printf" args Nothing
       in assertBool "should convert float to double and set eax to 1" $
            any (== "    cvtss2sd xmm0, xmm0") result &&
            any (== "    mov eax, 1") result
   , testCase "printf with IRF64 argument" $
       let sm = Map.fromList [("d", -8)]
           args = [IRTemp "d" IRF64]
-          result = emitCall sm "" "printf" args Nothing
+          result = emitCall Map.empty sm "" "printf" args Nothing
       in assertBool "should set eax to 1 without conversion" $
            any (== "    mov eax, 1") result &&
            not (any (== "    cvtss2sd xmm0, xmm0") result)
   , testCase "printf with no float arguments" $
       let sm = Map.fromList [("i", -4)]
           args = [IRTemp "i" IRI32]
-          result = emitCall sm "" "printf" args Nothing
+          result = emitCall Map.empty sm "" "printf" args Nothing
       in assertBool "should set eax to 0 (xor eax, eax)" $
            any (== "    xor eax, eax") result
   , testCase "printf with mixed args (int first)" $
       let sm = Map.fromList [("i", -4), ("f", -8), ("res", -12)]
           args = [IRTemp "i" IRI32, IRTemp "f" IRF64]
-          result = emitCall sm "res" "printf" args (Just IRI32)
+          result = emitCall Map.empty sm "res" "printf" args (Just IRI32)
       in assertBool "should find float arg and save result to valid stack slot" $
            any (== "    mov eax, 1") result &&
            any (== "    mov dword [rbp-12], eax") result
@@ -246,14 +246,14 @@ emitAllocArrayTests = testGroup "emitAllocArray"
   [ testCase "static array path" $
       let sm = Map.fromList [("arr", -8)]
           values = [IRConstInt 10, IRConstNull]
-          result = emitAllocArray sm "fn" "arr" IRI64 values
+          result = emitAllocArray Map.empty sm "fn" "arr" IRI64 values
       in assertBool "should emit static mov" $
            any (== "    mov rax, fn_arr_lit") result &&
            any (== "    mov qword [rbp-8], rax") result
   , testCase "dynamic array path" $
       let sm = Map.fromList [("arr", -8), ("arr_data", -32)]
           values = [IRTemp "v" IRI32]
-          result = emitAllocArray sm "fn" "arr" IRI32 values
+          result = emitAllocArray Map.empty sm "fn" "arr" IRI32 values
       in assertBool "should call stack allocation" $
            any (== "    lea rax, [rbp-32]") result
   ]
@@ -265,7 +265,7 @@ emitAllocArrayOnStackTests = testGroup "emitAllocArrayOnStack"
       let sm = Map.fromList [("arr", -8), ("arr_data", -24), ("v", -12)]
           values = [IRConstInt 1, IRTemp "v" IRI32]
           arrType = IRArray IRI32 3
-          result = emitAllocArrayOnStack sm "arr" IRI32 values arrType
+          result = emitAllocArrayOnStack Map.empty sm "arr" IRI32 values arrType
       in assertBool "should setup ptr, store values, and sentinel" $
            any (== "    lea rax, [rbp-24]") result &&
            any (== "    mov rax, 1") result &&
@@ -283,7 +283,7 @@ emitGetElemTests = testGroup "emitGetElem"
       let sm = Map.fromList [("arr", -8), ("idx", -16), ("res", -20)]
           target = IRTemp "arr" (IRPtr (IRArray IRI32 5))
           index = IRTemp "idx" IRI32
-          result = emitGetElem sm "res" target index IRI32
+          result = emitGetElem Map.empty sm "res" target index IRI32
       in assertBool "should load base, extend index, imul, load elem and store" $
            any (== "    mov rdi, qword [rbp-8]") result &&
            any (== "    movsxd rsi, dword [rbp-16]") result &&
@@ -294,7 +294,7 @@ emitGetElemTests = testGroup "emitGetElem"
       let sm = Map.fromList [("arr", -8), ("idx", -16), ("res", -17)]
           target = IRTemp "arr" (IRPtr (IRArray IRI8 10))
           index = IRTemp "idx" IRI32
-          result = emitGetElem sm "res" target index IRI8
+          result = emitGetElem Map.empty sm "res" target index IRI8
       in assertBool "should handle byte-sized elements and registers" $
            any (== "    imul rsi, 1") result &&
            any (== "    mov al, byte [rdi + rsi]") result &&
@@ -310,7 +310,7 @@ emitSetElemTests = testGroup "emitSetElem"
           target = IRTemp "arr" (IRPtr (IRArray IRI32 5))
           index = IRTemp "idx" IRI32
           value = IRTemp "val" IRI32
-          result = emitSetElem sm target index value
+          result = emitSetElem Map.empty sm target index value
       in assertBool "should load base, extend index, imul, load value and store" $
            any (== "    mov rdi, qword [rbp-8]") result &&
            any (== "    movsxd rsi, dword [rbp-16]") result &&
@@ -322,7 +322,7 @@ emitSetElemTests = testGroup "emitSetElem"
           target = IRTemp "arr" (IRPtr (IRArray IRI8 10))
           index = IRTemp "idx" IRI32
           value = IRTemp "val" IRI8
-          result = emitSetElem sm target index value
+          result = emitSetElem Map.empty sm target index value
       in assertBool "should handle byte-sized elements" $
            any (== "    imul rsi, 1") result &&
            any (== "    mov al, byte [rbp-21]") result &&
@@ -334,23 +334,23 @@ emitIncDecTests = testGroup "emitIncDec"
   [
     testCase "increment integer" $
       let sm = Map.fromList [("x", -4)]
-          result = emitIncDec sm (IRTemp "x" IRI32) "add"
+          result = emitIncDec Map.empty sm (IRTemp "x" IRI32) "add"
       in assertBool "should add 1" $ any (== "    add dword [rbp-4], 1") result
   , testCase "increment pointer" $
       let sm = Map.fromList [("p", -8)]
-          result = emitIncDec sm (IRTemp "p" (IRPtr IRI32)) "add"
+          result = emitIncDec Map.empty sm (IRTemp "p" (IRPtr IRI32)) "add"
       in assertBool "should add size of type" $ any (== "    add qword [rbp-8], 4") result
   , testCase "decrement pointer" $
       let sm = Map.fromList [("p", -8)]
-          result = emitIncDec sm (IRTemp "p" (IRPtr IRI64)) "sub"
+          result = emitIncDec Map.empty sm (IRTemp "p" (IRPtr IRI64)) "sub"
       in assertBool "should subtract size of type" $ any (== "    sub qword [rbp-8], 8") result
   , testCase "increment non-temp operand" $
       let sm = Map.fromList []
-          result = emitIncDec sm (IRGlobal "g" IRI32) "add"
+          result = emitIncDec Map.empty sm (IRGlobal "g" IRI32) "add"
       in assertBool "should emit TODO comment" $ any (== "    ; TODO: IRGlobal \"g\" IRI32 on non-temp/pointer") result
   , testCase "increment IRParam operand" $
       let sm = Map.fromList [("p", -8)]
-          result = emitIncDec sm (IRParam "p" (IRPtr IRI32)) "add"
+          result = emitIncDec Map.empty sm (IRParam "p" (IRPtr IRI32)) "add"
       in assertBool "should add size of inner type" $ any (== "    add qword [rbp-8], 4") result
   ]
 
@@ -359,11 +359,11 @@ emitIncDecHelpersTests = testGroup "emitIncDecHelper"
   [
     testCase "increment pointer to array" $
       let sm = Map.fromList [("p", -8)]
-          result = emitIncDec sm (IRTemp "p" (IRPtr (IRArray IRI32 10))) "add"
+          result = emitIncDec Map.empty sm (IRTemp "p" (IRPtr (IRArray IRI32 10))) "add"
       in assertBool "should add size of inner type" $ any (== "    add qword [rbp-8], 4") result
   , testCase "decrement pointer to int" $
       let sm = Map.fromList [("p", -8)]
-          result = emitIncDec sm (IRTemp "p" (IRPtr IRI64)) "sub"
+          result = emitIncDec Map.empty sm (IRTemp "p" (IRPtr IRI64)) "sub"
       in assertBool "should subtract size of int64" $ any (== "    sub qword [rbp-8], 8") result
   ]
 
@@ -429,10 +429,10 @@ emitDataSectionTests :: TestTree
 emitDataSectionTests = testGroup "emitDataSection"
   [ testCase "no static arrays" $
       let fs = [IRFunction "f" [] Nothing [] False]
-      in assertBool "should be empty" $ null (emitDataSection fs)
+      in assertBool "should be empty" $ null (emitDataSection Map.empty fs)
   , testCase "with static array" $
       let fs = [IRFunction "m" [] Nothing [IRALLOC_ARRAY "a" IRI32 [IRConstInt 1, IRConstInt 2]] False]
-          result = emitDataSection fs
+          result = emitDataSection Map.empty fs
       in assertBool "should format section and array definition" $
            take 1 result == ["section .data"] &&
            any (== "m_a_lit: dd 1, 2, 0") result
@@ -441,10 +441,10 @@ emitDataSectionTests = testGroup "emitDataSection"
 emitTextSectionTests :: TestTree
 emitTextSectionTests = testGroup "emitTextSection"
   [ testCase "empty functions" $
-      assertBool "should be empty" $ null (emitTextSection [])
+      assertBool "should be empty" $ null (emitTextSection Map.empty [])
   , testCase "with functions" $
       let fs = [IRFunction "f1" [] Nothing [] False, IRFunction "f2" [] Nothing [] False]
-          result = emitTextSection fs
+          result = emitTextSection Map.empty fs
       in assertBool "should format section and functions" $
            take 1 result == ["section .text"] &&
            any (== "f1:") result &&
@@ -467,7 +467,7 @@ emitFunctionTests = testGroup "emitFunction"
       let body = [IRRET (Just (IRTemp "arg1" IRI32))]
           params = [("arg1", IRI32)]
           fn = IRFunction "test_func" params Nothing body True
-          result = emitFunction fn
+          result = emitFunction Map.empty fn
       in assertBool "should contain all function components" $
            any (== "global test_func:function") result &&
            any (== "test_func:") result &&
@@ -481,7 +481,7 @@ emitFunctionTests = testGroup "emitFunction"
 
   , testCase "empty function body" $
       let fn = IRFunction "empty" [] Nothing [] False
-          result = emitFunction fn
+          result = emitFunction Map.empty fn
       in assertBool "should still emit prologue and epilogue" $
            any (== "empty:") result &&
            any (== "    push rbp") result &&
@@ -528,77 +528,77 @@ emitAssignTests = testGroup "emitAssign"
   [
     testCase "IRConstInt small" $
       let sm = Map.fromList [("dest", -4)]
-          result = emitAssign sm "dest" (IRConstInt 42) IRI32
+          result = emitAssign Map.empty sm "dest" (IRConstInt 42) IRI32
       in assertBool "should mov direct to stack" $
            any (== "    mov dword [rbp-4], 42") result
   , testCase "IRConstInt large (needs rax)" $
       let sm = Map.fromList [("dest", -8)]
-          result = emitAssign sm "dest" (IRConstInt 5000000000) IRI64
+          result = emitAssign Map.empty sm "dest" (IRConstInt 5000000000) IRI64
       in assertBool "should load rax then store" $
            any (== "    mov rax, 5000000000") result &&
            any (== "    mov qword [rbp-8], rax") result
   , testCase "IRGlobal IRF32 to IRF32" $
       let sm = Map.fromList [("dest", -4)]
-          result = emitAssign sm "dest" (IRGlobal "f32_glob" IRF32) IRF32
+          result = emitAssign Map.empty sm "dest" (IRGlobal "f32_glob" IRF32) IRF32
       in assertBool "should use movss" $
            any (== "    movss xmm0, dword [rel f32_glob]") result &&
            any (== "    movss dword [rbp-4], xmm0") result
   , testCase "IRGlobal IRF32 to IRF64" $
       let sm = Map.fromList [("dest", -8)]
-          result = emitAssign sm "dest" (IRGlobal "f32_glob" IRF32) IRF64
+          result = emitAssign Map.empty sm "dest" (IRGlobal "f32_glob" IRF32) IRF64
       in assertBool "should use cvtss2sd" $
            any (== "    movss xmm0, dword [rel f32_glob]") result &&
            any (== "    cvtss2sd xmm0, xmm0") result &&
            any (== "    movsd qword [rbp-8], xmm0") result
   , testCase "IRGlobal IRF64 to IRF64" $
       let sm = Map.fromList [("dest", -8)]
-          result = emitAssign sm "dest" (IRGlobal "f64_glob" IRF64) IRF64
+          result = emitAssign Map.empty sm "dest" (IRGlobal "f64_glob" IRF64) IRF64
       in assertBool "should use movsd" $
            any (== "    movsd xmm0, qword [rel f64_glob]") result &&
            any (== "    movsd qword [rbp-8], xmm0") result
   , testCase "IRGlobal IRF64 to IRF32" $
       let sm = Map.fromList [("dest", -4)]
-          result = emitAssign sm "dest" (IRGlobal "f64_glob" IRF64) IRF32
+          result = emitAssign Map.empty sm "dest" (IRGlobal "f64_glob" IRF64) IRF32
       in assertBool "should use cvtsd2ss" $
            any (== "    movsd xmm0, qword [rel f64_glob]") result &&
            any (== "    cvtsd2ss xmm0, xmm0") result &&
            any (== "    movss dword [rbp-4], xmm0") result
   , testCase "IRConstChar" $
       let sm = Map.fromList [("dest", -1)]
-          result = emitAssign sm "dest" (IRConstChar 'A') IRChar
+          result = emitAssign Map.empty sm "dest" (IRConstChar 'A') IRChar
       in assertBool "should mov byte 65" $
            any (== "    mov byte [rbp-1], 65") result
   , testCase "IRConstBool" $
       let sm = Map.fromList [("dest", -1)]
-          result = emitAssign sm "dest" (IRConstBool True) IRBool
+          result = emitAssign Map.empty sm "dest" (IRConstBool True) IRBool
       in assertBool "should mov byte 1" $
            any (== "    mov byte [rbp-1], 1") result
   , testCase "IRConstNull" $
       let sm = Map.fromList [("dest", -8)]
-          result = emitAssign sm "dest" IRConstNull (IRPtr IRI32)
+          result = emitAssign Map.empty sm "dest" IRConstNull (IRPtr IRI32)
       in assertBool "should mov qword 0" $
            any (== "    mov qword [rbp-8], 0") result
   , testCase "IRGlobal generic" $
       let sm = Map.fromList [("dest", -8)]
-          result = emitAssign sm "dest" (IRGlobal "my_glob" IRI64) IRI64
+          result = emitAssign Map.empty sm "dest" (IRGlobal "my_glob" IRI64) IRI64
       in assertBool "should load label address into rax" $
            any (== "    mov rax, my_glob") result &&
            any (== "    mov qword [rbp-8], rax") result
   , testCase "IRTemp (stack to stack)" $
       let sm = Map.fromList [("dest", -8), ("tmp", -16)]
-          result = emitAssign sm "dest" (IRTemp "tmp" IRI64) IRI64
+          result = emitAssign Map.empty sm "dest" (IRTemp "tmp" IRI64) IRI64
       in assertBool "should move via rax" $
            any (== "    mov rax, qword [rbp-16]") result &&
            any (== "    mov qword [rbp-8], rax") result
   , testCase "IRParam (stack to stack)" $
       let sm = Map.fromList [("dest", -4), ("p1", -8)]
-          result = emitAssign sm "dest" (IRParam "p1" IRI32) IRI32
+          result = emitAssign Map.empty sm "dest" (IRParam "p1" IRI32) IRI32
       in assertBool "should move via eax" $
            any (== "    mov eax, dword [rbp-8]") result &&
            any (== "    mov dword [rbp-4], eax") result
   , testCase "Unsupported operand" $
       let sm = Map.fromList [("dest", -8)]
-          result = emitAssign sm "dest" (IRConstFloat 1.0) IRI64
+          result = emitAssign Map.empty sm "dest" (IRConstFloat 1.0) IRI64
       in assertBool "should emit warning and zero out" $
            any (== "    ; WARNING: Unsupported IRASSIGN operand: IRConstFloat 1.0") result &&
            any (== "    mov qword [rbp-8], 0") result
@@ -608,26 +608,26 @@ emitRetTests :: TestTree
 emitRetTests = testGroup "emitRet"
   [
     testCase "return void (Nothing)" $
-      let result = emitRet Map.empty ".L.exit" Nothing
+      let result = emitRet Map.empty Map.empty ".L.exit" Nothing
       in assertBool "should xor rax" $ any (== "    xor rax, rax") result
   , testCase "return null pointer (IRNull)" $
       let sm = Map.fromList [("p", -8)]
-          result = emitRet sm ".L.exit" (Just (IRTemp "p" IRNull))
+          result = emitRet Map.empty sm ".L.exit" (Just (IRTemp "p" IRNull))
       in assertBool "should xor rax for null" $ 
            any (== "    xor rax, rax") result && any (== "    jmp .L.exit") result
   , testCase "return float (IRF32)" $
       let sm = Map.fromList [("f", -4)]
-          result = emitRet sm ".L.exit" (Just (IRTemp "f" IRF32))
+          result = emitRet Map.empty sm ".L.exit" (Just (IRTemp "f" IRF32))
       in assertBool "should load into xmm0" $ 
            any (== "    movss xmm0, dword [rbp-4]") result
   , testCase "return double (IRF64)" $
       let sm = Map.fromList [("d", -8)]
-          result = emitRet sm ".L.exit" (Just (IRTemp "d" IRF64))
+          result = emitRet Map.empty sm ".L.exit" (Just (IRTemp "d" IRF64))
       in assertBool "should load into xmm0" $ 
            any (== "    movsd xmm0, qword [rbp-8]") result
   , testCase "return integer variable" $
       let sm = Map.fromList [("res", -8)]
-          result = emitRet sm ".L.exit" (Just (IRTemp "res" IRI32))
+          result = emitRet Map.empty sm ".L.exit" (Just (IRTemp "res" IRI32))
       in assertBool "should load res into eax" $ any (=="    mov eax, dword [rbp-8]") result
   ]
 
@@ -659,19 +659,19 @@ getDataDirectiveTests = testGroup "getDataDirective"
   [
     testCase "IRI8" $
       assertBool "should return db" $
-        getDataDirective IRI8 == "db"
+        getDataDirective Map.empty IRI8 == "db"
   , testCase "IRI16" $
       assertBool "should return dw" $
-        getDataDirective IRI16 == "dw"
+        getDataDirective Map.empty IRI16 == "dw"
   , testCase "IRI32" $
       assertBool "should return dd" $
-        getDataDirective IRI32 == "dd"
+        getDataDirective Map.empty IRI32 == "dd"
   , testCase "IRI64" $
       assertBool "should return dq" $
-        getDataDirective IRI64 == "dq"
+        getDataDirective Map.empty IRI64 == "dq"
   , testCase "Array type" $
       assertBool "should return dq for array" $
-        getDataDirective (IRArray IRI64 10) == "dq"
+        getDataDirective Map.empty (IRArray IRI64 10) == "dq"
   ]
 
 showStaticOperandTests :: TestTree
@@ -720,74 +720,74 @@ emitInstructionTests = testGroup "emitInstruction"
     testCase "IRASSIGN" $
       let sm = Map.fromList [("x", -4)]
           instr = IRASSIGN "x" (IRConstInt 42) IRI32
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitAssign" $ any (== "    mov dword [rbp-4], 42") result
   , testCase "IRLABEL" $
       let instr = IRLABEL (IRLabel "L1")
-          result = emitInstruction Map.empty "" "" instr
+          result = emitInstruction Map.empty Map.empty "" "" instr
       in assertBool "should emit label" $ result == ["L1:"]
   , testCase "IRJUMP" $
       let instr = IRJUMP (IRLabel "L1")
-          result = emitInstruction Map.empty "" "" instr
+          result = emitInstruction Map.empty Map.empty "" "" instr
       in assertBool "should emit jmp" $ result == ["    jmp L1"]
   , testCase "IRJUMP_EQ0" $
       let sm = Map.fromList [("c", -1)]
           instr = IRJUMP_EQ0 (IRTemp "c" IRBool) (IRLabel "L1")
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should emit je" $ any (== "    je L1") result
   , testCase "IRJUMP_FALSE" $
       let sm = Map.fromList [("c", -1)]
           instr = IRJUMP_FALSE (IRTemp "c" IRBool) (IRLabel "L1")
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should emit je" $ any (== "    je L1") result
   , testCase "IRJUMP_TRUE" $
       let sm = Map.fromList [("c", -1)]
           instr = IRJUMP_TRUE (IRTemp "c" IRBool) (IRLabel "L1")
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should emit jne" $ any (== "    jne L1") result
   , testCase "IRCALL" $
       let sm = Map.fromList [("r", -8)]
           instr = IRCALL "r" "my_func" [] (Just IRI64)
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitCall" $ any (== "    call my_func") result
   , testCase "IRRET" $
       let instr = IRRET Nothing
-          result = emitInstruction Map.empty "end" "" instr
+          result = emitInstruction Map.empty Map.empty "end" "" instr
       in assertBool "should call emitRet" $ any (== "    jmp end") result
   , testCase "IRDEREF" $
       let sm = Map.fromList [("p", -8), ("d", -4)]
           instr = IRDEREF "d" (IRTemp "p" (IRPtr IRI32)) IRI32
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitDeref" $ any (== "    mov eax, dword [rax]") result
   , testCase "IRALLOC_ARRAY" $
       let sm = Map.fromList [("a", -8)]
           instr = IRALLOC_ARRAY "a" IRI32 [IRConstInt 1]
-          result = emitInstruction sm "" "f" instr
+          result = emitInstruction Map.empty sm "" "f" instr
       in assertBool "should call emitAllocArray" $ any (== "    mov rax, f_a_lit") result
   , testCase "IRGET_ELEM" $
       let sm = Map.fromList [("a", -8), ("i", -4), ("d", -4)]
           instr = IRGET_ELEM "d" (IRTemp "a" (IRPtr (IRArray IRI32 1))) (IRTemp "i" IRI32) IRI32
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitGetElem" $ any (== "    imul rsi, 4") result
   , testCase "IRSET_ELEM" $
       let sm = Map.fromList [("a", -8), ("i", -4), ("v", -4)]
           instr = IRSET_ELEM (IRTemp "a" (IRPtr (IRArray IRI32 1))) (IRTemp "i" IRI32) (IRTemp "v" IRI32)
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitSetElem" $ any (== "    mov dword [rdi + rsi], eax") result
   , testCase "IRINC" $
       let sm = Map.fromList [("x", -4)]
           instr = IRINC (IRTemp "x" IRI32)
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitIncDec add" $ any (== "    add dword [rbp-4], 1") result
   , testCase "IRDEC" $
       let sm = Map.fromList [("x", -4)]
           instr = IRDEC (IRTemp "x" IRI32)
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitIncDec sub" $ any (== "    sub dword [rbp-4], 1") result
   , testCase "IRADDR" $
       let sm = Map.fromList [("x", -4), ("p", -8)]
           instr = IRADDR "p" "x" (IRPtr IRI32)
-          result = emitInstruction sm "" "" instr
+          result = emitInstruction Map.empty sm "" "" instr
       in assertBool "should call emitAddr" $ any (== "    lea rax, [rbp-4]") result
   , testCase "Binary Operators" $
       let sm = Map.fromList [("l", -4), ("r", -4), ("d", -4)]
@@ -799,13 +799,13 @@ emitInstructionTests = testGroup "emitInstruction"
                   , (IRAND_OP "d" l r IRI32, "and")
                   , (IROR_OP "d" l r IRI32, "or")
                   ]
-      in mapM_ (\(instr, op) -> assertBool op $ any (== "    " <> op <> " eax, ebx") (emitInstruction sm "" "" instr)) cases
+      in mapM_ (\(instr, op) -> assertBool op $ any (== "    " <> op <> " eax, ebx") (emitInstruction Map.empty sm "" "" instr)) cases
   , testCase "IRDIV_OP / IRMOD_OP" $
       let sm = Map.fromList [("l", -8), ("r", -8), ("d", -8)]
           l = IRTemp "l" IRI64
           r = IRTemp "r" IRI64
-          resultDiv = emitInstruction sm "" "" (IRDIV_OP "d" l r IRI64)
-          resultMod = emitInstruction sm "" "" (IRMOD_OP "d" l r IRI64)
+          resultDiv = emitInstruction Map.empty sm "" "" (IRDIV_OP "d" l r IRI64)
+          resultMod = emitInstruction Map.empty sm "" "" (IRMOD_OP "d" l r IRI64)
       in assertBool "div" (any (== "    idiv rbx") resultDiv) >> assertBool "mod" (any (== "    idiv rbx") resultMod)
   , testCase "Comparison Operators" $
       let sm = Map.fromList [("l", -4), ("r", -4), ("d", -1)]
@@ -818,5 +818,5 @@ emitInstructionTests = testGroup "emitInstruction"
                   , (IRCMP_GT "d" l r, "setg")
                   , (IRCMP_GTE "d" l r, "setge")
                   ]
-      in mapM_ (\(instr, op) -> assertBool op $ any (== "    " <> op <> " al") (emitInstruction sm "" "" instr)) cases
+      in mapM_ (\(instr, op) -> assertBool op $ any (== "    " <> op <> " al") (emitInstruction Map.empty sm "" "" instr)) cases
   ]

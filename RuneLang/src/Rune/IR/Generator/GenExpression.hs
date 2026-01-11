@@ -23,7 +23,7 @@ import Rune.IR.Generator.Expression.Struct (genAccess, genStructInit)
 import Rune.IR.Generator.Expression.Unary (genUnary)
 import Rune.IR.Generator.Expression.Array (genLitArray, genIndex)
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
-import Rune.IR.IRHelpers (astTypeToIRType, newTemp)
+import Rune.IR.IRHelpers (astTypeToIRType, newTemp, sizeOfIRType)
 
 --
 -- public
@@ -39,14 +39,16 @@ genExpression (ExprLitString _ s) = genLitString s
 genExpression (ExprVar _ name) = genVar name
 genExpression (ExprBinary _ op l r) = genBinary genExpression op l r
 genExpression (ExprUnary _ op e) = genUnary genExpression op e
-genExpression (ExprCall _ "show" [a]) = genShowCall genExpression a
-genExpression (ExprCall _ "error" [a]) = genErrorCall genExpression a
-genExpression (ExprCall _ name args) = genCall genExpression name args
+genExpression (ExprCall _ (ExprVar _ "show") [a]) = genShowCall genExpression a
+genExpression (ExprCall _ (ExprVar _ "error") [a]) = genErrorCall genExpression a
+genExpression (ExprCall _ (ExprVar _ name) args) = genCall genExpression name args
+genExpression (ExprCall {}) = error "Invalid function call target"
 genExpression (ExprAccess _ t f) = genAccess genExpression t f
 genExpression (ExprStructInit _ name fields) = genStructInit genExpression name fields
 genExpression (ExprLitArray _ exprs) = genLitArray genExpression exprs
 genExpression (ExprIndex _ target idx) = genIndex genExpression target idx
 genExpression (ExprCast _ expr typ) = genCast genExpression expr typ
+genExpression (ExprSizeof _ val) = genSizeof val
 
 --
 -- private
@@ -58,6 +60,26 @@ genVar name = do
   case Map.lookup name symTable of
     Just (op, typ) -> return ([], op, typ)
     Nothing -> throwError $ "genVar: variable not found in symbol table: " <> name
+
+genSizeof :: Either Type Expression -> IRGen ([IRInstruction], IROperand, IRType)
+genSizeof val = do
+
+  targetIRType <- case val of
+    Left astType -> pure $ astTypeToIRType astType
+    Right expr   -> do
+      (_, _, t) <- genExpression expr
+      pure $ normalizePtr t
+
+  structs <- gets gsStructs
+  let size = sizeOfIRType structs targetIRType
+
+  return ([], IRConstInt size, IRU64)
+
+  where
+
+    normalizePtr :: IRType -> IRType
+    normalizePtr (IRPtr (IRArray elemType len)) = IRArray elemType len
+    normalizePtr t = t
 
 genCast :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genCast genExpr (ExprIndex _ target idx) astType = do

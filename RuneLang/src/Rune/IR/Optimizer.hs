@@ -247,6 +247,21 @@ tryPeephole uc (IRBAND_OP t1 op mask _) (IRJUMP_NEQ (IRTemp t _) (IRConstInt 0) 
   | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRJUMP_TEST_NZ op mask lbl]
 tryPeephole uc (IRBAND_OP t1 op mask _) (IRJUMP_EQ (IRTemp t _) (IRConstInt 0) lbl)
   | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRJUMP_TEST_Z op mask lbl]
+
+-- eliminate redundant ADDR when followed by single-use field access
+-- ADDR + GET_FIELD where ADDR result used only once -> inline the base operand
+tryPeephole uc (IRADDR addrTemp baseName _) (IRGET_FIELD dest (IRTemp t _) sName fName fType)
+  | addrTemp == t, M.findWithDefault 0 addrTemp uc == 1 = 
+      Just [IRGET_FIELD dest (IRTemp baseName (IRStruct sName)) sName fName fType]
+
+-- ADDR + SET_FIELD where ADDR result used only once -> inline the base operand
+tryPeephole uc (IRADDR addrTemp baseName _) (IRSET_FIELD (IRTemp t _) sName fName val)
+  | addrTemp == t, M.findWithDefault 0 addrTemp uc == 1 = 
+      Just [IRSET_FIELD (IRTemp baseName (IRStruct sName)) sName fName val]
+
+-- GET_FIELD + IRASSIGN: combine when temp used once
+tryPeephole uc (IRGET_FIELD t1 base sName fName fType) (IRASSIGN t2 (IRTemp t _) _)
+  | t1 == t, M.findWithDefault 0 t1 uc == 1 = Just [IRGET_FIELD t2 base sName fName fType]
 tryPeephole _ _ _ = Nothing
 
 -- jump threading: CMP + JUMP -> Direct JUMP

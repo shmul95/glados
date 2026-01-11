@@ -54,8 +54,8 @@ export def get_file_size(fd: i32) -> i64
     seek_set: i32 = 0;
     seek_end: i32 = 2;
 
-    size = lseek(fd, 0, seek_end);
-    lseek(fd, 0, seek_set);
+    size = lseek(fd, 0: i64, seek_end);
+    lseek(fd, 0: i64, seek_set);
 
     size
 }
