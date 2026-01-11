@@ -232,7 +232,7 @@ emitInstructionGen _ structs sm _ _ (IRGET_FIELD dest basePtr structName fieldNa
 emitInstructionGen _ structs sm _ _ (IRSET_FIELD basePtr structName fieldName valueOp) = 
   emitSetField sm structs basePtr structName fieldName valueOp
 -- Standard operations
-emitInstructionGen _ _ sm _ _ (IRASSIGN dest op t) = emitAssign sm dest op t
+emitInstructionGen _ structs sm _ _ (IRASSIGN dest op t) = emitAssign structs sm dest op t
 emitInstructionGen _ _ _ _ _ (IRLABEL (IRLabel lbl)) = [lbl <> ":"]
 emitInstructionGen _ _ _ _ _ (IRJUMP (IRLabel lbl)) = [emit 1 $ "jmp " <> lbl]
 emitInstructionGen _ _ sm _ _ (IRJUMP_EQ0 op (IRLabel lbl)) = emitConditionalJump sm op "je" lbl
@@ -246,8 +246,8 @@ emitInstructionGen _ _ sm _ _ (IRJUMP_EQ o1 o2 (IRLabel lbl)) = emitDirectCmpJum
 emitInstructionGen _ _ sm _ _ (IRJUMP_NEQ o1 o2 (IRLabel lbl)) = emitDirectCmpJump sm o1 o2 "jne" lbl
 emitInstructionGen _ _ sm _ _ (IRJUMP_TEST_NZ o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jnz" lbl
 emitInstructionGen _ _ sm _ _ (IRJUMP_TEST_Z o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jz" lbl
-emitInstructionGen mbExterns _ sm _ _ (IRCALL dest funcName args mbType) = emitCallGen mbExterns sm dest funcName args mbType
-emitInstructionGen _ _ sm endLbl _ (IRRET mbOp) = emitRet sm endLbl mbOp
+emitInstructionGen mbExterns structs sm _ _ (IRCALL dest funcName args mbType) = emitCallGen mbExterns structs sm dest funcName args mbType
+emitInstructionGen _ structs sm endLbl _ (IRRET mbOp) = emitRet structs sm endLbl mbOp
 emitInstructionGen _ _ sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
 emitInstructionGen _ _ sm _ _ (IRLOAD_OFFSET dest ptr offset typ) = emitLoadOffset sm dest ptr offset typ
 emitInstructionGen _ structs sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray structs sm fn dest elemType values
@@ -277,11 +277,41 @@ emitInstructionGen _ _ sm _ _ (IRCAST dest src fromT toT) = emitCast sm dest src
 emitInstructionGen _ _ _ _ _ instr = [emit 1 $ "; TODO: " <> show instr]
 
 -- | emit dest = op
-emitAssign :: Map String Int -> String -> IROperand -> IRType -> [String]
-emitAssign sm dest (IRConstInt n) t
+emitAssign :: StructMap -> Map String Int -> String -> IROperand -> IRType -> [String]
+-- Handle struct types with multi-word copy
+emitAssign structs sm dest (IRTemp name _) (IRStruct sName) = 
+  emitStructCopy structs sm dest name sName
+emitAssign structs sm dest (IRParam name _) (IRStruct sName) = 
+  emitStructCopy structs sm dest name sName
+-- Standard cases (delegate to emitAssignSimple)
+emitAssign _ sm dest op t = emitAssignSimple sm dest op t
+
+-- | emit struct copy by copying each 8-byte word
+emitStructCopy :: StructMap -> Map String Int -> String -> String -> String -> [String]
+emitStructCopy structs sm dest src sName =
+  let size = sizeOfStruct structs sName
+      numWords = (size + 7) `div` 8
+      srcOffset = case Map.lookup src sm of
+                    Just o -> o
+                    Nothing -> error $ "emitStructCopy: source not found: " <> src
+      destOffset = case Map.lookup dest sm of
+                     Just o -> o
+                     Nothing -> error $ "emitStructCopy: dest not found: " <> dest
+      copyWord i = 
+        let wordOffset = i * 8
+            srcAddr = "[rbp" <> show (srcOffset + wordOffset) <> "]"
+            destAddr = "[rbp" <> show (destOffset + wordOffset) <> "]"
+        in [ emit 1 $ "mov rax, qword " <> srcAddr
+           , emit 1 $ "mov qword " <> destAddr <> ", rax"
+           ]
+  in concatMap copyWord [0..numWords-1]
+
+-- | emit simple (non-struct) assignments
+emitAssignSimple :: Map String Int -> String -> IROperand -> IRType -> [String]
+emitAssignSimple sm dest (IRConstInt n) t
   | needsRegisterLoad n t = [emit 1 $ "mov rax, " <> show n, storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "mov " <> getSizeSpecifier t <> " " <> stackAddr sm dest <> ", " <> show n]
-emitAssign sm dest (IRGlobal name IRF32) IRF32 =
+emitAssignSimple sm dest (IRGlobal name IRF32) IRF32 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movss xmm0, dword [rel " <> name <> "]"
                , emit 1 $ "movss dword " <> stackAddr sm dest <> ", xmm0"
@@ -289,7 +319,7 @@ emitAssign sm dest (IRGlobal name IRF32) IRF32 =
     (reg:_) -> [ emit 1 $ "movss " <> reg <> ", dword [rel " <> name <> "]"
                , emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> reg
                ]
-emitAssign sm dest (IRGlobal name IRF32) IRF64 =
+emitAssignSimple sm dest (IRGlobal name IRF32) IRF64 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movss xmm0, dword [rel " <> name <> "]"
                , emit 1   "cvtss2sd xmm0, xmm0"
@@ -299,7 +329,7 @@ emitAssign sm dest (IRGlobal name IRF32) IRF64 =
                , emit 1 $ "cvtss2sd " <> reg <> ", " <> reg
                , emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> reg
                ]
-emitAssign sm dest (IRGlobal name IRF64) IRF64 =
+emitAssignSimple sm dest (IRGlobal name IRF64) IRF64 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movsd xmm0, qword [rel " <> name <> "]"
                , emit 1 $ "movsd qword " <> stackAddr sm dest <> ", xmm0"
@@ -307,7 +337,7 @@ emitAssign sm dest (IRGlobal name IRF64) IRF64 =
     (reg:_) -> [ emit 1 $ "movsd " <> reg <> ", qword [rel " <> name <> "]"
                , emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> reg
                ]
-emitAssign sm dest (IRGlobal name IRF64) IRF32 =
+emitAssignSimple sm dest (IRGlobal name IRF64) IRF32 =
   case x86_64FloatArgsRegisters of
     []      -> [ emit 1 $ "movsd xmm0, qword [rel " <> name <> "]"
                , emit 1   "cvtsd2ss xmm0, xmm0"
@@ -317,23 +347,23 @@ emitAssign sm dest (IRGlobal name IRF64) IRF32 =
                , emit 1 $ "cvtsd2ss " <> reg <> ", " <> reg
                , emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> reg
                ]
-emitAssign sm dest (IRConstChar c)   _ = [emit 1 $ "mov byte " <> stackAddr sm dest <> ", " <> show (fromEnum c)]
-emitAssign sm dest (IRConstBool b)   _ = [emit 1 $ "mov byte " <> stackAddr sm dest <> ", " <> if b then "1" else "0"]
-emitAssign sm dest  IRConstNull      t = [emit 1 $ "mov " <> getSizeSpecifier t <> " " <> stackAddr sm dest <> ", 0"]
-emitAssign sm dest (IRGlobal name _) t = [emit 1 $ "mov rax, " <> name, storeReg sm dest "rax" t]
-emitAssign sm dest (IRTemp name _)   t = moveStackToStack sm dest name t
-emitAssign sm dest (IRParam name _)  t = moveStackToStack sm dest name t
-emitAssign sm dest op t =
+emitAssignSimple sm dest (IRConstChar c)   _ = [emit 1 $ "mov byte " <> stackAddr sm dest <> ", " <> show (fromEnum c)]
+emitAssignSimple sm dest (IRConstBool b)   _ = [emit 1 $ "mov byte " <> stackAddr sm dest <> ", " <> if b then "1" else "0"]
+emitAssignSimple sm dest  IRConstNull      t = [emit 1 $ "mov " <> getSizeSpecifier t <> " " <> stackAddr sm dest <> ", 0"]
+emitAssignSimple sm dest (IRGlobal name _) t = [emit 1 $ "mov rax, " <> name, storeReg sm dest "rax" t]
+emitAssignSimple sm dest (IRTemp name _)   t = moveStackToStack sm dest name t
+emitAssignSimple sm dest (IRParam name _)  t = moveStackToStack sm dest name t
+emitAssignSimple sm dest op t =
   [ emit 1 $ "; WARNING: Unsupported IRASSIGN operand: " <> show op
   , emit 1 $ "mov " <> getSizeSpecifier t <> " " <> stackAddr sm dest <> ", 0"
   ]
 
--- | emit call dest = funcName(args)
-emitCall :: Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
+-- | emit call dest = funcName(args) - legacy wrapper
+emitCall :: StructMap -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCall = emitCallGen Nothing
 
-emitCallGen :: Maybe [Extern] -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
-emitCallGen mbExterns sm dest funcName args mbType =
+emitCallGen :: Maybe [Extern] -> StructMap -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
+emitCallGen mbExterns structs sm dest funcName args mbType =
   let argSetup    = setupCallArgs sm args
       firstFloatType =
         foldr
@@ -348,7 +378,7 @@ emitCallGen mbExterns sm dest funcName args mbType =
                       Nothing      -> False
       callTarget  = if usePlt then funcName <> " wrt ..plt" else funcName
       callInstr   = [emit 1 $ "call " <> callTarget]
-      retSave     = saveCallResult sm dest mbType
+      retSave     = saveCallResult structs sm dest mbType
    in argSetup <> printfFixup <> callInstr <> retSave
   where
     printfFixupHelp (Just IRF32) (floatReg:_)
@@ -386,26 +416,40 @@ setupCallArgs sm args =
           in (acc <> loadRegWithExt sm (reg, op) , intIdx + 1 , floatIdx)
       | otherwise = (acc, intIdx, floatIdx)
 
-saveCallResult :: Map String Int -> String -> Maybe IRType -> [String]
-saveCallResult _ "" _           = []
-saveCallResult sm dest Nothing  = [emit 1 $ "mov qword " <> stackAddr sm dest <> ", rax"]
-saveCallResult sm dest (Just t)
+saveCallResult :: StructMap -> Map String Int -> String -> Maybe IRType -> [String]
+saveCallResult _ _ "" _           = []
+saveCallResult structs sm dest (Just (IRStruct sName)) = saveStructResult structs sm dest sName
+saveCallResult _ sm dest Nothing  = [emit 1 $ "mov qword " <> stackAddr sm dest <> ", rax"]
+saveCallResult _ sm dest (Just t)
   | isFloatType t = saveFloat t x86_64FloatArgsRegisters
   | otherwise     = [ storeReg sm dest "rax" t ]
   where
-
     saveFloat IRF32 (xmmRet:_) = [ emit 1 $ "movss dword " <> stackAddr sm dest <> ", " <> xmmRet ]
     saveFloat IRF64 (xmmRet:_) = [ emit 1 $ "movsd qword " <> stackAddr sm dest <> ", " <> xmmRet ]
     saveFloat other _          = [ emit 1 $ "; TODO: unsupported float return type: " <> show other ]
+
+-- | Save struct return value from registers (rax, rdx, rcx, r8)
+saveStructResult :: StructMap -> Map String Int -> String -> String -> [String]
+saveStructResult structs sm dest sName =
+  let size = sizeOfStruct structs sName
+      destOffset = case Map.lookup dest sm of
+                     Just o -> o
+                     Nothing -> error $ "saveStructResult: dest not found: " <> dest
+      numWords = (size + 7) `div` 8
+      -- Store from registers: rax, rdx, rcx, r8
+      regs = ["rax", "rdx", "rcx", "r8"]
+      storeWord i = emit 1 $ "mov qword [rbp" <> show (destOffset + i * 8) <> "], " <> (regs !! i)
+  in map storeWord [0..min (numWords - 1) 3]
 
 
 -- | emit a return instruction
 --  cases:
 --  1- no return value: xor rax, rax to avoid returning garbage value
 --  2- return value: load into the appropriate return register
-emitRet :: Map String Int -> String -> Maybe IROperand -> [String]
-emitRet _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " <> endLbl]
-emitRet sm endLbl (Just op) = emitRetHelper $ getOperandType op
+--  3- struct return: load multiple words into rax/rdx
+emitRet :: StructMap -> Map String Int -> String -> Maybe IROperand -> [String]
+emitRet _ _ endLbl Nothing = [emit 1 "xor rax, rax", emit 1 $ "jmp " <> endLbl]
+emitRet structs sm endLbl (Just op) = emitRetHelper $ getOperandType op
   where
     getReg = loadReg sm "rax" op <> [emit 1 $ "jmp " <> endLbl]
 
@@ -413,11 +457,32 @@ emitRet sm endLbl (Just op) = emitRetHelper $ getOperandType op
     getFloatReg t []         = [ emit 1   "; WARNING: no float return register available"
                                ] <> loadFloatOperand sm "xmm0" op t <> [emit 1 $ "jmp " <> endLbl]
 
+    getStructReg sName = emitStructRet structs sm endLbl op sName
+
     emitRetHelper (Just IRNull)
       = [ emit 1 "xor rax, rax", emit 1 $ "jmp " <> endLbl ]
+    emitRetHelper (Just (IRStruct sName))
+      = getStructReg sName
     emitRetHelper (Just t)
       | isFloatType t = getFloatReg t x86_64FloatArgsRegisters
     emitRetHelper _ = getReg
+
+-- | emit struct return - load struct bytes into rax/rdx
+emitStructRet :: StructMap -> Map String Int -> String -> IROperand -> String -> [String]
+emitStructRet structs sm endLbl op sName =
+  let size = sizeOfStruct structs sName
+      srcName = case op of
+                  IRTemp n _ -> n
+                  IRParam n _ -> n
+                  _ -> error $ "emitStructRet: unsupported operand: " <> show op
+      srcOffset = case Map.lookup srcName sm of
+                    Just o -> o
+                    Nothing -> error $ "emitStructRet: source not found: " <> srcName
+      numWords = (size + 7) `div` 8
+      -- Load words into registers: rax, rdx, rcx, r8
+      regs = ["rax", "rdx", "rcx", "r8"]
+      loadWord i = emit 1 $ "mov " <> (regs !! i) <> ", qword [rbp" <> show (srcOffset + i * 8) <> "]"
+  in map loadWord [0..min (numWords - 1) 3] <> [emit 1 $ "jmp " <> endLbl]
 
 
 -- | emit deref ptr
