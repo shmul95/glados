@@ -457,7 +457,7 @@ emitRet structs sm endLbl (Just op) = emitRetHelper $ getOperandType op
     getFloatReg t []         = [ emit 1   "; WARNING: no float return register available"
                                ] <> loadFloatOperand sm "xmm0" op t <> [emit 1 $ "jmp " <> endLbl]
 
-    getStructReg sName = emitStructRet structs sm endLbl op sName
+    getStructReg = emitStructRet structs sm endLbl op
 
     emitRetHelper (Just IRNull)
       = [ emit 1 "xor rax, rax", emit 1 $ "jmp " <> endLbl ]
