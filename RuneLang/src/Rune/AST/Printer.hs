@@ -274,6 +274,14 @@ visitExpression (ExprLitChar _ c) = emit $ "ExprLitChar " <> show c
 visitExpression (ExprLitBool _ b) = emit $ "ExprLitBool " <> show b
 visitExpression (ExprLitNull _) = emit "ExprLitNull"
 visitExpression (ExprVar _ v) = emit $ "ExprVar " <> v
+visitExpression (ExprSizeof _ val) = do
+  emit "ExprSizeof"
+  indent
+  newLine
+  case val of
+    Left t  -> emit $ "Type: " <> showType t
+    Right e -> visitExpression e
+  dedent
 
 --
 -- private helpers
