@@ -9,7 +9,7 @@ NAME              := rune
 REPO_DIR          := $(shell pwd)
 
 STD_LIB_DIR       := $(REPO_DIR)/lib/std
-STD_LIB_FILES     := $(wildcard $(STD_LIB_DIR)/*.ru)
+STD_LIB_FILES := $(shell find $(STD_LIB_DIR) -name "*.ru" -type f)
 
 all:
 	@if grep -q 'ID=nixos' /etc/os-release; then \

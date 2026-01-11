@@ -15,6 +15,7 @@ import Rune.IR.Nodes
 import Rune.AST.Nodes
 import IR.TestUtils (emptyState, runGenUnsafe, runGen)
 import qualified Data.Map.Strict as Map
+import Data.List (isPrefixOf)
 
 --
 -- public
@@ -134,10 +135,14 @@ testGenExpression = testGroup "genExpression"
             Left err -> assertBool ("Index failed: " ++ err) False
 
   , testCase "Generates cast" $
-      let (_, op, typ) = runGenUnsafe (genExpression (ExprCast dummyPos (ExprLitInt dummyPos 42) TypeF32))
+      let (instrs, op, typ) = runGenUnsafe (genExpression (ExprCast dummyPos (ExprLitInt dummyPos 42) TypeF32))
       in do
         typ @?= IRF32
-        op @?= IRConstInt 42
+        -- Cast from IRI32 to IRF32 generates an IRCAST instruction
+        length instrs @?= 1
+        case op of
+          IRTemp name IRF32 -> assertBool "Cast temp should start with 'cast'" ("cast" `isPrefixOf` name)
+          _ -> assertBool ("Expected IRTemp with IRF32, got: " ++ show op) False
   ]
 
 testGenVar :: TestTree

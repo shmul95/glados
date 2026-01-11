@@ -20,6 +20,7 @@ data TokenKind
   | KwNext
   | KwSomewhere
   | KwExport
+  | KwAs
   -- | primitive types
   | TypeI8
   | TypeI16
