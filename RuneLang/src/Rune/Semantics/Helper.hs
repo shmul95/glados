@@ -13,7 +13,7 @@ module Rune.Semantics.Helper
   , fixSelfType
   ) where
 
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isNothing)
 import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 
@@ -71,7 +71,7 @@ checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
         Just err -> Left err
     multiples ->
       -- Filter to only those with matching parameter count and compatible types
-      case filter (\(_, (_, args)) -> checkEachParam s file line col 0 es args == Nothing) multiples of
+      case filter (\(_, (_, args)) -> isNothing $ checkEachParam s file line col 0 es args) multiples of
         [(name, _)] -> Right name
         [] -> Left $ mkError ("function '" <> fname <> "' with compatible arguments") "no matching signature"
         _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
