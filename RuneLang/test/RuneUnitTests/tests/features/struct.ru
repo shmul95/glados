@@ -9,6 +9,20 @@ somewhere
     def assert_eq(a: string, b: string, message: string) -> bool;
 }
 
+/**
+* public
+*/
+
+export def test_struct() -> null
+{
+    vec_number();
+    vec_string();
+}
+
+/**
+* private
+*/
+
 struct Vec
 {
     data:     *any;
@@ -104,38 +118,32 @@ def vec_number() -> null
     v.push(20)?;
     v.push(30)?;
 
-    assert(v.get(1)? == 20, "Le deuxième élément doit être 20");
+    assert(v.get(1)? == 20, "Struct: second element must be 20");
 
     v.clear();
-    assert(v.size == 0, "La taille doit être 0 après clear()");
+    assert(v.size == 0, "Struct: size must be 0 after clear()");
 
     v.reserve(2)?;
     v.push(40)?;
     v.push(50)?;
 
-    assert(v.pop()? == 50, "Le dernier élément doit être 50");
+    assert(v.pop()? == 50, "Struct: last element must be 50");
 
-    v.delete(); // normalement, delete() doit être appelé à la fin du scope de v. comme le C++.
+    v.delete()
 }
 
 def vec_string() -> null
 {
-    v = Vec {}; // équivalent de v = Vec.new();
+    v = Vec {};
 
     v.reserve(3)?;
 
-    v.push("Bonjour")?; // no allocation needed
-    v.push("le")?;      // no allocation needed
-    v.push("monde")?;   // no allocation needed
+    v.push("Bonjour")?;
+    v.push("le")?;
+    v.push("monde")?;
 
-    assert_eq(v.get(0)?, "Bonjour", "Le premier élément doit être 'Bonjour'");
-    assert_eq(v.pop()?, "monde", "Le dernier élément doit être 'monde'");
+    assert_eq(v.get(0)?, "Bonjour", "Struct: first element must be 'Bonjour'");
+    assert_eq(v.pop()?, "monde", "Struct: last element must be 'monde'");
 
-    v.delete(); // normalement, delete() doit être appelé à la fin du scope de v. comme le C++.
-}
-
-def main() ~> null
-{
-    vec_number();
-    vec_string();
+    v.delete();
 }
