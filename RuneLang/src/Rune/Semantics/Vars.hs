@@ -49,8 +49,6 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
-import Debug.Trace (trace)
-
 --
 -- state monad
 --
@@ -78,7 +76,7 @@ verifVars (Program n defs) = do
   ss <- findStruct (Program n concreteDefs)
 
   let initialState = SemState
-        { stFuncs = trace (show fs) fs
+        { stFuncs = fs
         , stTemplates = templatesMap
         , stNewDefs = []
         , stInstantiated = HM.empty
