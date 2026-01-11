@@ -154,6 +154,8 @@ data IRInstruction
   | IRINC IROperand
   | IRDEC IROperand
   | IRASSIGN String IROperand IRType
+  | -- type cast
+    IRCAST String IROperand IRType IRType  -- dest, source, fromType, toType
   deriving (Show, Eq)
 
 data IRFunction = IRFunction

@@ -80,6 +80,12 @@ genCast genExpr (ExprIndex _ target idx) astType = do
       pure (instrs, op, resultType)
 
 genCast genExpr expr astType = do
-  (instrs, op, _) <- genExpr expr
+  (instrs, op, srcType) <- genExpr expr
   let targetType = astTypeToIRType astType
-  pure (instrs, op, targetType)
+  -- If types are the same, no cast needed
+  if srcType == targetType
+    then pure (instrs, op, targetType)
+    else do
+      tempName <- newTemp "cast" targetType
+      let castInstr = IRCAST tempName op srcType targetType
+      pure (instrs <> [castInstr], IRTemp tempName targetType, targetType)

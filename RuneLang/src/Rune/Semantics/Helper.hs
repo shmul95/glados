@@ -105,6 +105,7 @@ exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
     extractArrayType (TypeArray inner) = Right inner
     extractArrayType TypeString = Right TypeChar
     extractArrayType TypeAny = Right TypeAny
+    extractArrayType (TypePtr inner) = Right inner
     extractArrayType t = Left $ printf "\n\tIndexingNonArray: cannot index type %s, expected array" (show t)
 
 exprType _ (ExprLitArray _ []) = Right $ TypeArray TypeAny
@@ -137,6 +138,10 @@ isTypeCompatible (TypePtr _) TypeNull = True
 isTypeCompatible TypeNull (TypePtr _) = True
 isTypeCompatible (TypePtr TypeAny) (TypePtr _) = True
 isTypeCompatible (TypePtr _) (TypePtr TypeAny) = True
+isTypeCompatible (TypePtr TypeAny) TypeString = True
+isTypeCompatible TypeString (TypePtr TypeAny) = True
+isTypeCompatible (TypePtr TypeChar) TypeString = True
+isTypeCompatible TypeString (TypePtr TypeChar) = True
 isTypeCompatible (TypePtr a) (TypePtr b) = isTypeCompatible a b
 isTypeCompatible expected actual
   | sameType expected actual = True

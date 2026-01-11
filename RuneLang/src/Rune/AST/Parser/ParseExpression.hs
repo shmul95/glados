@@ -151,7 +151,7 @@ parseIndexPostfix = do
 parseCastPostfix :: Parser (Expression -> Expression)
 parseCastPostfix = do
   pos <- getCurrentPos
-  _ <- expect T.Colon
+  _ <- expect T.Colon <|> expect T.KwAs
   t <- parseType
   pure $ \e -> ExprCast pos e t
 
