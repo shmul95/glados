@@ -15,7 +15,7 @@ module Rune.Semantics.Struct (findStruct) where
 #endif
 
 import Text.Printf (printf)
-import Control.Monad (foldM, when)
+import Control.Monad (foldM)
 
 import Rune.AST.Nodes
 import Rune.Semantics.Type (StructStack)
@@ -29,17 +29,26 @@ import qualified Data.List as List
 ---
 
 findStruct :: Program -> Either String StructStack
-findStruct (Program _ defs) = do
-  let structs = [d | d@DefStruct {} <- defs]
-  foldM addStruct HM.empty structs
+findStruct (Program _ defs) = foldM addStruct HM.empty structs
   where
-    addStruct acc def@(DefStruct name fields methods) = do
-      let pos = getStructPos def
-      when (HM.member name acc) $
-        Left $ mkError pos (printf "struct '%s' to be unique" name) "duplicate struct definition"
-      checkedFields <- checkFields name pos acc fields
-      checkedMethods <- checkMethods name pos methods
-      Right $ HM.insert name (DefStruct name checkedFields checkedMethods) acc
+    structs :: [TopLevelDef]
+    structs = [d | d@DefStruct{} <- defs]
+
+    addStruct :: StructStack -> TopLevelDef -> Either String StructStack
+    addStruct acc def@(DefStruct name fields methods)
+      | HM.member name acc =
+          Left $ mkError pos
+            (printf "struct '%s' to be unique" name)
+            "duplicate struct definition"
+      | otherwise = do
+          checkedFields  <- checkFields name pos acc fields
+          checkedMethods <- checkMethods name pos methods
+          Right $ HM.insert name
+            (DefStruct name checkedFields checkedMethods) acc
+      where
+        pos :: SourcePos
+        pos = getStructPos def
+
     addStruct acc _ = Right acc
 
 ---
@@ -73,18 +82,24 @@ checkFields sName pos structs fields = do
     [] -> mapM (validateFieldType sName pos structs) fields
 
 validateFieldType :: String -> SourcePos -> StructStack -> Field -> Either String Field
-validateFieldType sName pos structs field = do
-  case fieldType field of
-    TypeAny -> Left $ mkError pos 
+validateFieldType sName pos structs field = validateType $ fieldType field
+  where
+
+    validateType :: Type -> Either String Field
+    validateType TypeAny = Left $ mkError pos 
       (printf "field '%s' to have a concrete type" (fieldName field)) 
       "type 'any' is not allowed"
-    TypeNull -> Left $ mkError pos 
+
+    validateType TypeNull = Left $ mkError pos 
       (printf "field '%s' to have a concrete type" (fieldName field)) 
       "type 'null' is not allowed"
-    TypeCustom customType ->
-      case customType == sName || HM.member customType structs of
-        True -> Right field
-        False -> Left $ mkError pos 
-          (printf "field '%s' type '%s' to be defined" (fieldName field) customType) 
-          "unknown struct type"
-    _ -> Right field
+
+    validateType (TypeCustom customType)
+      | customType == sName            = Right field
+      | HM.member customType structs   = Right field
+      | otherwise =
+          Left $ mkError pos
+            (printf "field '%s' type '%s' to be defined" (fieldName field) customType)
+            "unknown struct type"
+
+    validateType _ = Right field
