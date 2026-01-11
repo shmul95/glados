@@ -18,7 +18,7 @@ import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
 import qualified Data.Map.Strict as Map
 import Rune.AST.Nodes (Expression)
-import Rune.IR.IRHelpers (newTemp)
+import Rune.IR.IRHelpers (newTemp, getDefaultValue)
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -46,15 +46,37 @@ genAccess genExpr target field = do
   return (tInstrs ++ setupInstrs ++ [getInstr], IRTemp resTemp fieldType, fieldType)
 
 -- | generate IR instructions for initializing a struct
--- ALLOC var_name: "Type"
+-- ALLOC var_name: "Type" & initialize fields
 genStructInit :: GenExprCallback -> String -> [(String, Expression)] -> IRGen ([IRInstruction], IROperand, IRType)
-genStructInit genExpr name fields = do
+genStructInit genExpr name providedFields = do
   let structType = IRStruct name
   resName <- newTemp "struct" structType
   let allocInstr = IRALLOC resName structType
 
-  fieldInstrs <- concat <$> mapM (genInitField genExpr name resName structType) fields
-  return (allocInstr : fieldInstrs, IRTemp resName structType, structType)
+  -- get all struct fields from the struct definition
+  structs <- gets gsStructs
+  allFields <- case Map.lookup name structs of
+    Just fields -> pure fields
+    Nothing -> throwError $ "Struct '" ++ name ++ "' is not defined"
+
+  -- generate initialization for provided fields
+  fieldInstrs <- concat <$> mapM (genInitField genExpr name resName structType) providedFields
+
+  -- generate default initialization for missing fields
+  let providedFieldNames = map fst providedFields
+      missingFields = filter (\(fName, _) -> fName `notElem` providedFieldNames) allFields
+  defaultInstrs <- concat <$> mapM (genDefaultField name resName structType) missingFields
+
+  return (allocInstr : fieldInstrs ++ defaultInstrs, IRTemp resName structType, structType)
+
+-- | generate default value initialization for a struct field
+genDefaultField :: String -> String -> IRType -> (String, IRType) -> IRGen [IRInstruction]
+genDefaultField sName resName sType (fName, fType) = do
+  ptrName <- newTemp "p_init" (IRPtr sType)
+  let addrInstr = IRADDR ptrName resName (IRPtr sType)
+      defaultVal = getDefaultValue fType
+      setInstr = IRSET_FIELD (IRTemp ptrName (IRPtr sType)) sName fName defaultVal
+  pure [addrInstr, setInstr]
 
 --
 -- private
