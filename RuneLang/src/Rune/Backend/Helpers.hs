@@ -6,19 +6,13 @@ module Rune.Backend.Helpers
     escapeString,
     collectIRVars,
     collectTopLevels,
-    collectTopLevelsWithStructs,
     calculateStackMap,
-    calculateStackMapWithStructs,
-    alignUp,
     collectTopLevel,
-    collectTopLevelWithStruct,
     collectVars,
     accumulateOffset,
-    accumulateOffsetWithStructs,
     encodeCharacter,
     encodeUtf8Bytes,
     makeRbpOffset,
-    sizeOfIRTypeWithStructs
   )
 where
 #else
@@ -27,9 +21,7 @@ module Rune.Backend.Helpers
     escapeString,
     collectIRVars,
     collectTopLevels,
-    collectTopLevelsWithStructs,
     calculateStackMap,
-    calculateStackMapWithStructs,
   )
 where
 #endif
@@ -39,10 +31,9 @@ import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, Global, Struct)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
-import Lib (isPrintable)
+import Lib (isPrintable, alignTo, alignSize)
 import Data.Char (ord)
 
--- | Type alias for struct definitions map
 type StructMap = Map.Map String Struct
 
 --
@@ -52,33 +43,17 @@ type StructMap = Map.Map String Struct
 emit :: Int -> String -> String
 emit lvl s = replicate (lvl * 4) ' ' ++ s
 
-collectTopLevels :: [IRTopLevel] -> ([Extern], [Global], [Function])
+collectTopLevels :: [IRTopLevel] -> ([Extern], [Global], [Function], StructMap)
 collectTopLevels tls =
-  let (es, gs, fs) = foldr collectTopLevel ([], [], []) tls
-   in (nub es, reverse gs, reverse fs)
-
--- | Collect top-level definitions including struct definitions
-collectTopLevelsWithStructs :: [IRTopLevel] -> ([Extern], [Global], [Function], StructMap)
-collectTopLevelsWithStructs tls =
-  let (es, gs, fs, ss) = foldr collectTopLevelWithStruct ([], [], [], Map.empty) tls
+  let (es, gs, fs, ss) = foldr collectTopLevel ([], [], [], Map.empty) tls
    in (nub es, reverse gs, reverse fs, ss)
 
-calculateStackMap :: Function -> (Map.Map String Int, Int)
-calculateStackMap func =
+calculateStackMap :: StructMap -> Function -> (Map.Map String Int, Int)
+calculateStackMap structMap func =
   let varsMap = collectIRVars func
       varsList = Map.toList varsMap
-      (totalUsedSize, offsetsMap) = foldl' (accumulateOffset varsMap) (0, Map.empty) varsList
-      totalSize = alignUp totalUsedSize 16
-      rbpOffsetsMap = Map.map (makeRbpOffset totalUsedSize) offsetsMap
-   in (rbpOffsetsMap, totalSize)
-
--- | Calculate stack map with struct size awareness
-calculateStackMapWithStructs :: StructMap -> Function -> (Map.Map String Int, Int)
-calculateStackMapWithStructs structMap func =
-  let varsMap = collectIRVars func
-      varsList = Map.toList varsMap
-      (totalUsedSize, offsetsMap) = foldl' (accumulateOffsetWithStructs structMap varsMap) (0, Map.empty) varsList
-      totalSize = alignUp totalUsedSize 16
+      (totalUsedSize, offsetsMap) = foldl' (accumulateOffset structMap) (0, Map.empty) varsList
+      totalSize = alignTo 16 totalUsedSize
       rbpOffsetsMap = Map.map (makeRbpOffset totalUsedSize) offsetsMap
    in (rbpOffsetsMap, totalSize)
 
@@ -89,21 +64,11 @@ escapeString = intercalate "," . encodeCharacter
 -- private
 --
 
-alignUp :: Int -> Int -> Int
-alignUp x n = (x + n - 1) `div` n * n
-
-collectTopLevel :: IRTopLevel -> ([Extern], [Global], [Function]) -> ([Extern], [Global], [Function])
-collectTopLevel (IRExtern name) (e, g, f) = (name : e, g, f)
-collectTopLevel (IRGlobalDef n v) (e, g, f) = (e, (n, v) : g, f)
-collectTopLevel (IRFunctionDef fn) (e, g, f) = (e, g, fn : f)
-collectTopLevel _ acc = acc
-
--- | Collect top-level with struct definitions
-collectTopLevelWithStruct :: IRTopLevel -> ([Extern], [Global], [Function], StructMap) -> ([Extern], [Global], [Function], StructMap)
-collectTopLevelWithStruct (IRExtern name) (e, g, f, s) = (name : e, g, f, s)
-collectTopLevelWithStruct (IRGlobalDef n v) (e, g, f, s) = (e, (n, v) : g, f, s)
-collectTopLevelWithStruct (IRFunctionDef fn) (e, g, f, s) = (e, g, fn : f, s)
-collectTopLevelWithStruct (IRStructDef name fields) (e, g, f, s) = (e, g, f, Map.insert name fields s)
+collectTopLevel :: IRTopLevel -> ([Extern], [Global], [Function], StructMap) -> ([Extern], [Global], [Function], StructMap)
+collectTopLevel (IRExtern name) (e, g, f, s) = (name : e, g, f, s)
+collectTopLevel (IRGlobalDef n v) (e, g, f, s) = (e, (n, v) : g, f, s)
+collectTopLevel (IRFunctionDef fn) (e, g, f, s) = (e, g, fn : f, s)
+collectTopLevel (IRStructDef name fields) (e, g, f, s) = (e, g, f, Map.insert name fields s)
 
 collectIRVars :: Function -> Map.Map String IRType
 collectIRVars (IRFunction _ params _ body _) = 
@@ -152,40 +117,13 @@ collectVars acc (IRINC _) = acc
 collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
 
-accumulateOffset :: Map.Map String IRType -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
-accumulateOffset _ (currentOffset, accMap) (name, irType) =
-  let size = sizeOfIRType irType
-      align = min 8 (if size == 0 then 1 else size)
-      alignedOffset = alignUp currentOffset align
+accumulateOffset :: StructMap -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
+accumulateOffset structMap (currentOffset, accMap) (name, irType) =
+  let size = sizeOfIRType structMap irType
+      align = alignSize size
+      alignedOffset = alignTo align currentOffset
       newOffset = alignedOffset + size
    in (newOffset, Map.insert name alignedOffset accMap)
-
--- | Accumulate offset with struct size awareness
-accumulateOffsetWithStructs :: StructMap -> Map.Map String IRType -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
-accumulateOffsetWithStructs structMap _ (currentOffset, accMap) (name, irType) =
-  let size = sizeOfIRTypeWithStructs structMap irType
-      align = min 8 (if size == 0 then 1 else size)
-      alignedOffset = alignUp currentOffset align
-      newOffset = alignedOffset + size
-   in (newOffset, Map.insert name alignedOffset accMap)
-
--- | Calculate size of IR type with struct awareness
-sizeOfIRTypeWithStructs :: StructMap -> IRType -> Int
-sizeOfIRTypeWithStructs structMap (IRStruct name) =
-  case Map.lookup name structMap of
-    Nothing -> 8  -- fallback: treat unknown structs as pointer-sized
-    Just fields ->
-      let (finalOffset, _) = foldl accumField (0, 0) fields
-       in alignUp finalOffset 8
-  where
-    accumField :: (Int, Int) -> (String, IRType) -> (Int, Int)
-    accumField (offset, _) (_, fieldType) =
-      let size = sizeOfIRTypeWithStructs structMap fieldType
-          align = min 8 (if size == 0 then 1 else size)
-          alignedOffset = alignUp offset align
-       in (alignedOffset + size, alignedOffset)
-sizeOfIRTypeWithStructs structMap (IRArray t len) = sizeOfIRTypeWithStructs structMap t * len
-sizeOfIRTypeWithStructs _ t = sizeOfIRType t
 
 encodeCharacter :: String -> [String]
 encodeCharacter "" = []

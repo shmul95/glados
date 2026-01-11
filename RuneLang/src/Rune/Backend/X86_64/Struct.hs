@@ -7,7 +7,6 @@ module Rune.Backend.X86_64.Struct
     emitSetField,
     sizeOfStruct,
     getFieldOffset,
-    alignField,
   )
 where
 #else
@@ -29,6 +28,7 @@ import Rune.Backend.X86_64.Registers (getRegisterName, getSizeSpecifier)
 import Rune.Backend.X86_64.Compare (loadFloatOperand, isFloatType)
 import Rune.IR.Nodes (IROperand (..), IRType (..))
 import Rune.IR.IRHelpers (sizeOfIRType)
+import Lib (alignTo, alignSize)
 
 -- | Type alias for struct field definitions: (fieldName, fieldType)
 type StructDef = [(String, IRType)]
@@ -37,22 +37,8 @@ type StructDef = [(String, IRType)]
 type StructMap = Map String StructDef
 
 -- | Calculate the total size of a struct with proper alignment.
--- Each field is aligned based on its size (min of 8 or size).
--- The total struct size is aligned to 8 bytes.
 sizeOfStruct :: StructMap -> String -> Int
-sizeOfStruct structMap structName =
-  case Map.lookup structName structMap of
-    Nothing -> 8  -- fallback: treat unknown structs as pointer-sized
-    Just fields ->
-      let (finalOffset, _) = foldl accumField (0, 0) fields
-       in alignUp finalOffset 8
-  where
-    accumField :: (Int, Int) -> (String, IRType) -> (Int, Int)
-    accumField (offset, _) (_, fieldType) =
-      let size = getFieldSize structMap fieldType
-          align = alignField size
-          alignedOffset = alignUp offset align
-       in (alignedOffset + size, alignedOffset)
+sizeOfStruct structMap name = sizeOfIRType structMap (IRStruct name)
 
 -- | Get the byte offset of a specific field within a struct.
 getFieldOffset :: StructMap -> String -> String -> Int
@@ -68,22 +54,12 @@ getFieldOffset structMap structName fieldName =
       | otherwise = findFieldOffset rest (alignedOffset + size)
       where
         size = getFieldSize structMap typ
-        align = alignField size
-        alignedOffset = alignUp offset align
+        align = alignSize size
+        alignedOffset = alignTo align offset
 
 -- | Get the size of a field, handling nested structs.
 getFieldSize :: StructMap -> IRType -> Int
-getFieldSize structMap (IRStruct name) = sizeOfStruct structMap name
-getFieldSize _ t = sizeOfIRType t
-
--- | Get the alignment for a field based on its size.
--- Alignment is the minimum of the field size and 8 bytes.
-alignField :: Int -> Int
-alignField size = min 8 (if size == 0 then 1 else size)
-
--- | Align an offset up to a given alignment.
-alignUp :: Int -> Int -> Int
-alignUp x n = ((x + n - 1) `div` n) * n
+getFieldSize structMap t = sizeOfIRType structMap t
 
 -- | Emit assembly for allocating a struct on the stack.
 -- This is essentially a no-op since stack space is pre-allocated,

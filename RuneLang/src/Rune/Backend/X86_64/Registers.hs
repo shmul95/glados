@@ -28,6 +28,7 @@ module Rune.Backend.X86_64.Registers
 where
 #endif
 
+import qualified Data.Map as Map
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRType (..))
 
@@ -103,8 +104,8 @@ x86_64CalleeSavedRegisters =
 -- | get mov instruction based on type size
 getMovType :: IRType -> String
 getMovType typ =
-  let size = sizeOfIRType typ
-   in case sizeOfIRType typ of
+  let size = sizeOfIRType Map.empty typ
+   in case size of
         1 -> "movzx rax, byte"
         2 -> "movzx rax, word"
         4 -> "mov eax, dword"
@@ -115,7 +116,7 @@ getMovType typ =
 -- Pointers are always qword (8 bytes) regardless of what they point to
 getSizeSpecifier :: IRType -> String
 getSizeSpecifier (IRPtr _) = "qword"
-getSizeSpecifier t = case sizeOfIRType t of
+getSizeSpecifier t = case sizeOfIRType Map.empty t of
   1 -> "byte"
   2 -> "word"
   4 -> "dword"
@@ -127,7 +128,7 @@ getSizeSpecifier t = case sizeOfIRType t of
 getRegisterName :: String -> IRType -> String
 getRegisterName baseReg (IRPtr _) = baseReg
 getRegisterName baseReg t =
-  let size = sizeOfIRType t
+  let size = sizeOfIRType Map.empty t
    in case (baseReg, size) of
         ("rax", 1) -> "al"
         ("rax", 2) -> "ax"

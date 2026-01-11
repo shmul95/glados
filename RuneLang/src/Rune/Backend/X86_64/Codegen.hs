@@ -52,14 +52,14 @@ import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 
-import Rune.Backend.Helpers (calculateStackMapWithStructs, collectTopLevelsWithStructs, emit, escapeString)
+import Rune.Backend.Helpers
 import Rune.Backend.Types (Extern, Function, Global, Struct)
-import Rune.Backend.X86_64.Compare (emitCompare, loadFloatOperand, isFloatType)
+import Rune.Backend.X86_64.Compare hiding (stackAddr)
 import qualified Rune.Backend.X86_64.Compare as Cmp
-import Rune.Backend.X86_64.LoadStore (getTestReg, loadReg, loadRegWithExt, moveStackToStack, needsRegisterLoad, operandAddr, stackAddr, storeReg)
-import Rune.Backend.X86_64.Operations (emitBinaryOp, emitDivOp, emitModOp, emitShiftOp, emitBitNot)
-import Rune.Backend.X86_64.Registers (getMovType, getSizeSpecifier, getRegisterName, x86_64ArgsRegisters, x86_64FloatArgsRegisters)
-import Rune.Backend.X86_64.Struct (emitGetField, emitSetField)
+import Rune.Backend.X86_64.LoadStore
+import Rune.Backend.X86_64.Operations
+import Rune.Backend.X86_64.Registers
+import Rune.Backend.X86_64.Struct
 import Rune.IR.Nodes
   ( IRFunction (IRFunction),
     IRInstruction (..),
@@ -80,22 +80,22 @@ type StructMap = Map String Struct
 
 emitAssembly :: IRProgram -> String
 emitAssembly (IRProgram _ topLevels) =
-  let (externs, globals, functions, structMap) = collectTopLevelsWithStructs topLevels
+  let (externs, globals, functions, structMap) = collectTopLevels topLevels
    in unlines $
         emitExterns externs
           <> emitRoDataSection globals
-          <> emitDataSection functions
+          <> emitDataSection structMap functions
           <> emitTextSectionGen Nothing structMap functions
           <> emitRmWarning
 
 -- | Emit assembly for library code (PIC-compatible, uses PLT for external calls)
 emitAssemblyLib :: IRProgram -> String
 emitAssemblyLib (IRProgram _ topLevels) =
-  let (externs, globals, functions, structMap) = collectTopLevelsWithStructs topLevels
+  let (externs, globals, functions, structMap) = collectTopLevels topLevels
    in unlines $
         emitExterns externs
           <> emitRoDataSection globals
-          <> emitDataSection functions
+          <> emitDataSection structMap functions
           <> emitTextSectionGen (Just externs) structMap functions
           <> emitRmWarning
 
@@ -125,15 +125,15 @@ emitRoDataSection gs = "section .rodata" : map emitGlobal gs
     emitGlobal (name, IRGlobalFloatVal val IRF64) = name <> " dq " <> " " <> show val
     emitGlobal (name, IRGlobalFloatVal val _)     = name <> " dd " <> " " <> show val
 
-emitDataSection :: [Function] -> [String]
-emitDataSection fs =
+emitDataSection :: StructMap -> [Function] -> [String]
+emitDataSection structs fs =
   let arrays = collectStaticArrays fs
    in case arrays of
         [] -> []
         _  -> "section .data" : concatMap emitArray arrays
   where
     emitArray (lbl, elemType, values) =
-      let dir = getDataDirective elemType
+      let dir = getDataDirective structs elemType
           initVals = map (showStaticOperand elemType) values <> ["0"]
        in [lbl <> ": " <> dir <> " " <> commaSep initVals]
 
@@ -153,16 +153,6 @@ emitTextSectionGen mbExterns structMap fs = "section .text" : concatMap (emitFun
 --
 
 -- | emit function: prologue, parameter setup, body, epilogue
--- global <name>
--- <name>:
---     push rbp
---     mov rbp, rsp
---     sub rsp, <frame_size>
---     ...
--- .L.function_end_<name>:
---     mov rsp, rbp
---     pop rbp
---     ret
 emitFunction :: StructMap -> Function -> [String]
 emitFunction = emitFunctionGen Nothing
 
@@ -172,7 +162,7 @@ emitFunctionLib externs structMap = emitFunctionGen (Just externs) structMap
 
 emitFunctionGen :: Maybe [Extern] -> StructMap -> Function -> [String]
 emitFunctionGen mbExterns structMap fn@(IRFunction name params _ body _) =
-  let (stackMap, frameSize) = calculateStackMapWithStructs structMap fn
+  let (stackMap, frameSize) = calculateStackMap structMap fn
       endLabel = ".L.function_end_" <> name
       prologue = emitFunctionPrologueGen mbExterns fn frameSize
       paramSetup = emitParameters params stackMap
@@ -260,11 +250,11 @@ emitInstructionGen mbExterns _ sm _ _ (IRCALL dest funcName args mbType) = emitC
 emitInstructionGen _ _ sm endLbl _ (IRRET mbOp) = emitRet sm endLbl mbOp
 emitInstructionGen _ _ sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
 emitInstructionGen _ _ sm _ _ (IRLOAD_OFFSET dest ptr offset typ) = emitLoadOffset sm dest ptr offset typ
-emitInstructionGen _ _ sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray sm fn dest elemType values
-emitInstructionGen _ _ sm _ _ (IRGET_ELEM dest targetOp indexOp elemType) = emitGetElem sm dest targetOp indexOp elemType
-emitInstructionGen _ _ sm _ _ (IRSET_ELEM targetOp indexOp valueOp) = emitSetElem sm targetOp indexOp valueOp
-emitInstructionGen _ _ sm _ _ (IRINC op) = emitIncDec sm op "add"
-emitInstructionGen _ _ sm _ _ (IRDEC op) = emitIncDec sm op "sub"
+emitInstructionGen _ structs sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray structs sm fn dest elemType values
+emitInstructionGen _ structs sm _ _ (IRGET_ELEM dest targetOp indexOp elemType) = emitGetElem structs sm dest targetOp indexOp elemType
+emitInstructionGen _ structs sm _ _ (IRSET_ELEM targetOp indexOp valueOp) = emitSetElem structs sm targetOp indexOp valueOp
+emitInstructionGen _ structs sm _ _ (IRINC op) = emitIncDec structs sm op "add"
+emitInstructionGen _ structs sm _ _ (IRDEC op) = emitIncDec structs sm op "sub"
 emitInstructionGen _ _ sm _ _ (IRADDR dest source typ) = emitAddr sm dest source typ
 emitInstructionGen _ _ sm _ _ (IRADD_OP dest l r t) = emitBinaryOp sm dest "add" l r t
 emitInstructionGen _ _ sm _ _ (IRSUB_OP dest l r t) = emitBinaryOp sm dest "sub" l r t
@@ -454,8 +444,8 @@ emitLoadOffset sm dest ptr offset typ =
       , storeReg sm dest "rax" typ
       ]
 
-emitAllocArray :: Map String Int -> String -> String -> IRType -> [IROperand] -> [String]
-emitAllocArray sm fnName dest elemType values =
+emitAllocArray :: StructMap -> Map String Int -> String -> String -> IRType -> [IROperand] -> [String]
+emitAllocArray structs sm fnName dest elemType values =
   let litLabel = fnName <> "_" <> dest <> "_lit"
       withSentinelLen = length values + 1
       arrType = IRArray elemType withSentinelLen
@@ -466,12 +456,12 @@ emitAllocArray sm fnName dest elemType values =
           [ emit 1 $ "mov rax, " <> litLabel
           , storeReg sm dest "rax" (IRPtr arrType)
           ]
-      | otherwise = emitAllocArrayOnStack sm dest elemType values arrType
+      | otherwise = emitAllocArrayOnStack structs sm dest elemType values arrType
 
-emitAllocArrayOnStack :: Map String Int -> String -> IRType -> [IROperand] -> IRType -> [String]
-emitAllocArrayOnStack sm dest elemType values arrType =
+emitAllocArrayOnStack :: StructMap -> Map String Int -> String -> IRType -> [IROperand] -> IRType -> [String]
+emitAllocArrayOnStack structs sm dest elemType values arrType =
   let dataName = dest <> "_data"
-      elemSize = sizeOfIRType elemType
+      elemSize = sizeOfIRType structs elemType
       baseOffset =
         case Map.lookup dataName sm of
           Just off -> off
@@ -489,19 +479,19 @@ emitAllocArrayOnStack sm dest elemType values arrType =
         ]
    in pointerSetup <> concatMap storeValue (zip [0 ..] values) <> sentinel
 
-emitGetElem :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
-emitGetElem sm dest targetOp indexOp elemType =
+emitGetElem :: StructMap -> Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
+emitGetElem structs sm dest targetOp indexOp elemType =
   let sizeSpec = getSizeSpecifier elemType
       reg = getRegisterName "rax" elemType
    in loadReg sm "rdi" targetOp
         <> loadRegWithExt sm ("rsi", indexOp)
-        <> [ emit 1 $ "imul rsi, " <> show (sizeOfIRType elemType)
+        <> [ emit 1 $ "imul rsi, " <> show (sizeOfIRType structs elemType)
            , emit 1 $ "mov " <> reg <> ", " <> sizeSpec <> " [rdi + rsi]"
            , storeReg sm dest "rax" elemType
            ]
 
-emitSetElem :: Map String Int -> IROperand -> IROperand -> IROperand -> [String]
-emitSetElem sm targetOp indexOp valueOp =
+emitSetElem :: StructMap -> Map String Int -> IROperand -> IROperand -> IROperand -> [String]
+emitSetElem structs sm targetOp indexOp valueOp =
   let elemType =
         case (getOperandType valueOp, getOperandType targetOp) of
           (Just t, _) -> t
@@ -511,24 +501,24 @@ emitSetElem sm targetOp indexOp valueOp =
       reg = getRegisterName "rax" elemType
    in loadReg sm "rdi" targetOp
         <> loadRegWithExt sm ("rsi", indexOp)
-        <> [ emit 1 $ "imul rsi, " <> show (sizeOfIRType elemType)
+        <> [ emit 1 $ "imul rsi, " <> show (sizeOfIRType structs elemType)
            ]
         <> loadReg sm "rax" valueOp
         <> [ emit 1 $ "mov " <> sizeSpec <> " [rdi + rsi], " <> reg ]
 
 -- | emit INC/DEC on pointer or numeric operand
-emitIncDec :: Map String Int -> IROperand -> String -> [String]
-emitIncDec sm (IRTemp name t) asmOp = emitIncDecHelper sm name t asmOp
-emitIncDec sm (IRParam name t) asmOp = emitIncDecHelper sm name t asmOp
-emitIncDec _ op _ = [emit 1 $ "; TODO: " <> show op <> " on non-temp/pointer"]
+emitIncDec :: StructMap -> Map String Int -> IROperand -> String -> [String]
+emitIncDec structs sm (IRTemp name t) asmOp = emitIncDecHelper structs sm name t asmOp
+emitIncDec structs sm (IRParam name t) asmOp = emitIncDecHelper structs sm name t asmOp
+emitIncDec _ _ op _ = [emit 1 $ "; TODO: " <> show op <> " on non-temp/pointer"]
 
-emitIncDecHelper :: Map String Int -> String -> IRType -> String -> [String]
-emitIncDecHelper sm name t asmOp =
+emitIncDecHelper :: StructMap -> Map String Int -> String -> IRType -> String -> [String]
+emitIncDecHelper structs sm name t asmOp =
   let sizeSpec = getSizeSpecifier t
       step =
         case t of
-          IRPtr (IRArray inner _) -> sizeOfIRType inner
-          IRPtr inner -> sizeOfIRType inner
+          IRPtr (IRArray inner _) -> sizeOfIRType structs inner
+          IRPtr inner -> sizeOfIRType structs inner
           _ -> 1
    in [emit 1 $ asmOp <> " " <> sizeSpec <> " " <> stackAddr sm name <> ", " <> show step]
 
@@ -562,12 +552,12 @@ emitIntCmpJump sm op1 op2 jumpInstr lbl =
   let typ1 = fromMaybe IRI64 $ getOperandType op1
       typ2 = fromMaybe IRI64 $ getOperandType op2
       -- Use the larger type for comparison to avoid mixing register sizes
-      cmpType = if sizeOfIRType typ1 >= sizeOfIRType typ2 then typ1 else typ2
+      cmpType = if sizeOfIRType Map.empty typ1 >= sizeOfIRType Map.empty typ2 then typ1 else typ2
       reg1 = getRegisterName "rax" cmpType
   in loadRegWithExt sm ("rax", op1)
      <> case op2 of
           IRConstInt 0 -> [emit 1 $ "test " <> reg1 <> ", " <> reg1]
-          IRConstInt n | n >= -2147483648 && n <= 2147483647 && sizeOfIRType cmpType > 1 ->
+          IRConstInt n | n >= -2147483648 && n <= 2147483647 && sizeOfIRType Map.empty cmpType > 1 ->
             [emit 1 $ "cmp " <> reg1 <> ", " <> show n]
           _ -> loadRegWithExt sm ("rbx", op2)
                <> [emit 1 $ "cmp " <> reg1 <> ", " <> getRegisterName "rbx" cmpType]
@@ -620,9 +610,9 @@ isStaticOperand IRConstNull     = True
 isStaticOperand (IRGlobal _ _)  = True
 isStaticOperand _               = False
 
-getDataDirective :: IRType -> String
-getDataDirective t =
-  case sizeOfIRType t of
+getDataDirective :: StructMap -> IRType -> String
+getDataDirective structs t =
+  case sizeOfIRType structs t of
     1 -> "db"
     2 -> "dw"
     4 -> "dd"
@@ -706,7 +696,7 @@ emitIntToFloat sm dest src fromT toT =
         IRI64 -> loadReg sm "rax" src
         IRU8  -> loadReg sm "rax" src <> [emit 1 "movzx eax, al"]
         IRU16 -> loadReg sm "rax" src <> [emit 1 "movzx eax, ax"]
-        IRU32 -> loadReg sm "rax" src <> [emit 1 "mov eax, eax"]  -- zero-extend to 64-bit
+        IRU32 -> loadReg sm "rax" src <> [emit 1 "mov eax, eax"]
         IRU64 -> loadReg sm "rax" src
         _     -> loadReg sm "rax" src
       convert = case toT of
@@ -746,8 +736,8 @@ emitFloatToFloat sm dest src fromT toT =
 -- | Integer to integer conversion (extension or truncation)
 emitIntToInt :: Map String Int -> String -> IROperand -> IRType -> IRType -> [String]
 emitIntToInt sm dest src fromT toT =
-  let srcSize = sizeOfIRType fromT
-      dstSize = sizeOfIRType toT
+  let srcSize = sizeOfIRType Map.empty fromT
+      dstSize = sizeOfIRType Map.empty toT
       loadSrc = loadReg sm "rax" src
       convert
         -- Truncation: just store smaller portion
@@ -762,7 +752,7 @@ emitIntToInt sm dest src fromT toT =
         | otherwise = case fromT of
             IRU8  -> [emit 1 "movzx rax, al"]
             IRU16 -> [emit 1 "movzx rax, ax"]
-            IRU32 -> [emit 1 "mov eax, eax"]  -- clears upper 32 bits
+            IRU32 -> [emit 1 "mov eax, eax"]
             IRChar -> [emit 1 "movzx rax, al"]
             IRBool -> [emit 1 "movzx rax, al"]
             _     -> []
