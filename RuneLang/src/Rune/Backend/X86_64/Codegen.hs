@@ -272,6 +272,7 @@ emitInstructionGen _ sm _ _ (IRCMP_LT dest l r) = emitCompare sm dest Cmp.CmpLT 
 emitInstructionGen _ sm _ _ (IRCMP_LTE dest l r) = emitCompare sm dest Cmp.CmpLTE l r
 emitInstructionGen _ sm _ _ (IRCMP_GT dest l r) = emitCompare sm dest Cmp.CmpGT l r
 emitInstructionGen _ sm _ _ (IRCMP_GTE dest l r) = emitCompare sm dest Cmp.CmpGTE l r
+emitInstructionGen _ sm _ _ (IRCAST dest src fromT toT) = emitCast sm dest src fromT toT
 emitInstructionGen _ _ _ _ instr = [emit 1 $ "; TODO: " <> show instr]
 
 -- | emit dest = op
@@ -549,15 +550,16 @@ emitIntCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -
 emitIntCmpJump sm op1 op2 jumpInstr lbl =
   let typ1 = fromMaybe IRI64 $ getOperandType op1
       typ2 = fromMaybe IRI64 $ getOperandType op2
-      regSize = getSizeSpecifier typ1
-      reg1 = getRegisterName "rax" typ1
+      -- Use the larger type for comparison to avoid mixing register sizes
+      cmpType = if sizeOfIRType typ1 >= sizeOfIRType typ2 then typ1 else typ2
+      reg1 = getRegisterName "rax" cmpType
   in loadRegWithExt sm ("rax", op1)
      <> case op2 of
           IRConstInt 0 -> [emit 1 $ "test " <> reg1 <> ", " <> reg1]
-          IRConstInt n | n >= -2147483648 && n <= 2147483647 && regSize /= "byte" ->
+          IRConstInt n | n >= -2147483648 && n <= 2147483647 && sizeOfIRType cmpType > 1 ->
             [emit 1 $ "cmp " <> reg1 <> ", " <> show n]
           _ -> loadRegWithExt sm ("rbx", op2)
-               <> [emit 1 $ "cmp " <> reg1 <> ", " <> getRegisterName "rbx" typ2]
+               <> [emit 1 $ "cmp " <> reg1 <> ", " <> getRegisterName "rbx" cmpType]
      <> [emit 1 $ jumpInstr <> " " <> lbl]
 
 emitFloatCmpJump :: Map String Int -> IROperand -> IROperand -> String -> String -> [String]
@@ -623,6 +625,137 @@ showStaticOperand _ (IRConstBool b) = if b then "1" else "0"
 showStaticOperand _ IRConstNull     = "0"
 showStaticOperand _ (IRGlobal n _)  = n
 showStaticOperand _ _               = "0"
+
+-- | Emit type cast instruction
+-- Handles conversions between integer types, float types, and int<->float
+emitCast :: Map String Int -> String -> IROperand -> IRType -> IRType -> [String]
+emitCast sm dest src fromT toT
+  -- Same type, just move
+  | fromT == toT = loadReg sm "rax" src <> [storeReg sm dest "rax" toT]
+  -- Pointer to pointer (reinterpret cast)
+  | isPointerType fromT && isPointerType toT =
+      loadReg sm "rax" src <> [storeReg sm dest "rax" toT]
+  -- Integer to float
+  | isIntegerType fromT && isFloatType toT =
+      emitIntToFloat sm dest src fromT toT
+  -- Float to integer
+  | isFloatType fromT && isIntegerType toT =
+      emitFloatToInt sm dest src fromT toT
+  -- Float to float (f32 <-> f64)
+  | isFloatType fromT && isFloatType toT =
+      emitFloatToFloat sm dest src fromT toT
+  -- Integer to integer (sign/zero extension or truncation)
+  | isIntegerType fromT && isIntegerType toT =
+      emitIntToInt sm dest src fromT toT
+  -- Pointer to integer
+  | isPointerType fromT && isIntegerType toT =
+      loadReg sm "rax" src <> [storeReg sm dest "rax" toT]
+  -- Integer to pointer
+  | isIntegerType fromT && isPointerType toT =
+      loadReg sm "rax" src <> [storeReg sm dest "rax" toT]
+  -- Fallback
+  | otherwise =
+      [ emit 1 $ "; WARNING: unsupported cast from " <> show fromT <> " to " <> show toT ]
+      <> loadReg sm "rax" src <> [storeReg sm dest "rax" toT]
+
+-- | Check if type is an integer type
+isIntegerType :: IRType -> Bool
+isIntegerType IRI8  = True
+isIntegerType IRI16 = True
+isIntegerType IRI32 = True
+isIntegerType IRI64 = True
+isIntegerType IRU8  = True
+isIntegerType IRU16 = True
+isIntegerType IRU32 = True
+isIntegerType IRU64 = True
+isIntegerType IRChar = True
+isIntegerType IRBool = True
+isIntegerType _     = False
+
+-- | Check if type is a pointer type
+isPointerType :: IRType -> Bool
+isPointerType (IRPtr _) = True
+isPointerType _         = False
+
+-- | Check if type is signed integer
+isSignedInt :: IRType -> Bool
+isSignedInt IRI8  = True
+isSignedInt IRI16 = True
+isSignedInt IRI32 = True
+isSignedInt IRI64 = True
+isSignedInt _     = False
+
+-- | Integer to float conversion
+emitIntToFloat :: Map String Int -> String -> IROperand -> IRType -> IRType -> [String]
+emitIntToFloat sm dest src fromT toT =
+  let loadSrc = case fromT of
+        IRI8  -> loadReg sm "rax" src <> [emit 1 "movsx eax, al"]
+        IRI16 -> loadReg sm "rax" src <> [emit 1 "movsx eax, ax"]
+        IRI32 -> loadReg sm "rax" src
+        IRI64 -> loadReg sm "rax" src
+        IRU8  -> loadReg sm "rax" src <> [emit 1 "movzx eax, al"]
+        IRU16 -> loadReg sm "rax" src <> [emit 1 "movzx eax, ax"]
+        IRU32 -> loadReg sm "rax" src <> [emit 1 "mov eax, eax"]  -- zero-extend to 64-bit
+        IRU64 -> loadReg sm "rax" src
+        _     -> loadReg sm "rax" src
+      convert = case toT of
+        IRF32 -> [emit 1 "cvtsi2ss xmm0, rax"]
+        IRF64 -> [emit 1 "cvtsi2sd xmm0, rax"]
+        _     -> []
+      storeDst = case toT of
+        IRF32 -> [emit 1 $ "movss dword " <> stackAddr sm dest <> ", xmm0"]
+        IRF64 -> [emit 1 $ "movsd qword " <> stackAddr sm dest <> ", xmm0"]
+        _     -> []
+   in loadSrc <> convert <> storeDst
+
+-- | Float to integer conversion (truncation)
+emitFloatToInt :: Map String Int -> String -> IROperand -> IRType -> IRType -> [String]
+emitFloatToInt sm dest src fromT toT =
+  let loadSrc = loadFloatOperand sm "xmm0" src fromT
+      convert = case fromT of
+        IRF32 -> [emit 1 "cvttss2si rax, xmm0"]
+        IRF64 -> [emit 1 "cvttsd2si rax, xmm0"]
+        _     -> []
+   in loadSrc <> convert <> [storeReg sm dest "rax" toT]
+
+-- | Float to float conversion (f32 <-> f64)
+emitFloatToFloat :: Map String Int -> String -> IROperand -> IRType -> IRType -> [String]
+emitFloatToFloat sm dest src fromT toT =
+  let loadSrc = loadFloatOperand sm "xmm0" src fromT
+      convert = case (fromT, toT) of
+        (IRF32, IRF64) -> [emit 1 "cvtss2sd xmm0, xmm0"]
+        (IRF64, IRF32) -> [emit 1 "cvtsd2ss xmm0, xmm0"]
+        _              -> []
+      storeDst = case toT of
+        IRF32 -> [emit 1 $ "movss dword " <> stackAddr sm dest <> ", xmm0"]
+        IRF64 -> [emit 1 $ "movsd qword " <> stackAddr sm dest <> ", xmm0"]
+        _     -> []
+   in loadSrc <> convert <> storeDst
+
+-- | Integer to integer conversion (extension or truncation)
+emitIntToInt :: Map String Int -> String -> IROperand -> IRType -> IRType -> [String]
+emitIntToInt sm dest src fromT toT =
+  let srcSize = sizeOfIRType fromT
+      dstSize = sizeOfIRType toT
+      loadSrc = loadReg sm "rax" src
+      convert
+        -- Truncation: just store smaller portion
+        | dstSize < srcSize = []
+        -- Sign extension
+        | isSignedInt fromT = case fromT of
+            IRI8  -> [emit 1 "movsx rax, al"]
+            IRI16 -> [emit 1 "movsx rax, ax"]
+            IRI32 -> [emit 1 "movsxd rax, eax"]
+            _     -> []
+        -- Zero extension
+        | otherwise = case fromT of
+            IRU8  -> [emit 1 "movzx rax, al"]
+            IRU16 -> [emit 1 "movzx rax, ax"]
+            IRU32 -> [emit 1 "mov eax, eax"]  -- clears upper 32 bits
+            IRChar -> [emit 1 "movzx rax, al"]
+            IRBool -> [emit 1 "movzx rax, al"]
+            _     -> []
+   in loadSrc <> convert <> [storeReg sm dest "rax" toT]
 
 commaSep :: [String] -> String
 commaSep [] = ""

@@ -63,7 +63,7 @@ testGenerateIR = testGroup "generateIR"
                 [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "external_func") [])) ]
                 False
             ]
-          fs = HM.singleton "external_func" [(TypeNull, [])]
+          fs = HM.singleton "external_func" (TypeNull, [])
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -101,7 +101,7 @@ testGenerateIR = testGroup "generateIR"
                 [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "ext1") [])) ]
                 False
             ]
-          fs = HM.singleton "ext1" [(TypeNull, [])]
+          fs = HM.singleton "ext1" (TypeNull, [])
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -146,7 +146,7 @@ testGenerateIR = testGroup "generateIR"
                 [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "callee") []) ]
                 False
             ]
-          fs = HM.singleton "callee" [(TypeNull, [])]
+          fs = HM.singleton "callee" (TypeNull, [])
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -162,7 +162,7 @@ testGenerateIR = testGroup "generateIR"
                 ]
                 False
             ]
-          fs = HM.fromList [("ext1", [(TypeNull, [])]), ("ext2", [(TypeNull, [])])]
+          fs = HM.fromList [("ext1", (TypeNull, [])), ("ext2", (TypeNull, []))]
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -186,7 +186,7 @@ testInitialState = testGroup "initialState"
         gsFuncStack state @?= fs
 
   , testCase "Preserves funcStack in initial state" $
-      let fs = HM.singleton "test" [(TypeI32, [])]
+      let fs = HM.singleton "test" (TypeI32, [])
           state = initialState fs
       in gsFuncStack state @?= fs
   ]

@@ -63,8 +63,7 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
     addSig fs (FunctionSignature name paramTypes rType _isOverride) =
       let sig = (rType, paramTypes)
-          mangledName = mangleFuncName name rType paramTypes
-      in Right $ HM.insertWith (\_ old -> old) mangledName sig fs
+      in Right $ HM.insertWith (\_ old -> old) name sig fs
 
 -- | find struct method definitions
 findDefs s (DefStruct name _ methods) =

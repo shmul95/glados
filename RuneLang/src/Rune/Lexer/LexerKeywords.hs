@@ -30,6 +30,7 @@ keywordMap =
     (KwStop, "stop"),
     (KwSomewhere, "somewhere"),
     (KwExport, "export"),
+    (KwAs, "as"),
     (OpAnd, "and"),
     (OpOr, "or"),
     (OpNot, "not")

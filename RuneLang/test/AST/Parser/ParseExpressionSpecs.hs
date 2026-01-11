@@ -142,7 +142,7 @@ postfixTests = testGroup "Postfix Tests"
   , testCase "Call with error propagation" $
       assertParse "f()?"
         [tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpErrorProp]
-        (ExprUnary (SourcePos "test" 1 1) PropagateError (ExprCall (SourcePos "test" 1 1) "f" []))
+        (ExprUnary (SourcePos "test" 1 1) PropagateError (ExprCall (SourcePos "test" 1 1) (ExprVar (SourcePos "test" 1 1) "f") []))
   ]
 
 structInitTests :: TestTree

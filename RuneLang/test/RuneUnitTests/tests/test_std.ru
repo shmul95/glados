@@ -4,6 +4,8 @@ somewhere
     def test_compare() -> null;
     def test_contains() -> null;
     def test_memory() -> null;
+
+    def test_file() -> null;
 }
 
 /**
@@ -16,4 +18,6 @@ export def test_std() -> null
     test_compare();
     test_contains();
     test_memory();
+
+    test_file();
 }

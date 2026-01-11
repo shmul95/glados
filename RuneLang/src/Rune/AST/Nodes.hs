@@ -69,7 +69,7 @@ instance Show Type where
   show  TypeNull      = "null"
   show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
-  show (TypePtr t)    = "*" <> show t
+  show (TypePtr t)    = "ptr_" <> show t
 
 data BinaryOp
   = Add

@@ -169,6 +169,7 @@ getOperands (IRINC o) = [o]
 getOperands (IRDEC o) = [o]
 getOperands (IRJUMP_TEST_NZ o1 o2 _) = [o1, o2]
 getOperands (IRJUMP_TEST_Z o1 o2 _) = [o1, o2]
+getOperands (IRCAST _ o _ _) = [o]
 getOperands _ = []
 
 -- Dead code elimination
@@ -293,15 +294,18 @@ optimizeBlock (inst : rest) = do
   optimizeInstr inst' rest
 
 optimizeInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
+
 -- remember assignment for later; remove if safe
 optimizeInstr inst@(IRASSIGN target op _) rest =
   modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
   >> gets osKeepAssignments
   >>= \keep -> if keep then emitInstr inst rest else optimizeBlock rest
+
 -- reset remembered values at labels
 optimizeInstr inst@(IRLABEL _) rest =
   modify' (\s -> s { osConsts = M.empty })
   >> emitInstr inst rest
+
 -- inline small/simple function calls
 optimizeInstr (IRCALL target fun args retType) rest =
   gets osFuncs >>= maybe (emitInstr simpleCall rest) tryInline . M.lookup fun
@@ -489,6 +493,7 @@ simplifyInstr (IRBAND_OP t o1 o2 ty) = IRBAND_OP t <$> simplifyOp o1 <*> simplif
 simplifyInstr (IRSHR_OP t o1 o2 ty) = IRSHR_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
 simplifyInstr (IRSHL_OP t o1 o2 ty) = IRSHL_OP t <$> simplifyOp o1 <*> simplifyOp o2 <*> pure ty
 simplifyInstr (IRLOAD_OFFSET t ptr offset ty) = IRLOAD_OFFSET t <$> simplifyOp ptr <*> simplifyOp offset <*> pure ty
+simplifyInstr (IRCAST t o fromTy toTy) = IRCAST t <$> simplifyOp o <*> pure fromTy <*> pure toTy
 simplifyInstr other = pure other
 
 simplifyOp :: IROperand -> OptM IROperand
@@ -542,6 +547,7 @@ renameInstr pre (IRADDR t s ty) = IRADDR (pre <> t) (pre <> s) ty
 renameInstr pre (IRINC o) = IRINC (renameOp pre o)
 renameInstr pre (IRDEC o) = IRDEC (renameOp pre o)
 renameInstr pre (IRASSIGN t o ty) = IRASSIGN (pre <> t) (renameOp pre o) ty
+renameInstr pre (IRCAST t o fromTy toTy) = IRCAST (pre <> t) (renameOp pre o) fromTy toTy
 
 renameOp :: String -> IROperand -> IROperand
 renameOp pre (IRTemp t ty) = IRTemp (pre <> t) ty

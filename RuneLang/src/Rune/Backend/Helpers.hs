@@ -114,6 +114,7 @@ collectVars acc (IROR_OP n _ _ t) = Map.insert n t acc
 collectVars acc (IRCALL n _ _ (Just t)) = Map.insert n t acc
 collectVars acc (IRCALL n _ _ Nothing) | not (null n) = Map.insert n IRI64 acc
 collectVars acc (IRADDR n _ t) = Map.insert n t acc
+collectVars acc (IRCAST n _ _ t) = Map.insert n t acc
 collectVars acc (IRINC _) = acc
 collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
