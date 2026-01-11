@@ -4,13 +4,14 @@
 module Rune.IR.Generator.Expression.Struct
   ( genStructInit,
     genAccess,
+    genAccessAssign,
     resolveStructPtr,
     lookupFieldType,
     genInitField
   )
 where
 #else
-module Rune.IR.Generator.Expression.Struct (genStructInit, genAccess) where
+module Rune.IR.Generator.Expression.Struct (genStructInit, genAccess, genAccessAssign) where
 #endif
 
 import Control.Monad.State (gets)
@@ -83,3 +84,15 @@ genInitField genExpr sName resName sType (fName, fExpr) = do
   let addrInstr = IRADDR ptrName resName (IRPtr sType)
       setInstr = IRSET_FIELD (IRTemp ptrName (IRPtr sType)) sName fName valOp
   pure $ valInstrs ++ [addrInstr, setInstr]
+
+-- | generate IR instructions for assigning to a struct field
+-- SET_FIELD ptr, "Type", "field", value
+genAccessAssign :: GenExprCallback -> Expression -> String -> Expression -> IRGen [IRInstruction]
+genAccessAssign genExpr target field value = do
+  (tInstrs, tOp, tType) <- genExpr target
+  (vInstrs, vOp, _) <- genExpr value
+
+  (structName, ptrOp, setupInstrs) <- resolveStructPtr tOp tType
+
+  let setInstr = IRSET_FIELD ptrOp structName field vOp
+  return (tInstrs ++ setupInstrs ++ vInstrs ++ [setInstr])
