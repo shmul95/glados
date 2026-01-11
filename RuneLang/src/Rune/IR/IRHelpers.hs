@@ -124,6 +124,7 @@ irTypeToASTType (IRPtr t) = TypePtr (irTypeToASTType t)
 
 getDefaultValue :: IRType -> IROperand
 getDefaultValue (IRPtr _) = IRConstNull
+getDefaultValue (IRStruct _) = IRConstNull
 getDefaultValue IRNull = IRConstNull
 getDefaultValue IRBool = IRConstBool False
 getDefaultValue IRChar = IRConstChar '\0'
