@@ -66,8 +66,9 @@ def test_sizeof_immediate() -> null
     assert(sizeof true == 1, "Sizeof: immediate bool");
     assert(sizeof null == 8, "Sizeof: immediate null");
     assert(sizeof "rune" == 8, "Sizeof: immediate string literal");
-    assert(sizeof [1, 2, 3] == 8, "Sizeof: immediate array literal");
-    assert(sizeof ["a", "b"] == 8, "Sizeof: immediate string array literal");
+    assert(sizeof [1, 2, 3] == 4 * 3, "Sizeof: immediate array literal");
+    assert(sizeof ["a", "b"] == 8 * 2, "Sizeof: immediate string array literal");
+    assert(sizeof ['a', 'b'] == 1 * 2, "Sizeof: immediate char array literal");
     assert(sizeof (10: i32 + 5: i32) == 4, "Sizeof: immediate expression i32");
     assert(sizeof (10: i64 * 2: i64) == 8, "Sizeof: immediate expression i64");
 }
