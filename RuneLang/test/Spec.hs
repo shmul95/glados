@@ -29,6 +29,7 @@ import Semantics.VarsSpecs (varsSemanticsTests)
 import Semantics.OpTypeSpecs (opTypeSemanticsTests)
 import Semantics.HelperSpecs (helperSemanticsTests)
 import Semantics.FuncSpecs (funcSemanticsTests)
+import Semantics.StructSpecs (structSemanticsTests)
 import Semantics.GenericSpecs (genericSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
@@ -58,6 +59,7 @@ import Backend.X86_64.CompareSpecs (compareTests)
 import Backend.X86_64.CodegenSpecs (codegenTests)
 import Backend.X86_64.LoadStoreSpecs (loadStoreTests)
 import Backend.X86_64.OperationsSpecs (operationsTests)
+import Backend.X86_64.StructSpecs (structTests)
 
 --
 -- public
@@ -125,6 +127,7 @@ semanticsSpecs =
     , opTypeSemanticsTests
     , helperSemanticsTests
     , funcSemanticsTests
+    , structSemanticsTests
     , genericSemanticsTests
     ]
 
@@ -164,4 +167,5 @@ backendSpecs =
     , codegenTests
     , loadStoreTests
     , operationsTests
+    , structTests
     ]

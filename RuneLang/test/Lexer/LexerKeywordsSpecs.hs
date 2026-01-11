@@ -20,6 +20,7 @@ lexerKeywordsTests =
     , test_kw_logical
     , test_kw_somewhere_export
     , test_kw_reserved_check
+    , test_kw_sizeof
     ]
 
 --
@@ -60,3 +61,8 @@ test_kw_reserved_check :: TestTree
 test_kw_reserved_check = testCase "Keyword reserved check (defX should be ID)" $
   lexTest "defX struct_new"
     [ tok (Identifier "defX") "defX" 1 1, tok (Identifier "struct_new") "struct_new" 1 6, tok EOF "" 1 16 ]
+
+test_kw_sizeof :: TestTree
+test_kw_sizeof = testCase "Kw Sizeof" $
+  lexTest "sizeof"
+    [ tok KwSizeof "sizeof" 1 1, tok EOF "" 1 7 ]

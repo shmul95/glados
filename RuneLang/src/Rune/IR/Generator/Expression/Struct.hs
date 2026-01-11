@@ -4,20 +4,21 @@
 module Rune.IR.Generator.Expression.Struct
   ( genStructInit,
     genAccess,
+    genAccessAssign,
     resolveStructPtr,
     lookupFieldType,
     genInitField
   )
 where
 #else
-module Rune.IR.Generator.Expression.Struct (genStructInit, genAccess) where
+module Rune.IR.Generator.Expression.Struct (genStructInit, genAccess, genAccessAssign) where
 #endif
 
 import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
 import qualified Data.Map.Strict as Map
 import Rune.AST.Nodes (Expression)
-import Rune.IR.IRHelpers (newTemp)
+import Rune.IR.IRHelpers (newTemp, getDefaultValue)
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -45,15 +46,53 @@ genAccess genExpr target field = do
   return (tInstrs ++ setupInstrs ++ [getInstr], IRTemp resTemp fieldType, fieldType)
 
 -- | generate IR instructions for initializing a struct
--- ALLOC var_name: "Type"
+-- ALLOC var_name: "Type" & initialize fields
 genStructInit :: GenExprCallback -> String -> [(String, Expression)] -> IRGen ([IRInstruction], IROperand, IRType)
-genStructInit genExpr name fields = do
-  let structType = IRStruct name
+genStructInit genExpr name providedFields = do
   resName <- newTemp "struct" structType
   let allocInstr = IRALLOC resName structType
 
-  fieldInstrs <- concat <$> mapM (genInitField genExpr name resName structType) fields
-  return (allocInstr : fieldInstrs, IRTemp resName structType, structType)
+  -- get all struct fields from the struct definition
+  structs <- gets gsStructs
+  allFields <- case Map.lookup name structs of
+    Just fields -> pure fields
+    Nothing -> throwError $ "Struct '" ++ name ++ "' is not defined"
+
+  -- generate initialization for provided fields
+  fieldInstrs <- concat <$> mapM (genInitField genExpr name resName structType) providedFields
+
+  -- generate default initialization for missing fields
+  let providedNames = providedFieldNames providedFields
+      missing = missingFields allFields providedNames
+  defaultInstrs <- concat <$> mapM (genDefaultField name resName structType) missing
+
+  return (allocInstr : fieldInstrs ++ defaultInstrs, IRTemp resName structType, structType)
+
+  where
+    structType :: IRType
+    structType = IRStruct name
+
+    providedFieldNames :: [(String, Expression)] -> [String]
+    providedFieldNames = map fst
+
+    missingFields :: [(String, IRType)] -> [String] -> [(String, IRType)]
+    missingFields allFs provided = filter (\(fName, _) -> fName `notElem` provided) allFs
+
+-- | generate default value initialization for a struct field
+genDefaultField :: String -> String -> IRType -> (String, IRType) -> IRGen [IRInstruction]
+genDefaultField sName resName sType (fName, fType) = do
+  ptrName <- newTemp "p_init" (IRPtr sType)
+  let addrInstr    = addrInstrOf ptrName
+      defaultVal   = getDefaultValue fType
+      setInstr     = setInstrOf ptrName defaultVal
+  pure [addrInstr, setInstr]
+  where
+    addrInstrOf :: String -> IRInstruction
+    addrInstrOf ptr = IRADDR ptr resName (IRPtr sType)
+
+    setInstrOf :: String -> IROperand -> IRInstruction
+    setInstrOf ptr = IRSET_FIELD (IRTemp ptr (IRPtr sType)) sName fName
+
 
 --
 -- private
@@ -83,3 +122,15 @@ genInitField genExpr sName resName sType (fName, fExpr) = do
   let addrInstr = IRADDR ptrName resName (IRPtr sType)
       setInstr = IRSET_FIELD (IRTemp ptrName (IRPtr sType)) sName fName valOp
   pure $ valInstrs ++ [addrInstr, setInstr]
+
+-- | generate IR instructions for assigning to a struct field
+-- SET_FIELD ptr, "Type", "field", value
+genAccessAssign :: GenExprCallback -> Expression -> String -> Expression -> IRGen [IRInstruction]
+genAccessAssign genExpr target field value = do
+  (tInstrs, tOp, tType) <- genExpr target
+  (vInstrs, vOp, _) <- genExpr value
+
+  (structName, ptrOp, setupInstrs) <- resolveStructPtr tOp tType
+
+  let setInstr = IRSET_FIELD ptrOp structName field vOp
+  return (tInstrs ++ setupInstrs ++ vInstrs ++ [setInstr])

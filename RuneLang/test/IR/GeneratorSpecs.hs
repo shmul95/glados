@@ -10,7 +10,7 @@ import TestHelpers (dummyPos)
 import qualified Data.Set as Set
 import Rune.IR.Generator (generateIR, initialState, getDefinedFuncName)
 import Rune.IR.Nodes (IRProgram(..), IRTopLevel(..), IRFunction(..), IRType(..), IRInstruction(..), GenState(..), IRGlobalValue(..))
-import Rune.AST.Nodes (Program(..), TopLevelDef(..), Type(..), Statement(..), Expression(..), Field(..), Parameter(..))
+import Rune.AST.Nodes (Program(..), TopLevelDef(..), Type(..), Statement(..), Expression(..), Field(..))
 
 --
 -- public
@@ -60,10 +60,10 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Generates program with external function call" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtReturn dummyPos (Just (ExprCall dummyPos "external_func" [])) ]
+                [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "external_func") [])) ]
                 False
             ]
-          fs = HM.singleton "external_func" [(TypeNull, [])]
+          fs = HM.singleton "external_func" (TypeNull, [])
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -98,10 +98,10 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Externs appear before other definitions" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtReturn dummyPos (Just (ExprCall dummyPos "ext1" [])) ]
+                [ StmtReturn dummyPos (Just (ExprCall dummyPos (ExprVar dummyPos "ext1") [])) ]
                 False
             ]
-          fs = HM.singleton "ext1" [(TypeNull, [])]
+          fs = HM.singleton "ext1" (TypeNull, [])
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -143,10 +143,10 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test"
             [ DefFunction "callee" [] TypeNull [] False
             , DefFunction "caller" [] TypeNull 
-                [ StmtExpr dummyPos (ExprCall dummyPos "callee" []) ]
+                [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "callee") []) ]
                 False
             ]
-          fs = HM.singleton "callee" [(TypeNull, [])]
+          fs = HM.singleton "callee" (TypeNull, [])
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
@@ -157,50 +157,18 @@ testGenerateIR = testGroup "generateIR"
   , testCase "Difference between called and defined functions" $
       let prog = Program "test"
             [ DefFunction "caller" [] TypeNull 
-                [ StmtExpr dummyPos (ExprCall dummyPos "ext1" [])
-                , StmtExpr dummyPos (ExprCall dummyPos "ext2" [])
+                [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext1") [])
+                , StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext2") [])
                 ]
                 False
             ]
-          fs = HM.fromList [("ext1", [(TypeNull, [])]), ("ext2", [(TypeNull, [])])]
+          fs = HM.fromList [("ext1", (TypeNull, [])), ("ext2", (TypeNull, []))]
           result = generateIR prog fs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
           let externs = filter isExtern (irProgramDefs irProg)
           length externs @?= 2
-
-  , testCase "Override function generates mangled name" $
-      let prog = Program "test"
-            [ DefOverride "show" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
-            ]
-          fs = HM.empty
-          result = generateIR prog fs
-      in case result of
-        Left err -> fail $ "Unexpected error: " ++ err
-        Right irProg ->
-          case filter isFunctionDef (irProgramDefs irProg) of
-            [IRFunctionDef func] -> irFuncName func @?= "show_Point"
-            _ -> fail "Expected mangled function"
-
-  , testCase "Struct with methods" $
-      let prog = Program "test"
-            [ DefStruct "Vec2" 
-                [Field "x" TypeF32, Field "y" TypeF32]
-                [DefFunction "magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 [] False]
-            ]
-          fs = HM.empty
-          result = generateIR prog fs
-      in case result of
-        Left err -> fail $ "Unexpected error: " ++ err
-        Right irProg -> do
-          let structDefs = filter isStructDef (irProgramDefs irProg)
-          let funcDefs = filter isFunctionDef (irProgramDefs irProg)
-          length structDefs @?= 1
-          length funcDefs @?= 1
-          case funcDefs of
-            [IRFunctionDef func] -> irFuncName func @?= "Vec2_magnitude"
-            _ -> fail "Expected mangled method"
   ]
 
 testInitialState :: TestTree
@@ -218,7 +186,7 @@ testInitialState = testGroup "initialState"
         gsFuncStack state @?= fs
 
   , testCase "Preserves funcStack in initial state" $
-      let fs = HM.singleton "test" [(TypeI32, [])]
+      let fs = HM.singleton "test" (TypeI32, [])
           state = initialState fs
       in gsFuncStack state @?= fs
   ]

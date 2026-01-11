@@ -86,19 +86,19 @@ testGenExpression = testGroup "genExpression"
 
   , testCase "Generates show call" $
       -- Just ensure it doesn't crash and returns some instruction
-      case runGen (genExpression (ExprCall dummyPos "show" [ExprLitInt dummyPos 1])) of
+      case runGen (genExpression (ExprCall dummyPos (ExprVar dummyPos "show") [ExprLitInt dummyPos 1])) of
         Right _ -> return ()
         Left err -> assertBool ("Show call failed: " ++ err) False
 
   , testCase "Generates error call" $
-      case runGen (genExpression (ExprCall dummyPos "error" [ExprLitString dummyPos "msg"])) of
+      case runGen (genExpression (ExprCall dummyPos (ExprVar dummyPos "error") [ExprLitString dummyPos "msg"])) of
         Right (_, _, typ) -> typ @?= IRNull
         Left err -> assertBool ("Error call failed: " ++ err) False
 
   , testCase "Generates function call" $
       -- Mock a function call
       let state = emptyState
-      in case evalState (runExceptT (genExpression (ExprCall dummyPos "foo" []))) state of
+      in case evalState (runExceptT (genExpression (ExprCall dummyPos (ExprVar dummyPos "foo") []))) state of
            Right _ -> return () -- Assuming genCall handles undefined funcs or we'd need to mock it
            Left _ -> return () -- Even if it fails due to missing func, it covers the pattern match.
 
@@ -143,6 +143,34 @@ testGenExpression = testGroup "genExpression"
         case op of
           IRTemp name IRF32 -> assertBool "Cast temp should start with 'cast'" ("cast" `isPrefixOf` name)
           _ -> assertBool ("Expected IRTemp with IRF32, got: " ++ show op) False
+
+  , testCase "Generates sizeof for primitive type" $
+      let (_, op, typ) = runGenUnsafe (genExpression (ExprSizeof dummyPos (Left TypeI32)))
+      in do
+        op @?= IRConstInt 4
+        typ @?= IRU64
+
+  , testCase "Generates sizeof for struct type" $
+      let state = emptyState 
+            { gsStructs = Map.singleton "Point" [("x", IRI32), ("y", IRI32)] }
+          res = evalState (runExceptT (genExpression (ExprSizeof dummyPos (Left (TypeCustom "Point"))))) state
+      in case res of
+           Right (_, op, typ) -> do
+             op @?= IRConstInt 8
+             typ @?= IRU64
+           Left err -> assertBool ("Sizeof struct failed: " ++ err) False
+
+  , testCase "Generates sizeof for expression" $
+      let (_, op, typ) = runGenUnsafe (genExpression (ExprSizeof dummyPos (Right (ExprLitInt dummyPos 42))))
+      in do
+        op @?= IRConstInt 4 -- sizeof(i32)
+        typ @?= IRU64
+
+  , testCase "Generates sizeof for array type" $
+      let (_, op, typ) = runGenUnsafe (genExpression (ExprSizeof dummyPos (Left (TypeArray TypeI32))))
+      in do
+        op @?= IRConstInt 8 -- sizeof(ptr)
+        typ @?= IRU64
   ]
 
 testGenVar :: TestTree

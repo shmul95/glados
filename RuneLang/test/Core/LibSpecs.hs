@@ -1,6 +1,6 @@
 module Core.LibSpecs (libTests) where
 
-import Lib (escapeString, isPrintable, fixpoint)
+import Lib (escapeString, isPrintable, fixpoint, alignTo, align8, alignSize)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertEqual, assertBool, testCase)
 import Data.Char (chr)
@@ -15,7 +15,10 @@ libTests =
     "Lib Tests"
     [ isPrintableTests,
       escapeStringTests,
-      fixpointTests
+      fixpointTests,
+      alignToTests,
+      align8Tests,
+      alignSizeTests
     ]
 
 --
@@ -75,4 +78,48 @@ fixpointTests =
             f x = if x < 5 then x + 1 else x
             result = fixpoint f 0
         in assertEqual "Should be 5" 5 result
+    ]
+
+alignToTests :: TestTree
+alignToTests =
+  testGroup
+    "alignTo Tests"
+    [ testCase "Align 5 to 4 should be 8" $
+        assertEqual "Should be 8" 8 (alignTo 4 5),
+      testCase "Align 16 to 8 should be 16" $
+        assertEqual "Should be 16" 16 (alignTo 8 16),
+      testCase "Align 17 to 8 should be 24" $
+        assertEqual "Should be 24" 24 (alignTo 8 17),
+      testCase "Align 0 to any should be 0" $
+        assertEqual "Should be 0" 0 (alignTo 7 0)
+    ]
+
+align8Tests :: TestTree
+align8Tests =
+  testGroup
+    "align8 Tests"
+    [ testCase "Align 5 to 8 should be 8" $
+        assertEqual "Should be 8" 8 (align8 5),
+      testCase "Align 16 to 8 should be 16" $
+        assertEqual "Should be 16" 16 (align8 16),
+      testCase "Align 17 to 8 should be 24" $
+        assertEqual "Should be 24" 24 (align8 17),
+      testCase "Align 0 to 8 should be 0" $
+        assertEqual "Should be 0" 0 (align8 0)
+    ]
+
+alignSizeTests :: TestTree
+alignSizeTests =
+  testGroup
+    "alignSize Tests"
+    [ testCase "Align size 0 should be 1" $
+        assertEqual "Should be 1" 1 (alignSize 0),
+      testCase "Align size 1 should be 1" $
+        assertEqual "Should be 1" 1 (alignSize 1),
+      testCase "Align size 5 should be 5" $
+        assertEqual "Should be 5" 5 (alignSize 5),
+      testCase "Align size 8 should be 8" $
+        assertEqual "Should be 8" 8 (alignSize 8),
+      testCase "Align size 10 should be 8" $
+        assertEqual "Should be 8" 8 (alignSize 10)
     ]

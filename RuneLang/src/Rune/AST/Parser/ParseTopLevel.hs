@@ -117,6 +117,7 @@ parseStructItem = do
   t<- peek
   case T.tokenKind t of
     T.KwDef -> Right <$> parseFunction False
+    T.KwOverride -> Right <$> parseOverride False
     T.Identifier _ -> Left <$> parseField <* expect T.Semicolon
     _ -> failParse "Expected struct field or method"
 

@@ -69,7 +69,7 @@ instance Show Type where
   show  TypeNull      = "null"
   show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
-  show (TypePtr t)    = "*" <> show t
+  show (TypePtr t)    = "ptr_" <> show t
 
 data BinaryOp
   = Add
@@ -293,7 +293,7 @@ data Expression
     -- foo(arg1, arg2, ...)
     ExprCall
       { exprPos :: SourcePos,
-        callName :: String,
+        callName :: Expression,
         callArgs :: [Expression]
       }
   | -- | struct initialization
@@ -344,6 +344,8 @@ data Expression
   | -- array literal
     -- [1, 2, 3, 4]
     ExprLitArray SourcePos [Expression]
+  | -- sizeof <type> | sizeof <expression>
+    ExprSizeof SourcePos (Either Type Expression)
   deriving (Show, Eq)
 
 -- | Extract source position from an expression
@@ -363,6 +365,7 @@ getExprPos (ExprLitBool pos _) = pos
 getExprPos (ExprLitNull pos) = pos
 getExprPos (ExprVar pos _) = pos
 getExprPos (ExprLitArray pos _) = pos
+getExprPos (ExprSizeof pos _) = pos
 
 -- | Extract source position from a statement
 getStmtPos :: Statement -> SourcePos

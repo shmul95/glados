@@ -42,6 +42,7 @@ irHelpersTests =
     , testSignedTypeOfWidth
     , testUnsignedTypeOfWidth
     , testIsFloatType
+    , testGetDefaultValue
     ]
 
 --
@@ -121,24 +122,24 @@ testIRTypeToAstType = testGroup "irTypeToASTType"
 testSizeOfIRType :: TestTree
 testSizeOfIRType = testGroup "sizeOfIRType"
   [ testCase "Integer sizes" $ do
-      sizeOfIRType IRI8 @?= 1
-      sizeOfIRType IRI16 @?= 2
-      sizeOfIRType IRI32 @?= 4
-      sizeOfIRType IRI64 @?= 8
+      sizeOfIRType Map.empty IRI8 @?= 1
+      sizeOfIRType Map.empty IRI16 @?= 2
+      sizeOfIRType Map.empty IRI32 @?= 4
+      sizeOfIRType Map.empty IRI64 @?= 8
   , testCase "Unsigned Integer sizes" $ do
-      sizeOfIRType IRU8 @?= 1
-      sizeOfIRType IRU16 @?= 2
-      sizeOfIRType IRU32 @?= 4
-      sizeOfIRType IRU64 @?= 8
+      sizeOfIRType Map.empty IRU8 @?= 1
+      sizeOfIRType Map.empty IRU16 @?= 2
+      sizeOfIRType Map.empty IRU32 @?= 4
+      sizeOfIRType Map.empty IRU64 @?= 8
   , testCase "Float sizes" $ do
-      sizeOfIRType IRF32 @?= 4
-      sizeOfIRType IRF64 @?= 8
+      sizeOfIRType Map.empty IRF32 @?= 4
+      sizeOfIRType Map.empty IRF64 @?= 8
   , testCase "Other sizes" $ do
-      sizeOfIRType IRBool @?= 1
-      sizeOfIRType IRChar @?= 1
-      sizeOfIRType IRNull @?= 8
-      sizeOfIRType (IRPtr IRI32) @?= 8
-      sizeOfIRType (IRStruct "S") @?= 8
+      sizeOfIRType Map.empty IRBool @?= 1
+      sizeOfIRType Map.empty IRChar @?= 1
+      sizeOfIRType Map.empty IRNull @?= 8
+      sizeOfIRType Map.empty (IRPtr IRI32) @?= 8
+      sizeOfIRType Map.empty (IRStruct "S") @?= 8
   ]
 
 testSignedTypeOfWidth :: TestTree
@@ -199,9 +200,6 @@ testNamingHelpers = testGroup "Naming Helpers"
 
   , testCase "makeLabel formats correctly" $
       makeLabel "loop" 42 @?= IRLabel ".L.loop42"
-  
-  , testCase "mangleMethodName combines strings" $
-      mangleMethodName "Struct" "method" @?= "Struct_method"
   ]
 
 testStringGlobalHelpers :: TestTree
@@ -416,20 +414,20 @@ testIsSigned = testGroup "isSigned"
 testSelectReturnType :: TestTree
 testSelectReturnType = testGroup "selectReturnType"
   [ testCase "Returns correct return type for existing function" $
-      let fs = HM.fromList [("f", [(TypeI32, [TypeI32, TypeF32])])]
+      let fs = HM.fromList [("i32_f_i32_f32", (TypeI32, [TypeI32, TypeF32]))]
           args = [IRI32, IRF32]
       in runGenUnsafe (selectReturnType fs "f" args) @?= IRI32
   
   , testCase "Maps IR types back to AST types correctly" $
-      let fs = HM.fromList [("g", [(TypeU32, [TypeU32, TypeAny, TypeCustom "S"])])]
+      let fs = HM.fromList [("u32_g_u32_ptr_i32_S", (TypeU32, [TypeU32, TypePtr TypeI32, TypeCustom "S"]))]
           args = [IRU32, IRPtr IRI32, IRPtr (IRStruct "S")]
       in runGenUnsafe (selectReturnType fs "g" args) @?= IRU32 
   , testCase "Select signature Nothing" $
-      let fs = HM.fromList [("h", [(TypeF64, [TypeF32])])]
+      let fs = HM.fromList [("f64_h_f32", (TypeF64, [TypeF32]))]
           args = [IRF32]
       in runGenUnsafe (selectReturnType fs "h" args) @?= IRF64
   , testCase "Returns Left for no matching signature" $ do
-        let fs = HM.fromList [("mismatched", [(TypeI32, [TypeI32, TypeF32])])]
+        let fs = HM.fromList [("i32_mismatched_i32_f32", (TypeI32, [TypeI32, TypeF32]))]
             funcName = "mismatched"
             args = [IRI32, IRU64, IRI8]
             result = runGen (selectReturnType fs funcName args)
@@ -456,4 +454,27 @@ testIsFloatType = testGroup "isFloatType"
       isFloatType IRNull @?= False
       isFloatType (IRPtr IRI32) @?= False
       isFloatType (IRStruct "S") @?= False
+  ]
+
+testGetDefaultValue :: TestTree
+testGetDefaultValue = testGroup "getDefaultValue"
+  [ testCase "Returns correct default values for primitive types" $ do
+      getDefaultValue IRI8 @?= IRConstInt 0
+      getDefaultValue IRI16 @?= IRConstInt 0
+      getDefaultValue IRI32 @?= IRConstInt 0
+      getDefaultValue IRI64 @?= IRConstInt 0
+      getDefaultValue IRU8 @?= IRConstInt 0
+      getDefaultValue IRU16 @?= IRConstInt 0
+      getDefaultValue IRU32 @?= IRConstInt 0
+      getDefaultValue IRU64 @?= IRConstInt 0
+      getDefaultValue IRF32 @?= IRConstFloat 0.0
+      getDefaultValue IRF64 @?= IRConstFloat 0.0
+      getDefaultValue IRBool @?= IRConstBool False
+      getDefaultValue IRChar @?= IRConstChar '\0'
+      getDefaultValue IRNull @?= IRConstNull
+  , testCase "Returns null pointer for pointer types" $ do
+      getDefaultValue (IRPtr IRI32) @?= IRConstNull
+      getDefaultValue (IRPtr (IRStruct "S")) @?= IRConstNull
+  , testCase "Returns null pointer for struct types" $ do
+      getDefaultValue (IRStruct "MyStruct") @?= IRConstNull
   ]

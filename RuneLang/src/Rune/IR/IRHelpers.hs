@@ -16,7 +16,6 @@ module Rune.IR.IRHelpers
     pushLoopContext,
     popLoopContext,
     getCurrentLoop,
-    mangleMethodName,
     getOperandType,
     getCommonType,
     selectReturnType,
@@ -27,7 +26,8 @@ module Rune.IR.IRHelpers
     isSigned,
     isIntType,
     isFloatType,
-    promoteTypes
+    promoteTypes,
+    getDefaultValue
   )
 where
 #else
@@ -45,10 +45,10 @@ module Rune.IR.IRHelpers
     pushLoopContext,
     popLoopContext,
     getCurrentLoop,
-    mangleMethodName,
     getOperandType,
     getCommonType,
-    selectReturnType
+    selectReturnType,
+    getDefaultValue
   )
 where
 #endif
@@ -62,6 +62,8 @@ import Rune.AST.Nodes (Type (..))
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..), IRGlobalValue (..))
 import Rune.Semantics.Type (FuncStack)
 import Rune.Semantics.Helper (selectSignature)
+
+import Lib (alignTo, align8, alignSize)
 
 --
 -- type conversion
@@ -120,26 +122,53 @@ irTypeToASTType (IRPtr (IRArray t _)) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr IRNull) = TypeAny
 irTypeToASTType (IRPtr t) = TypePtr (irTypeToASTType t)
 
+getDefaultValue :: IRType -> IROperand
+getDefaultValue (IRPtr _) = IRConstNull
+getDefaultValue (IRStruct _) = IRConstNull
+getDefaultValue IRNull = IRConstNull
+getDefaultValue IRBool = IRConstBool False
+getDefaultValue IRChar = IRConstChar '\0'
+getDefaultValue IRF32 = IRConstFloat 0.0
+getDefaultValue IRF64 = IRConstFloat 0.0
+getDefaultValue _ = IRConstInt 0
+
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers
-sizeOfIRType :: IRType -> Int
-sizeOfIRType IRI8 = 1
-sizeOfIRType IRI16 = 2
-sizeOfIRType IRI32 = 4
-sizeOfIRType IRI64 = 8
-sizeOfIRType IRF32 = 4
-sizeOfIRType IRF64 = 8
-sizeOfIRType IRU8 = 1
-sizeOfIRType IRChar = 1
-sizeOfIRType IRU16 = 2
-sizeOfIRType IRU32 = 4
-sizeOfIRType IRU64 = 8
-sizeOfIRType IRBool = 1
-sizeOfIRType (IRPtr _) = 8 -- Ô_ö
-sizeOfIRType (IRStruct _) = 8 -- ö_Ô
-sizeOfIRType (IRArray t len) = sizeOfIRType t * len
-sizeOfIRType IRNull = 8
+sizeOfIRType :: Map.Map String [(String, IRType)] -> IRType -> Int
+sizeOfIRType _ IRI8      = 1
+sizeOfIRType _ IRI16     = 2
+sizeOfIRType _ IRI32     = 4
+sizeOfIRType _ IRI64     = 8
+sizeOfIRType _ IRU8      = 1
+sizeOfIRType _ IRU16     = 2
+sizeOfIRType _ IRU32     = 4
+sizeOfIRType _ IRU64     = 8
+sizeOfIRType _ IRF32     = 4
+sizeOfIRType _ IRF64     = 8
+sizeOfIRType _ IRChar    = 1
+sizeOfIRType _ IRBool    = 1
+sizeOfIRType _ IRNull    = 8
+sizeOfIRType _ (IRPtr _) = 8
 
+sizeOfIRType structs (IRArray t len) =
+  sizeOfIRType structs t * len
+
+sizeOfIRType structs (IRStruct name) =
+  maybe 8 sizeOfStructType $ Map.lookup name structs
+
+  where
+    sizeOfStructType :: [(String, IRType)] -> Int
+    sizeOfStructType fields =
+      let (total, _) = foldl step (0, 0) fields
+      in align8 total
+
+    step :: (Int, Int) -> (String, IRType) -> (Int, Int)
+    step (offset, _) (_, t) =
+      let s       = sizeOfIRType structs t
+          align   = alignSize s
+          aligned = alignTo align offset
+
+      in (aligned + s, aligned)
 
 getCommonType :: IROperand -> IROperand -> IRType
 getCommonType l r =
@@ -240,9 +269,6 @@ genFormatString :: String -> IRGen ([IRInstruction], IROperand)
 genFormatString value = do
   stringName <- newStringGlobal value
   return ([], IRGlobal stringName (IRPtr IRChar))
-
-mangleMethodName :: String -> String -> String
-mangleMethodName structName methodName = structName ++ "_" ++ methodName
 
 --
 -- control flow

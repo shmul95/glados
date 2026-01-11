@@ -8,6 +8,7 @@ import Test.Tasty.HUnit (testCase, (@?=), assertBool, Assertion)
 import Rune.Backend.Helpers
 import Rune.IR.Nodes (IRTopLevel(..), IRFunction(..), IRInstruction(..), IRType(..), IROperand(..), IRLabel(..), IRGlobalValue(..))
 import qualified Data.Map.Strict as Map
+import Lib (alignTo)
 
 --
 -- public
@@ -20,7 +21,7 @@ backendHelpersTests = testGroup "Rune.Backend.Helpers"
   , testCollectTopLevels
   , testCollectIRVars
   , testCalculateStackMap
-  , testAlignUp
+  , testAlignTo
   , testCollectTopLevel
   , testCollectVars
   , testAccumulateOffset
@@ -75,29 +76,29 @@ testCollectTopLevels :: TestTree
 testCollectTopLevels = testGroup "collectTopLevels"
   [ testCase "Collects externs" $
       let tls = [IRExtern "printf", IRExtern "malloc"]
-          (externs, _, _) = collectTopLevels tls
+          (externs, _, _, _) = collectTopLevels tls
       in externs @?= ["printf", "malloc"]
 
   , testCase "Collects global strings" $
       let tls = [IRGlobalDef "str1" (IRGlobalStringVal "hello"), IRGlobalDef "str2" (IRGlobalStringVal "world")]
-          (_, globals, _) = collectTopLevels tls
+          (_, globals, _, _) = collectTopLevels tls
       in length globals @?= 2
 
   , testCase "Collects functions" $
       let func = IRFunction "test" [] (Just IRNull) [] False
           tls = [IRFunctionDef func]
-          (_, _, funcs) = collectTopLevels tls
+          (_, _, funcs, _) = collectTopLevels tls
       in length funcs @?= 1
 
   , testCase "Filters duplicates in externs" $
       let tls = [IRExtern "printf", IRExtern "printf"]
-          (externs, _, _) = collectTopLevels tls
+          (externs, _, _, _) = collectTopLevels tls
       in externs @?= ["printf"]
 
   , testCase "Handles mixed top levels" $
       let func = IRFunction "f" [] (Just IRNull) [] False
           tls = [IRExtern "e", IRGlobalDef "s" (IRGlobalStringVal "v"), IRFunctionDef func]
-          (externs, globals, funcs) = collectTopLevels tls
+          (externs, globals, funcs, _) = collectTopLevels tls
       in do
         externs @?= ["e"]
         globals @?= [("s", IRGlobalStringVal "v")]
@@ -135,63 +136,65 @@ testCalculateStackMap :: TestTree
 testCalculateStackMap = testGroup "calculateStackMap"
   [ testCase "Calculates for empty function" $
       let func = IRFunction "empty" [] (Just IRNull) [] False
-          (stackMap, frameSize) = calculateStackMap func
+          (stackMap, frameSize) = calculateStackMap Map.empty func
       in do
         Map.size stackMap @?= 0
         frameSize @?= 0
 
   , testCase "Aligns frame size to 16 bytes" $
       let func = IRFunction "test" [("x", IRI32)] (Just IRNull) [] False
-          (_, frameSize) = calculateStackMap func
+          (_, frameSize) = calculateStackMap Map.empty func
       in frameSize `mod` 16 @?= 0
 
   , testCase "Calculates offsets for variables" $
       let func = IRFunction "test" [("x", IRI32), ("y", IRI64)] (Just IRNull) [] False
-          (stackMap, _) = calculateStackMap func
+          (stackMap, _) = calculateStackMap Map.empty func
       in Map.size stackMap @?= 2
   ]
 
-testAlignUp :: TestTree
-testAlignUp = testGroup "alignUp"
+testAlignTo :: TestTree
+testAlignTo = testGroup "alignTo"
   [ testCase "Aligns 0 to 16" $
-      alignUp 0 16 @?= 0
+      alignTo 16 0 @?= 0
 
   , testCase "Aligns 1 to 16" $
-      alignUp 1 16 @?= 16
+      alignTo 16 1 @?= 16
 
   , testCase "Aligns 15 to 16" $
-      alignUp 15 16 @?= 16
+      alignTo 16 15 @?= 16
 
   , testCase "Aligns 16 to 16" $
-      alignUp 16 16 @?= 16
+      alignTo 16 16 @?= 16
 
   , testCase "Aligns 17 to 16" $
-      alignUp 17 16 @?= 32
+      alignTo 16 17 @?= 32
 
   , testCase "Aligns to 8" $
-      alignUp 5 8 @?= 8
+      alignTo 8 5 @?= 8
   ]
 
 testCollectTopLevel :: TestTree
 testCollectTopLevel = testGroup "collectTopLevel"
   [ testCase "Adds extern" $
-      let result = collectTopLevel (IRExtern "printf") ([], [], [])
-      in result @?= (["printf"], [], [])
+      let result = collectTopLevel (IRExtern "printf") ([], [], [], Map.empty)
+      in result @?= (["printf"], [], [], Map.empty)
 
   , testCase "Adds global string" $
-      let result = collectTopLevel (IRGlobalDef "s" (IRGlobalStringVal "val")) ([], [], [])
-      in result @?= ([], [("s", IRGlobalStringVal "val")], [])
+      let result = collectTopLevel (IRGlobalDef "s" (IRGlobalStringVal "val")) ([], [], [], Map.empty)
+      in result @?= ([], [("s", IRGlobalStringVal "val")], [], Map.empty)
 
   , testCase "Adds function" $
       let func = IRFunction "f" [] (Just IRNull) [] False
-          result = collectTopLevel (IRFunctionDef func) ([], [], [])
+          result = collectTopLevel (IRFunctionDef func) ([], [], [], Map.empty)
       in case result of
-        ([], [], [_]) -> return ()
+        ([], [], [_], _) -> return ()
         _ -> assertBool "Expected one function" False
 
   , testCase "Ignores struct def" $
-      let result = collectTopLevel (IRStructDef "S" []) ([], [], [])
-      in result @?= ([], [], [])
+      let result = collectTopLevel (IRStructDef "S" []) ([], [], [], Map.empty)
+      in case result of
+        ([], [], [], m) -> Map.size m @?= 1
+        _ -> assertBool "Expected one struct" False
   ]
 
 testCollectVars :: TestTree
@@ -258,19 +261,16 @@ testCollectVars = testGroup "collectVars"
 testAccumulateOffset :: TestTree
 testAccumulateOffset = testGroup "accumulateOffset"
   [ testCase "Aligns i32 to 4 bytes" $
-      let varsMap = Map.singleton "x" IRI32
-          (offset, _) = accumulateOffset varsMap (0, Map.empty) ("x", IRI32)
+      let (offset, _) = accumulateOffset Map.empty (0, Map.empty) ("x", IRI32)
       in offset @?= 4
 
   , testCase "Aligns i64 to 8 bytes" $
-      let varsMap = Map.singleton "x" IRI64
-          (offset, _) = accumulateOffset varsMap (0, Map.empty) ("x", IRI64)
+      let (offset, _) = accumulateOffset Map.empty (0, Map.empty) ("x", IRI64)
       in offset @?= 8
 
   , testCase "Handles alignment padding" $
-      let varsMap = Map.fromList [("a", IRI8), ("b", IRI32)]
-          (offset1, map1) = accumulateOffset varsMap (0, Map.empty) ("a", IRI8)
-          (offset2, _) = accumulateOffset varsMap (offset1, map1) ("b", IRI32)
+      let (offset1, map1) = accumulateOffset Map.empty (0, Map.empty) ("a", IRI8)
+          (offset2, _) = accumulateOffset Map.empty (offset1, map1) ("b", IRI32)
       in offset2 @?= 8
   ]
 

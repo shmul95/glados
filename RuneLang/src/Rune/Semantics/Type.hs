@@ -1,6 +1,7 @@
 module Rune.Semantics.Type
   ( VarStack
   , FuncStack
+  , StructStack
   , Stack
   , Templates
   ) where
@@ -13,7 +14,8 @@ import Rune.AST.Nodes (Type, TopLevelDef)
 --
 
 type VarStack = HashMap String Type
-type FuncStack = HashMap String [(Type, [Type])]
-type Stack = (FuncStack, VarStack)
+type FuncStack = HashMap String (Type, [Type])
+type StructStack = HashMap String TopLevelDef
+type Stack = (FuncStack, VarStack, StructStack)
 
 type Templates = HashMap String TopLevelDef

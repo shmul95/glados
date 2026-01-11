@@ -31,7 +31,7 @@ callExprTests = testGroup "Rune.IR.Generator.Expression.Call"
 
 runGenWithFuncStack :: [(String, Type, [Type])] -> IRGen a -> a
 runGenWithFuncStack funcs action =
-  let funcStack = HM.fromList [(name, [(ret, args)]) | (name, ret, args) <- funcs]
+  let funcStack = HM.fromList [(name, (ret, args)) | (name, ret, args) <- funcs]
       state = emptyState { gsFuncStack = funcStack }
   in case evalState (runExceptT action) state of
        Right val -> val

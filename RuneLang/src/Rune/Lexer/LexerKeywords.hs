@@ -33,7 +33,8 @@ keywordMap =
     (KwAs, "as"),
     (OpAnd, "and"),
     (OpOr, "or"),
-    (OpNot, "not")
+    (OpNot, "not"),
+    (KwSizeof, "sizeof")
   ]
 
 keywordParsers :: [Parser (Int -> Int -> Token)]

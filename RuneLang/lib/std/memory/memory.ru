@@ -3,6 +3,7 @@ somewhere
     def malloc(size: u64) -> *any;
     def free(ptr: *any) -> null;
     def realloc(ptr: *any, size: u64) -> *any;
+    def memset(ptr: *any, value: u8, size: u64) -> *any;
 }
 
 /**
@@ -33,10 +34,9 @@ export def liberate(ptr: *any) -> bool
 {
     if ptr == null {
         false
-    } else {
-        free(ptr);
-        true
     }
+    free(ptr);
+    true
 }
 
 /**
@@ -54,6 +54,25 @@ export def reallocate(ptr: *any, size: u64) ~> *any
     }
 
     new_ptr
+}
+
+/**
+* @brief initialize memory at given pointer with a value
+* @param ptr pointer to memory
+* @param size size in bytes
+* @param value byte value to set
+* @return pointer to initialized memory
+*/
+export def initialize(ptr: *any, size: u64, value: u8) ~> *any
+{
+    if ptr == null {
+        error("initialize: pointer is null.\n")
+    }
+
+    if size > 0 {
+        memset(ptr, value, size)
+    }
+    ptr
 }
 
 /**
