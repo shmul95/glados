@@ -29,6 +29,7 @@ import Semantics.VarsSpecs (varsSemanticsTests)
 import Semantics.OpTypeSpecs (opTypeSemanticsTests)
 import Semantics.HelperSpecs (helperSemanticsTests)
 import Semantics.FuncSpecs (funcSemanticsTests)
+import Semantics.StructSpecs (structSemanticsTests)
 import Semantics.GenericSpecs (genericSemanticsTests)
 
 import IR.NodesSpecs (irNodesTests)
@@ -125,6 +126,7 @@ semanticsSpecs =
     , opTypeSemanticsTests
     , helperSemanticsTests
     , funcSemanticsTests
+    , structSemanticsTests
     , genericSemanticsTests
     ]
 

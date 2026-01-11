@@ -132,9 +132,7 @@ parseCallPostfix :: Parser (Expression -> Expression)
 parseCallPostfix = do
   pos <- getCurrentPos
   args <- between (expect T.LParen) (expect T.RParen) (sepBy (withContext "argument" parseExpression) (expect T.Comma))
-  pure $ \e -> case e of
-    ExprAccess p target field -> ExprCall p field (target : args)
-    _ -> ExprCall pos (getExprName e) args
+  pure $ \e -> ExprCall pos e args
 
 parseFieldAccessPostfix :: Parser (Expression -> Expression)
 parseFieldAccessPostfix = do
@@ -172,12 +170,6 @@ parseDecPostfix = do
   pos <- getCurrentPos
   _ <- expect T.OpDec
   pure $ \e -> ExprUnary pos PostfixDec e
-
-getExprName :: Expression -> String
-getExprName (ExprVar _ name) = name
-getExprName (ExprAccess _ _ field) = field
-getExprName _ = ""
-
 --
 -- literals & primary expressions
 --

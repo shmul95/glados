@@ -86,19 +86,19 @@ testGenExpression = testGroup "genExpression"
 
   , testCase "Generates show call" $
       -- Just ensure it doesn't crash and returns some instruction
-      case runGen (genExpression (ExprCall dummyPos "show" [ExprLitInt dummyPos 1])) of
+      case runGen (genExpression (ExprCall dummyPos (ExprVar dummyPos "show") [ExprLitInt dummyPos 1])) of
         Right _ -> return ()
         Left err -> assertBool ("Show call failed: " ++ err) False
 
   , testCase "Generates error call" $
-      case runGen (genExpression (ExprCall dummyPos "error" [ExprLitString dummyPos "msg"])) of
+      case runGen (genExpression (ExprCall dummyPos (ExprVar dummyPos "error") [ExprLitString dummyPos "msg"])) of
         Right (_, _, typ) -> typ @?= IRNull
         Left err -> assertBool ("Error call failed: " ++ err) False
 
   , testCase "Generates function call" $
       -- Mock a function call
       let state = emptyState
-      in case evalState (runExceptT (genExpression (ExprCall dummyPos "foo" []))) state of
+      in case evalState (runExceptT (genExpression (ExprCall dummyPos (ExprVar dummyPos "foo") []))) state of
            Right _ -> return () -- Assuming genCall handles undefined funcs or we'd need to mock it
            Left _ -> return () -- Even if it fails due to missing func, it covers the pattern match.
 

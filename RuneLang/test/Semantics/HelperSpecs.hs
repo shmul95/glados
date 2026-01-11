@@ -16,16 +16,21 @@ import TestHelpers (dummyPos)
 
 funcStack1 :: FuncStack
 funcStack1 = HM.fromList
-  [ ("foo", [(TypeI32, [TypeI32, TypeF32])])
-  , ("overloaded", [(TypeI32, [TypeI32]), (TypeF32, [TypeF32]), (TypeI32, [TypeI64])])
-  , ("any_arg", [(TypeNull, [TypeAny])])
-  , ("show", [(TypeNull, [TypeAny]), (TypeNull, [TypeArray TypeAny])])
-  , ("empty_sigs", [])
-  , ("deep_overload", [(TypeString, [TypeString]), (TypeBool, [TypeBool]), (TypeI32, [TypeI32])])
+  [ ("i32_foo_i32_f32", (TypeI32, [TypeI32, TypeF32]))
+  , ("i32_overloaded_i32", (TypeI32, [TypeI32]))
+  , ("f32_overloaded_f32", (TypeF32, [TypeF32]))
+  , ("i32_overloaded_i64", (TypeI32, [TypeI64]))
+  , ("any_arg", (TypeNull, [TypeAny]))
+  , ("show", (TypeNull, [TypeAny]))
+  , ("null_show_arrany", (TypeNull, [TypeArray TypeAny]))
+  , ("empty_sigs", (TypeNull, []))
+  , ("str_deep_overload_str", (TypeString, [TypeString]))
+  , ("bool_deep_overload_bool", (TypeBool, [TypeBool]))
+  , ("i32_deep_overload_i32", (TypeI32, [TypeI32]))
   ]
 
 stack1 :: Stack
-stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)])
+stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)], HM.empty)
 
 --
 -- public
@@ -77,16 +82,16 @@ typeCompatibleTests = testGroup "isTypeCompatible additional branches"
 specificityTests :: TestTree
 specificityTests = testGroup "Signature specificity"
   [ testCase "picks more specific signature (concrete over Any) - branch 1" $ 
-      let fs = HM.fromList [("f", [(TypeI64, [TypeI32]), (TypeI32, [TypeAny])])]
+      let fs = HM.fromList [("i64_f_i32", (TypeI64, [TypeI32])), ("i32_f_any", (TypeI32, [TypeAny]))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete over Any) - branch 2" $ 
-      let fs = HM.fromList [("f", [(TypeI32, [TypeAny]), (TypeI64, [TypeI32])])]
+      let fs = HM.fromList [("i32_f_any", (TypeI32, [TypeAny])), ("i64_f_i32", (TypeI64, [TypeI32]))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete array over Any array)" $ 
-      let fs = HM.fromList [("f", [(TypeI32, [TypeArray TypeAny]), (TypeI64, [TypeArray TypeI32])])]
+      let fs = HM.fromList [("i32_f_arrany", (TypeI32, [TypeArray TypeAny])), ("i64_f_arri32", (TypeI64, [TypeArray TypeI32]))]
       in selectSignature fs "f" [TypeArray TypeI32] @?= Just TypeI64
   , testCase "handles nested arrays specificity" $ 
-      let fs = HM.fromList [("f", [(TypeI32, [TypeArray (TypeArray TypeAny)]), (TypeI64, [TypeArray (TypeArray TypeI32)])])]
+      let fs = HM.fromList [("i32_f_arrarrany", (TypeI32, [TypeArray (TypeArray TypeAny)])), ("i64_f_arrarri32", (TypeI64, [TypeArray (TypeArray TypeI32)]))]
       in selectSignature fs "f" [TypeArray (TypeArray TypeI32)] @?= Just TypeI64
   ]
 
@@ -176,7 +181,7 @@ exprTypeTests = testGroup "exprType Tests"
       exprType stack1 (ExprIndex dummyPos charArr (ExprLitInt dummyPos 1)) @?= Right TypeChar
   , testCase "ExprIndex on TypeAny" $ 
       let vs = HM.singleton "a" TypeAny
-      in exprType (funcStack1, vs) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
+      in exprType (funcStack1, vs, HM.empty) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
   , testCase "ExprLitArray incompatible elements - Error" $ 
       (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of 
           Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
@@ -188,7 +193,7 @@ exprTypeTests = testGroup "exprType Tests"
   , testCase "ExprStructInit Type" $ 
       exprType stack1 (ExprStructInit dummyPos "Vec2f" []) @?= Right (TypeCustom "Vec2f")
   , testCase "ExprAccess Type" $ 
-      exprType stack1 (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Right TypeAny
+      exprType stack1 (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Left "[ERROR]: test.ru:0:0: error:\n  Expected: field access to be valid on type any\n  Got: cannot access field 'x' on type 'any'\n  ... in field access\n  ... in global context"
   , testCase "ExprVar (exists)" $ 
       exprType stack1 (ExprVar dummyPos "x") @?= Right TypeI32
   , testCase "ExprVar (not exists)" $ 
@@ -200,13 +205,13 @@ exprTypeTests = testGroup "exprType Tests"
   , testCase "ExprUnary Type (assumes type does not change)" $ 
       exprType stack1 (ExprUnary dummyPos Negate (ExprVar dummyPos "x")) @?= Right TypeI32
   , testCase "ExprCall (exists and matches single signature)" $ 
-      let call = ExprCall dummyPos "foo" [ExprVar dummyPos "x", ExprVar dummyPos "f"]
+      let call = ExprCall dummyPos (ExprVar dummyPos "foo") [ExprVar dummyPos "x", ExprVar dummyPos "f"]
       in exprType stack1 call @?= Right TypeI32
   , testCase "ExprCall (no matching signature)" $ 
-      let call = ExprCall dummyPos "foo" [ExprVar dummyPos "f", ExprVar dummyPos "f"]
+      let call = ExprCall dummyPos (ExprVar dummyPos "foo") [ExprVar dummyPos "f", ExprVar dummyPos "f"]
       in exprType stack1 call @?= Right TypeAny
   , testCase "ExprCall (unknown function)" $ 
-      let call = ExprCall dummyPos "unknownFunc" []
+      let call = ExprCall dummyPos (ExprVar dummyPos "unknownFunc") []
       in exprType stack1 call @?= Right TypeAny
   ]
 
@@ -224,8 +229,8 @@ selectSignatureTests = testGroup "selectSignature Tests"
       selectSignature funcStack1 "overloaded" [TypeF32] @?= Just TypeF32
   , testCase "Overloaded (Mismatch all)" $ 
       selectSignature funcStack1 "overloaded" [TypeBool] @?= Nothing
-  , testCase "Empty list of signatures" $ 
-      selectSignature (HM.fromList [("empty", [])]) "empty" [] @?= Nothing
+  , testCase "Function not in stack" $ 
+      selectSignature HM.empty "empty" [] @?= Nothing
   , testCase "Built-in (Match TypeAny with concrete)" $ 
       selectSignature funcStack1 "any_arg" [TypeI32] @?= Just TypeNull
   , testCase "Array of any (Match with array of i32)" $ 
@@ -287,45 +292,38 @@ checkEachParamTests = testGroup "checkEachParam Tests"
 checkParamTypeTests :: TestTree
 checkParamTypeTests = testGroup "checkParamType Tests"
   [ testCase "Unknown function - Error Content" $ 
-      case checkParamType stack1 "unknown" "test.ru" 0 0 [] of 
+      case checkParamType stack1 ("unknown", []) "test.ru" 0 0 [] of 
           Left err -> do 
              seExpected err @?= "function 'unknown' to exist"
              seGot err @?= "undefined function"
              seContext err @?= ["function call", "global context"]
           Right _ -> assertFailure "Expected error"
-  , testCase "Function exists but empty list of signatures - Error Content" $ 
-      case checkParamType stack1 "empty_sigs" "f" 1 1 [] of 
-          Left err -> do 
-             seExpected err @?= "function 'empty_sigs' to exist"
-             seGot err @?= "undefined function"
-             seContext err @?= ["function call", "global context"]
-          Right _ -> assertFailure "Expected error"
   , testCase "Single signature - Match" $ 
-      (case checkParamType stack1 "foo" "test.ru" 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] of 
-          Right _ -> return ()
+      (case checkParamType stack1 ("foo", [TypeI32, TypeF32]) "test.ru" 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] of 
+          Right name -> name @?= "i32_foo_i32_f32"
           Left _ -> assertFailure "Expected success")
   , testCase "Single signature - Arg Mismatch Error" $ 
-      (case checkParamType stack1 "foo" "test.ru" 0 0 [ExprVar dummyPos "f", ExprVar dummyPos "f"] of 
+      (case checkParamType stack1 ("foo", [TypeF32, TypeF32]) "test.ru" 0 0 [ExprVar dummyPos "f", ExprVar dummyPos "f"] of 
           Left _ -> return ()
           Right _ -> assertFailure "Expected error")
   , testCase "Overloaded - Match i32" $ 
-      (case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprVar dummyPos "x"] of 
+      (case checkParamType stack1 ("overloaded", [TypeI32]) "test.ru" 0 0 [ExprVar dummyPos "x"] of 
           Right name -> name @?= "i32_overloaded_i32"
           Left _ -> assertFailure "Expected success")
   , testCase "Overloaded - Match f32 (mangle)" $ 
-      (case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprVar dummyPos "f"] of 
+      (case checkParamType stack1 ("overloaded", [TypeF32]) "test.ru" 0 0 [ExprVar dummyPos "f"] of 
           Right name -> name @?= "f32_overloaded_f32"
           Left _ -> assertFailure "Expected success")
   , testCase "Overloaded - Match 3rd signature (mangle)" $ 
       -- deep_overload has [String, Bool, I32]
       -- We pass Int, so it skips 1, 2 and matches 3
-      (case checkParamType stack1 "deep_overload" "test.ru" 0 0 [ExprLitInt dummyPos 42] of 
+      (case checkParamType stack1 ("deep_overload", [TypeI32]) "test.ru" 0 0 [ExprLitInt dummyPos 42] of 
           Right name -> name @?= "i32_deep_overload_i32"
           Left _ -> assertFailure "Expected success")
-  , testCase "Overloaded - Mismatch all - Error Content" $      case checkParamType stack1 "overloaded" "test.ru" 0 0 [ExprLitBool dummyPos True] of 
+  , testCase "Overloaded - Mismatch all - Error Content" $      case checkParamType stack1 ("overloaded", [TypeBool]) "test.ru" 0 0 [ExprLitBool dummyPos True] of 
           Left err -> do 
-             seExpected err @?= "matching signature for overloaded"
-             seGot err @?= "no matching overload"
+             seExpected err @?= "function 'overloaded' to exist"
+             seGot err @?= "undefined function"
              seContext err @?= ["function call", "global context"]
           Right _ -> assertFailure "Expected error"
   ]

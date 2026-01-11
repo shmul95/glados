@@ -8,7 +8,6 @@ module Rune.IR.Generator.GenTopLevel
     genStruct,
     genStructMethod,
     genParam,
-    fixSelfParam,
     resetFunctionState,
     clearFunctionState,
     ensureReturn,
@@ -27,7 +26,7 @@ import Control.Monad.Except (throwError)
 import Data.Map (empty, insert)
 import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.IR.Generator.GenStatement (genStatement)
-import Rune.IR.IRHelpers (astTypeToIRType, mangleMethodName, registerVar)
+import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
 import Rune.IR.Nodes
   ( GenState (..),
     IRFunction (..),
@@ -75,11 +74,8 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- | generate IR for an override function
 -- show(Vec2f) -> show_Vec2f
 genOverride :: TopLevelDef -> IRGen [IRTopLevel]
-genOverride (DefOverride name params retType body isExport) = do
-  let mangledName = case params of
-        (Parameter _ (TypeCustom s) : _) -> mangleMethodName name s
-        _ -> name
-  genFunction (DefFunction mangledName params retType body isExport)
+genOverride (DefOverride name params retType body isExport) =
+  genFunction (DefFunction name params retType body isExport)
 genOverride _ = throwError "genOverride called on non-override"
 
 -- | generate IR for a struct definition and its methods
@@ -94,12 +90,11 @@ genStruct (DefStruct name fields methods) = do
 genStruct _ = pure []
 
 -- | generate IR for a struct method
--- Vec2f.magnitude() -> magnitude_Vec2f
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
-genStructMethod structName' (DefFunction methName params retType body _) = do
-  let mangledName = mangleMethodName structName' methName
-      typedParams = map (fixSelfParam structName') params
-  genFunction (DefFunction mangledName typedParams retType body False)
+genStructMethod _ (DefFunction methName params retType body _) =
+  genFunction (DefFunction methName params retType body False)
+genStructMethod _ (DefOverride methName params retType body _) =
+  genFunction (DefFunction methName params retType body False)
 genStructMethod _ _ = pure []
 
 --
@@ -117,11 +112,6 @@ genParam (Parameter name typ) = do
 
   registerVar name (IRParam irName irType) irType
   pure (irName, irType)
-
--- | self: *StructType
-fixSelfParam :: String -> Parameter -> Parameter
-fixSelfParam sName (Parameter "self" _) = Parameter "self" (TypeCustom sName)
-fixSelfParam _ p = p
 
 resetFunctionState :: String -> IRGen ()
 resetFunctionState name =

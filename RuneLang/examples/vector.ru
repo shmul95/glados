@@ -1,12 +1,20 @@
+somewhere
+{
+    def allocate(size: u64) ~> *any;
+    def liberate(ptr: *any) -> bool;
+    def reallocate(ptr: *any, size: u64) ~> *any;
+    def initialize(ptr: *any, size: u64, value: u8) ~> *any;
+    
+    def assert(condition: bool, message: string) -> bool;
+    def assert_eq(a: string, b: string, message: string) -> bool;
+}
+
 struct Vec
 {
     data:     *any;
     size:     u64;
     capacity: u64;
 
-    /**
-    * INFO: creates a new empty vector
-    */
     def new() -> Vec
     {
         Vec {
@@ -16,85 +24,118 @@ struct Vec
         }
     }
 
-    /**
-    * INFO: creates a new vector from an array
-    */
-    override def new(value: any[]) -> Vec
-    {
-        vec = Vec {};
-
-        for item in value {
-            vec.push(item)?;
-        }
-        return vec;
-    }
-
-    /**
-    * INFO: creates a new vector with an initial capacity
-    */
     override def new(initial_capacity: u64) ~> Vec
     {
-        vec = Vec {};
-
-        if initial_capacity < 0 {
-            error("Initial capacity cannot be negative");
+        if initial_capacity == 0 {
+            new()
         }
-        vec.data = allocate(initial_capacity)?;
-        vec.capacity = initial_capacity;
-        return vec;
+
+        ptr = allocate(initial_capacity * 8)?; 
+
+        Vec {
+            data:     ptr,
+            size:     0,
+            capacity: initial_capacity
+        }
     }
 
-    /**
-    * INFO: get an element at index
-    */
     def get(self, index: u64) ~> any
     {
         if index >= self.size {
-            error("Index out of bounds");
+            error("Index out of bounds")
         }
-        return self.data[index];
+        self.data[index]
     }
 
-    /**
-    * INFO: pushes a new value to the end of the vector
-    */
+    def reserve(self, new_capacity: u64) ~> bool
+    {
+        if new_capacity > self.capacity {
+            self.data = reallocate(self.data, new_capacity * 8)?;
+            self.capacity = new_capacity;
+        }
+        true
+    }
+
     def push(self, value: any) ~> bool
     {
         if self.size >= self.capacity {
             new_capacity = self.capacity * 2 + 1;
-
-            self.data = reallocate(self.data, new_capacity)?;
+            self.data = reallocate(self.data, new_capacity * 8)?;
             self.capacity = new_capacity;
         }
 
-        initialize(self.data, self.size, value)?;
+        self.data[self.size] = value;
         self.size = self.size + 1;
-        return true;
+        true
     }
 
-    /**
-    * INFO: pops a value from the end of the vector
-    */
-    def pop(self) ~> bool
+    def pop(self) ~> any
     {
         if self.size == 0 {
-            error("Cannot pop from an empty vector");
+            error("Cannot pop from an empty vector")
         }
-
         self.size = self.size - 1;
-        return liberate(self.data[self.size])?;
+        self.data[self.size]
     }
 
-    /**
-    * INFO: clears the vector
-    */
-    def clear(self) ~> bool
+    def clear(self) -> bool
     {
-        for i = 0 to self.size - 1 {
-            liberate(self.data[i])?;
+        if self.data != null {
+            liberate(self.data);
         }
+        self.data = null;
         self.size = 0;
-        return true;
+        self.capacity = 0;
+        true
     }
 
+    def delete(self) -> bool
+    {
+        self.clear()
+    }
+
+}
+
+def vec_number() -> null
+{
+    v = Vec.new(4)?;
+
+    v.push(10)?;
+    v.push(20)?;
+    v.push(30)?;
+
+    assert(v.get(1)? == 20, "Le deuxième élément doit être 20");
+
+    v.clear();
+    assert(v.size == 0, "La taille doit être 0 après clear()");
+
+    v.reserve(2)?;
+    v.push(40)?;
+    v.push(50)?;
+
+    assert(v.pop()? == 50, "Le dernier élément doit être 50");
+
+    v.delete(); // normalement, delete() doit être appelé à la fin du scope de v. comme le C++.
+}
+
+def vec_string() -> null
+{
+    v = Vec {}; // équivalent de v = Vec.new();
+
+    v.reserve(3)?;
+
+    v.push("Bonjour")?; // no allocation needed
+    v.push("le")?;      // no allocation needed
+    v.push("monde")?;   // no allocation needed
+
+    assert_eq(v.get(0)?, "Bonjour", "Le premier élément doit être 'Bonjour'");
+    assert_eq(v.pop()?, "monde", "Le dernier élément doit être 'monde'");
+
+    v.delete(); // normalement, delete() doit être appelé à la fin du scope de v. comme le C++.
+}
+
+def main() ~> null
+{
+    vec_number();
+    vec_string();
 }

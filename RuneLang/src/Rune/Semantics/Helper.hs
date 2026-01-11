@@ -9,6 +9,8 @@ module Rune.Semantics.Helper
   , isTypeCompatible
   , SemanticError(..)
   , formatSemanticError
+  , getFieldType
+  , fixSelfType
   ) where
 
 import Data.Maybe (fromMaybe)
@@ -17,14 +19,14 @@ import qualified Data.HashMap.Strict as HM
 
 import Text.Printf (printf)
 
-import Rune.AST.Nodes
-
 import Rune.Semantics.Type
   ( VarStack
   , FuncStack
+  , StructStack
   , Stack
   )
 import Rune.Semantics.OpType (isIntegerType, isFloatType, iHTBinary, sameType)
+import Rune.AST.Nodes
 
 -- | Semantic error with location information
 data SemanticError = SemanticError
@@ -36,7 +38,6 @@ data SemanticError = SemanticError
   , seContext  :: [String]
   } deriving (Show, Eq)
 
-
 -- | Format semantic error to match AST parser convention
 formatSemanticError :: SemanticError -> String
 formatSemanticError (SemanticError file line col expected got ctx) =
@@ -47,29 +48,55 @@ formatSemanticError (SemanticError file line col expected got ctx) =
   in intercalate "\n" ([header, expectedLine, gotLine] <> contexts)
 
 
-checkParamType :: Stack -> String -> String -> Int -> Int -> [Expression] -> Either SemanticError String
-checkParamType s@(fs, _) fname file line col es =
+checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expression] -> Either SemanticError String
+checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
-  in case HM.lookup fname fs of
-    Nothing         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    Just []         -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    Just [sig]      -> checkSingle sig
-    Just sigs       -> checkAll (mkError (printf "matching signature for %s" fname) "no matching overload") sigs
-  where
-    checkSingle :: (Type, [Type]) -> Either SemanticError String
-    checkSingle (_, at) =
-      case checkEachParam s file line col 0 es at of
-        Nothing  -> Right fname
+      -- Find candidates by exact match on mangled name
+      exactMangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (fname, argTypes) k (ret, args)) fs
+      -- For struct method overrides (names containing _), also check compatible manglings
+      compatibleMangled = if isStructMethod fname
+                          then HM.toList $ HM.filterWithKey (\k (ret, args) -> isCompatibleMangling fname k ret args argTypes) fs
+                          else []
+      -- Also check direct name lookup
+      candidates = case (HM.toList exactMangled, compatibleMangled, HM.lookup fname fs) of
+        (m@(_:_), _, _) -> m                 -- Exact mangled match (priority)
+        ([], c@(_:_), _) -> c                -- Compatible mangled match (struct methods only)
+        ([], [], Just sig) -> [(fname, sig)] -- Direct name lookup
+        ([], [], Nothing) -> []
+  in case candidates of
+    [] -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
+    [(name, (_, args))] ->
+      case checkEachParam s file line col 0 es args of
+        Nothing -> Right name
         Just err -> Left err
+    multiples ->
+      -- Filter to only those with matching parameter count and compatible types
+      case filter (\(_, (_, args)) -> checkEachParam s file line col 0 es args == Nothing) multiples of
+        [(name, _)] -> Right name
+        [] -> Left $ mkError ("function '" <> fname <> "' with compatible arguments") "no matching signature"
+        _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
 
-    -- if multiple signature so mangle name
-    checkAll :: SemanticError -> [(Type, [Type])] -> Either SemanticError String
-    checkAll err_msg [] = Left err_msg
-    checkAll err_msg ((ret, at):rest) =
-      case checkEachParam s file line col 0 es at of
-        Nothing  -> Right $ mangleName fname ret at
-        Just _   -> checkAll err_msg rest
+-- | Check if a function name looks like a struct method (StructName_methodName)
+isStructMethod :: String -> Bool
+isStructMethod name = '_' `elem` name
 
+-- | Check if a function name is a valid mangling of the base name with compatible types
+isCompatibleMangling :: String -> String -> Type -> [Type] -> [Type] -> Bool
+isCompatibleMangling baseName fName retType funcArgTypes argTypes =
+  let -- The mangled name should be retType_baseName_... 
+      expectedPrefix = show retType <> "_" <> baseName
+      isNameMatch = fName == baseName ||
+                    fName == expectedPrefix ||
+                    (expectedPrefix <> "_") `isPrefixOfStr` fName
+      argsCompatible = length argTypes == length funcArgTypes &&
+                       all (uncurry isTypeCompatible) (zip funcArgTypes argTypes)
+  in isNameMatch && argsCompatible
+  where
+    isPrefixOfStr prefix str = take (length prefix) str == prefix
+
+isRightFunction :: (String, [Type]) -> String -> (Type, [Type]) -> Bool
+isRightFunction (funcToCheck, argTypesToCheck) fname (retType, _) =
+  fname == mangleName funcToCheck retType argTypesToCheck
 
 mangleName :: String -> Type -> [Type] -> String
 mangleName fname ret args
@@ -85,7 +112,13 @@ exprType _ (ExprLitChar _ _)        = Right TypeChar
 exprType _ (ExprLitBool _ _)        = Right TypeBool
 exprType _ (ExprStructInit _ st _)  = Right $ TypeCustom st
 exprType _ (ExprLitNull _)          = Right TypeNull
-exprType _ (ExprAccess {})       = Right TypeAny -- don't know how to use struct
+exprType s (ExprAccess pos target field) = do
+  targetType <- exprType s target
+  let ss = case s of (_, _, ss') -> ss'
+  case getFieldType pos ss targetType field of
+    Right t -> Right t
+    Left err -> Left (formatSemanticError err)
+
 exprType _ (ExprCast _ _ t)         = Right t
 
 exprType s (ExprBinary _ op a b)    = do 
@@ -93,12 +126,14 @@ exprType s (ExprBinary _ op a b)    = do
   b' <- exprType s b
   iHTBinary op a' b'
 
-exprType s (ExprUnary _ _ expr)     = exprType s expr -- assume the op don't change the type
-exprType (_, vs) (ExprVar _ name)   = Right $ fromMaybe TypeAny (HM.lookup name vs)
+exprType s (ExprUnary _ _ expr)     = exprType s expr
+exprType (_, vs, _) (ExprVar _ name) = Right $ fromMaybe TypeAny (HM.lookup name vs)
 
-exprType s@(fs, _) (ExprCall _ fn args) = do
+exprType s@(fs, _, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
+
+exprType _ (ExprCall _ _ _) = Right TypeAny
 
 exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
   where
@@ -134,12 +169,10 @@ assignVarType vs v file line col t =
 isTypeCompatible :: Type -> Type -> Bool
 isTypeCompatible TypeAny _ = True
 isTypeCompatible _ TypeAny = True
+isTypeCompatible (TypePtr TypeAny) _ = True  -- *any accepts any type
+isTypeCompatible _ (TypePtr TypeAny) = True  -- anything can be passed as *any
 isTypeCompatible (TypePtr _) TypeNull = True
 isTypeCompatible TypeNull (TypePtr _) = True
-isTypeCompatible (TypePtr TypeAny) (TypePtr _) = True
-isTypeCompatible (TypePtr _) (TypePtr TypeAny) = True
-isTypeCompatible (TypePtr TypeAny) TypeString = True
-isTypeCompatible TypeString (TypePtr TypeAny) = True
 isTypeCompatible (TypePtr TypeChar) TypeString = True
 isTypeCompatible TypeString (TypePtr TypeChar) = True
 isTypeCompatible (TypePtr a) (TypePtr b) = isTypeCompatible a b
@@ -187,34 +220,32 @@ checkEachParam _ file line col i es [] =
 
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
-selectSignature fs name at =
-  case HM.lookup name fs of
-    Nothing   -> Nothing
-    Just []   -> Nothing
-    Just sigs ->
-      case filter (match at) sigs of
-        [(rt, _)] -> Just rt
-        matches@(_:_) -> Just . fst $ mostSpecific matches
-        _         -> Nothing
-  where
-    match :: [Type] -> (Type, [Type]) -> Bool
-    match act (_, expec) =
-      length act == length expec &&
-      and (zipWith isTypeCompatible expec act)
+selectSignature fs name argTypes =
+  let mangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (name, argTypes) k (ret, args)) fs
+  in case (HM.toList mangled, HM.lookup name fs) of
+    ((_, (ret, _)):_, _) -> Just ret          -- Trouvé manglé
+    ([], Just (ret, _))  -> Just ret          -- Trouvé en base
+    _                    -> Nothing            -- Pas trouvé
 
-    mostSpecific :: [(Type, [Type])] -> (Type, [Type])
-    mostSpecific = foldr1 moreSpecific
-    
-    moreSpecific :: (Type, [Type]) -> (Type, [Type]) -> (Type, [Type])
-    moreSpecific s1@(_, params1) s2@(_, params2)
-      | specificity params1 > specificity params2 = s1
-      | otherwise = s2
-    
-    specificity :: [Type] -> Int
-    specificity = sum . map typeSpecificity
-    
-    typeSpecificity :: Type -> Int
-    typeSpecificity TypeAny = 0
-    typeSpecificity (TypeArray TypeAny) = 1
-    typeSpecificity (TypeArray t) = 2 + typeSpecificity t
-    typeSpecificity _ = 3
+getFieldType :: SourcePos -> StructStack -> Type -> String -> Either SemanticError Type
+getFieldType pos ss (TypeCustom sName) fldName =
+  let SourcePos file line col = pos
+      mkError expected got = SemanticError file line col expected got ["field access", "global context"]
+  in case HM.lookup sName ss of
+    Nothing -> Left $ mkError (printf "struct '%s' to exist" sName) "undefined struct"
+    Just (DefStruct _ fields _) ->
+      case filter (\(Field fName _) -> fName == fldName) fields of
+        [] -> Left $ mkError (printf "field '%s' to exist in struct '%s'" fldName sName) "undefined field"
+        (Field _ t:_) -> Right t
+    Just _ -> Left $ mkError (printf "struct '%s' to be a valid struct definition" sName) "not a struct definition"
+getFieldType pos _ otherType fldName =
+  let SourcePos file line col = pos
+  in Left $ SemanticError file line col 
+    (printf "field access to be valid on type %s" (show otherType))
+    (printf "cannot access field '%s' on type '%s'" fldName (show otherType))
+    ["field access", "global context"]
+
+fixSelfType :: String -> [Parameter] -> [Parameter]
+fixSelfType sName (p:rest)
+  | paramName p == "self" = p { paramType = TypeCustom sName } : rest
+fixSelfType _ params = params
