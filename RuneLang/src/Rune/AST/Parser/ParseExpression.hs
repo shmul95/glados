@@ -111,8 +111,17 @@ parseUnary =
         pos <- getCurrentPos
         _ <- expect T.OpDec
         ExprUnary pos PrefixDec <$> parseUnary,
+      parseSizeof,
       parsePostfix
     ]
+
+parseSizeof :: Parser Expression
+parseSizeof = do
+  pos <- getCurrentPos
+  _   <- expect T.KwSizeof
+  val <- (Left <$> try (between (expect T.LParen) (expect T.RParen) parseType))
+         <|> (Right <$> parseUnary)
+  pure $ ExprSizeof pos val
 
 parsePostfix :: Parser Expression
 parsePostfix = chainPostfix parsePrimary op
