@@ -362,7 +362,7 @@ verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) 
       callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
       pure $ ExprCall cPos callExpr allArgs
 
-verifExprWithContext _ _ (ExprCall _ _ _) =
+verifExprWithContext _ _ (ExprCall {}) =
   lift $ Left "Invalid function call target"
 
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
