@@ -16,17 +16,17 @@ import TestHelpers (dummyPos)
 
 funcStack1 :: FuncStack
 funcStack1 = HM.fromList
-  [ ("i32_foo_i32_f32", (TypeI32, [TypeI32, TypeF32]))
-  , ("i32_overloaded_i32", (TypeI32, [TypeI32]))
-  , ("f32_overloaded_f32", (TypeF32, [TypeF32]))
-  , ("i32_overloaded_i64", (TypeI32, [TypeI64]))
-  , ("any_arg", (TypeNull, [TypeAny]))
-  , ("show", (TypeNull, [TypeAny]))
-  , ("null_show_arrany", (TypeNull, [TypeArray TypeAny]))
-  , ("empty_sigs", (TypeNull, []))
-  , ("str_deep_overload_str", (TypeString, [TypeString]))
-  , ("bool_deep_overload_bool", (TypeBool, [TypeBool]))
-  , ("i32_deep_overload_i32", (TypeI32, [TypeI32]))
+  [ ("i32_foo_i32_f32", (TypeI32, [TypeI32, TypeF32], Nothing, False))
+  , ("i32_overloaded_i32", (TypeI32, [TypeI32], Nothing, False))
+  , ("f32_overloaded_f32", (TypeF32, [TypeF32], Nothing, False))
+  , ("i32_overloaded_i64", (TypeI32, [TypeI64], Nothing, False))
+  , ("any_arg", (TypeNull, [TypeAny], Nothing, False))
+  , ("show", (TypeNull, [TypeAny], Nothing, False))
+  , ("null_show_arrany", (TypeNull, [TypeArray TypeAny], Nothing, False))
+  , ("empty_sigs", (TypeNull, [], Nothing, False))
+  , ("str_deep_overload_str", (TypeString, [TypeString], Nothing, False))
+  , ("bool_deep_overload_bool", (TypeBool, [TypeBool], Nothing, False))
+  , ("i32_deep_overload_i32", (TypeI32, [TypeI32], Nothing, False))
   ]
 
 stack1 :: Stack
@@ -82,16 +82,16 @@ typeCompatibleTests = testGroup "isTypeCompatible additional branches"
 specificityTests :: TestTree
 specificityTests = testGroup "Signature specificity"
   [ testCase "picks more specific signature (concrete over Any) - branch 1" $ 
-      let fs = HM.fromList [("i64_f_i32", (TypeI64, [TypeI32])), ("i32_f_any", (TypeI32, [TypeAny]))]
+      let fs = HM.fromList [("i64_f_i32", (TypeI64, [TypeI32], Nothing, False)), ("i32_f_any", (TypeI32, [TypeAny], Nothing, False))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete over Any) - branch 2" $ 
-      let fs = HM.fromList [("i32_f_any", (TypeI32, [TypeAny])), ("i64_f_i32", (TypeI64, [TypeI32]))]
+      let fs = HM.fromList [("i32_f_any", (TypeI32, [TypeAny], Nothing, False)), ("i64_f_i32", (TypeI64, [TypeI32], Nothing, False))]
       in selectSignature fs "f" [TypeI32] @?= Just TypeI64
   , testCase "picks more specific signature (concrete array over Any array)" $ 
-      let fs = HM.fromList [("i32_f_arrany", (TypeI32, [TypeArray TypeAny])), ("i64_f_arri32", (TypeI64, [TypeArray TypeI32]))]
+      let fs = HM.fromList [("i32_f_arrany", (TypeI32, [TypeArray TypeAny], Nothing, False)), ("i64_f_arri32", (TypeI64, [TypeArray TypeI32], Nothing, False))]
       in selectSignature fs "f" [TypeArray TypeI32] @?= Just TypeI64
   , testCase "handles nested arrays specificity" $ 
-      let fs = HM.fromList [("i32_f_arrarrany", (TypeI32, [TypeArray (TypeArray TypeAny)])), ("i64_f_arrarri32", (TypeI64, [TypeArray (TypeArray TypeI32)]))]
+      let fs = HM.fromList [("i32_f_arrarrany", (TypeI32, [TypeArray (TypeArray TypeAny)], Nothing, False)), ("i64_f_arrarri32", (TypeI64, [TypeArray (TypeArray TypeI32)], Nothing, False))]
       in selectSignature fs "f" [TypeArray (TypeArray TypeI32)] @?= Just TypeI64
   ]
 
@@ -246,9 +246,9 @@ selectSignatureTests = testGroup "selectSignature Tests"
 checkEachParamTests :: TestTree
 checkEachParamTests = testGroup "checkEachParam Tests"
   [ testCase "Match" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [TypeI32, TypeF32] @?= Nothing
+      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [TypeI32, TypeF32] Nothing @?= Nothing
   , testCase "Mismatch Type - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "x"] [TypeI32, TypeF32]
+      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "x"] [TypeI32, TypeF32] Nothing
       in case result of 
         Just err -> do 
           seExpected err @?= "argument 1 to have type f32"
@@ -256,7 +256,7 @@ checkEachParamTests = testGroup "checkEachParam Tests"
           seContext err @?= ["parameter check", "function call", "global context"]
         Nothing -> assertFailure "Expected error"
   , testCase "Too Few Arguments - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [TypeI32, TypeF32]
+      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [TypeI32, TypeF32] Nothing
       in case result of 
         Just err -> do 
            seExpected err @?= "2 arguments"
@@ -264,7 +264,7 @@ checkEachParamTests = testGroup "checkEachParam Tests"
            seContext err @?= ["parameter count", "function call", "global context"]
         Nothing -> assertFailure "Expected error"
   , testCase "Too Many Arguments - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [TypeI32]
+      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [TypeI32] Nothing
       in case result of 
         Just err -> do 
            seExpected err @?= "1 arguments"
@@ -272,16 +272,16 @@ checkEachParamTests = testGroup "checkEachParam Tests"
            seContext err @?= ["parameter count", "function call", "global context"]
         Nothing -> assertFailure "Expected error"
   , testCase "TypeAny Match" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [TypeAny] @?= Nothing
+      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [TypeAny] Nothing @?= Nothing
   , testCase "TypeArray TypeAny (Match with array literal)" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprLitArray dummyPos [ExprLitInt dummyPos 1]] [TypeArray TypeAny] @?= Nothing
+      checkEachParam stack1 "test.ru" 0 0 0 [ExprLitArray dummyPos [ExprLitInt dummyPos 1]] [TypeArray TypeAny] Nothing @?= Nothing
   , testCase "TypeArray TypeAny (Mismatch with non-array)" $ 
       let expectedMsg = "argument 0 to have type arrany"
-          result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [TypeArray TypeAny]
+          result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [TypeArray TypeAny] Nothing
       in assertBool ("Expected msg: " ++ expectedMsg) (case result of Just _ -> True; Nothing -> False)
   , testCase "Nested Expression Error - Error Content" $ 
       let badExpr = ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "s")
-      in (case checkEachParam stack1 "test.ru" 0 0 0 [badExpr] [TypeI32] of 
+      in (case checkEachParam stack1 "test.ru" 0 0 0 [badExpr] [TypeI32] Nothing of 
         Just err -> do 
            seExpected err @?= "valid expression type"
            assertBool "Got should contain WrongType" ("WrongType" `isInfixOf` seGot err)
