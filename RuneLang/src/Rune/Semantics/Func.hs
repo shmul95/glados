@@ -29,8 +29,8 @@ import Rune.Semantics.Helper (fixSelfType)
 findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) = do
   let builtins = HM.fromList
-        [ ("show" , (TypeNull, [TypeAny]))
-        , ("error", (TypeNull, [TypeAny]))
+        [ ("show" , (TypeNull, [TypeAny], Nothing))
+        , ("error", (TypeNull, [TypeAny], Nothing))
         ]
   foldM findDefs builtins defs
 
@@ -42,27 +42,39 @@ findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
 -- | find normal function definitions - keep original name, no mangling
 findDefs s (DefFunction name params rType _ _) =
-    let paramTypes = map paramType params
-        sig = (rType, paramTypes)
+    let (fixedParams, variadicParam) = splitParams params
+        paramTypes = map paramType fixedParams
+        variadicType = fmap paramType variadicParam
+        sig = (rType, paramTypes, variadicType)
     in if HM.member name s
        then Left $ printf "FuncAlreadyExist: %s was already defined, use override" name
        else Right $ HM.insert name sig s
+  where
+    splitParams ps = case reverse ps of
+      (p:rest) | paramIsVariadic p -> (reverse rest, Just p)
+      _ -> (ps, Nothing)
 
 -- | find override function definitions - mangle the name
 findDefs s (DefOverride name params rType _ _) =
-    let paramTypes = map paramType params
-        sig = (rType, paramTypes)
+    let (fixedParams, variadicParam) = splitParams params
+        paramTypes = map paramType fixedParams
+        variadicType = fmap paramType variadicParam
+        sig = (rType, paramTypes, variadicType)
         mangledName = mangleFuncName name rType paramTypes
         msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
     in case HM.lookup name s of
       Just _ -> Right $ HM.insert mangledName sig s
       Nothing -> Left $ printf msg name
+  where
+    splitParams ps = case reverse ps of
+      (p:rest) | paramIsVariadic p -> (reverse rest, Just p)
+      _ -> (ps, Nothing)
 
 -- | find function signatures defined somewhere else
 findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
     addSig fs (FunctionSignature name paramTypes rType _isOverride) =
-      let sig = (rType, paramTypes)
+      let sig = (rType, paramTypes, Nothing)
       in Right $ HM.insertWith (\_ old -> old) name sig fs
 
 -- | find struct method definitions
