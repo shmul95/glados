@@ -93,7 +93,9 @@ verifVars (Program n defs) = do
 --
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefFunction _ params ret _ _) = 
+  let hasVariadic = any paramIsVariadic params
+  in not hasVariadic && (hasAny ret || any (hasAny . paramType) params)
 isGeneric (DefOverride {}) = False
 isGeneric _ = False
 
@@ -119,16 +121,24 @@ mangleFuncStack fs = fs
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport) = do
-  let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
+  let vs = HM.fromList $ map (\p -> (paramName p, getParamSemanticType p)) params
   body' <- verifScope vs body
   pure $ DefFunction name params r_t body' isExport
+  where
+    getParamSemanticType p
+      | paramIsVariadic p = TypeArray (paramType p)
+      | otherwise = paramType p
 
 verifTopLevel (DefOverride name params r_t body isExport) = do
   let paramTypes = map paramType params
       mangledName = mangleName name r_t paramTypes
-      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
+      vs = HM.fromList $ map (\p -> (paramName p, getParamSemanticType p)) params
   body' <- verifScope vs body
   pure $ DefOverride mangledName params r_t body' isExport
+  where
+    getParamSemanticType p
+      | paramIsVariadic p = TypeArray (paramType p)
+      | otherwise = paramType p
 
 verifTopLevel (DefStruct name fields methods) = do
   methods' <- mapM (verifMethod name) methods
@@ -455,7 +465,7 @@ registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
 registerInstantiation name def retTy argTys =
   modify $ \st -> st
     { stNewDefs      = stNewDefs st <> [def]
-    , stFuncs        = HM.insert name (retTy, argTys) (stFuncs st)
+    , stFuncs        = HM.insert name (retTy, argTys, Nothing) (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
