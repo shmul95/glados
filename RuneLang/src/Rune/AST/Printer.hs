@@ -314,7 +314,12 @@ dedent :: Printer ()
 dedent = modify (\s -> s {psIndent = psIndent s - 1})
 
 emitParam :: Parameter -> Printer ()
-emitParam p = newLine >> emit (paramName p <> ": " <> showType (paramType p))
+emitParam p = do
+  newLine
+  emit (paramName p <> ": " <> showType (paramType p))
+  case paramDefault p of
+    Just defaultExpr -> emit (" = " <> show defaultExpr)
+    Nothing -> pure ()
 
 showType :: Type -> String
 showType TypeI8 = "i8"

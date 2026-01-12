@@ -166,8 +166,12 @@ data TopLevelDef
 type Block = [Statement]
 
 -- | function parameter
--- (x: i32, y: f64)
-data Parameter = Parameter {paramName :: String, paramType :: Type}
+-- (x: i32, y: f64) or (msg = "shmeul")
+data Parameter = Parameter 
+  { paramName :: String, 
+    paramType :: Type,
+    paramDefault :: Maybe Expression
+  }
   deriving (Show, Eq)
 
 -- | struct field
