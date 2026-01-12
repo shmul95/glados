@@ -117,10 +117,13 @@ visitSomewhere (DefSomewhere sigs) = do
   emitBlock "Signatures:" (mapM_ emitSig sigs)
   dedent
   where
-    emitSig (FunctionSignature name paramTypes retType isOverride) = do
+    emitSig (FunctionSignature name paramTypes retType isOverride varT) = do
       newLine
       emit $ (if isOverride then "override " else "") <> name <> "("
       emit $ unwords (map showType paramTypes)
+      case varT of
+        Just vt -> emit $ ", ..." <> showType vt
+        Nothing -> pure ()
       emit $ ") -> " <> showType retType
 visitSomewhere _ = return ()
 
