@@ -65,7 +65,7 @@ def test_read_partial() -> null
 
 def test_read_full_content() -> null
 {
-    path = "RuneLang/test/RuneUnitTests/tests/std/io";
+    path = "RuneLang/test/RuneUnitTests/tests/std/io/file.ru";
 
     content = read_all(path)?;
     len = length(content);
