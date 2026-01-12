@@ -32,7 +32,7 @@ export def test_file() -> null
 
 def test_open_close_valid() -> null
 {
-    path = "RuneLang/test/RuneUnitTests/tests/std/io";
+    path = "RuneLang/test/RuneUnitTests/tests/std/io/file.ru";
     fd = open_file(path)?;
 
     assert(fd >= 0, "IO: Open valid file");
@@ -41,7 +41,7 @@ def test_open_close_valid() -> null
 
 def test_file_size() -> null
 {
-    path = "RuneLang/test/RuneUnitTests/tests/std/io";
+    path = "RuneLang/test/RuneUnitTests/tests/std/io/file.ru";
     fd = open_file(path)?;
 
     size = get_file_size(fd);
@@ -52,7 +52,7 @@ def test_file_size() -> null
 
 def test_read_partial() -> null
 {
-    path = "RuneLang/test/RuneUnitTests/tests/std/io";
+    path = "RuneLang/test/RuneUnitTests/tests/std/io/file.ru";
     fd = open_file(path)?;
 
     content = read_file(fd, 5)?;
@@ -65,7 +65,7 @@ def test_read_partial() -> null
 
 def test_read_full_content() -> null
 {
-    path = "RuneLang/test/RuneUnitTests/tests/std/io";
+    path = "RuneLang/test/RuneUnitTests/tests/std/io/file.ru";
 
     content = read_all(path)?;
     len = length(content);

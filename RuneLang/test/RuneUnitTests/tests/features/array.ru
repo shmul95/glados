@@ -17,7 +17,7 @@ export def test_arrays() -> null
 
 def test_array_i32() -> null
 {
-    arr: i32[] = [1, 2, 3, 4, 5];
+    arr: []i32 = [1, 2, 3, 4, 5];
     arr[1] = 10;
     
     assert(arr[0] == 1, "Array i32: Index 0 value");
@@ -27,7 +27,7 @@ def test_array_i32() -> null
 
 def test_array_char() -> null
 {
-    arr: char[] = ['R', 'u', 'n', 'e'];
+    arr: []char = ['R', 'u', 'n', 'e'];
     
     assert(arr[0] == 'R', "Array char: Index 0");
     assert(arr[3] == 'e', "Array char: Index 3");
@@ -35,7 +35,7 @@ def test_array_char() -> null
 
 def test_array_nested() -> null
 {
-    kurwa: i32[][] = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    kurwa: [][]i32 = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
 
     assert(kurwa[0][0] == 1, "Nested array: [0][0]");
     assert(kurwa[1][1] == 5, "Nested array: [1][1]");
