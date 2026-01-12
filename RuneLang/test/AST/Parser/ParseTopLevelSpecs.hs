@@ -124,7 +124,7 @@ testParseParams = testGroup "parseParams"
   [ testCase "Empty" $ assertS "()" parseParams [tok T.LParen, tok T.RParen] []
   , testCase "List with comma" $ assertS "(x:i32, y:i32)" parseParams 
       [tok T.LParen, tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Comma, tok (T.Identifier "y"), tok T.Colon, tok T.TypeI32, tok T.RParen] 
-      [Parameter "x" TypeI32, Parameter "y" TypeI32]
+      [Parameter "x" TypeI32 False, Parameter "y" TypeI32 False]
   ]
 
 testParseParameter :: TestTree
@@ -162,16 +162,16 @@ testParseFunctionSignatures = testGroup "parseFunctionSignatures"
   [ testCase "isEnd True"  $ assertS "empty" parseFunctionSignatures [tok T.RBrace] []
   , testCase "isEnd False" $ assertS "list"  parseFunctionSignatures 
       [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon, tok T.RBrace] 
-      [FunctionSignature "f" [] TypeNull False]
+      [FunctionSignature "f" [] TypeNull False Nothing]
   ]
 
 testParseFunctionSignature :: TestTree
 testParseFunctionSignature = testGroup "parseFunctionSignature"
-  [ testCase "isOverride True"  $ assertS "override" parseFunctionSignature [tok T.KwOverride, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature "f" [] TypeNull True)
-  , testCase "isOverride False (pure())" $ assertS "def" parseFunctionSignature [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature "f" [] TypeNull False)
+  [ testCase "isOverride True"  $ assertS "override" parseFunctionSignature [tok T.KwOverride, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature "f" [] TypeNull True Nothing)
+  , testCase "isOverride False (pure())" $ assertS "def" parseFunctionSignature [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature "f" [] TypeNull False Nothing)
   , testCase "Comma coverage" $ assertS "params" parseFunctionSignature 
       [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.TypeI32, tok T.Comma, tok T.TypeF32, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] 
-      (FunctionSignature "f" [TypeI32, TypeF32] TypeNull False)
+      (FunctionSignature "f" [TypeI32, TypeF32] TypeNull False Nothing)
   ]
 
 testParseParamTypeInSignature :: TestTree
