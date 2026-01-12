@@ -183,7 +183,8 @@ data FunctionSignature = FunctionSignature
   { sigName :: String,
     sigParams :: [Type],
     sigReturnType :: Type,
-    sigIsOverride :: Bool
+    sigIsOverride :: Bool,
+    sigVariadicType :: Maybe Type  -- ^ Type of variadic parameter if present
   }
   deriving (Show, Eq)
 
