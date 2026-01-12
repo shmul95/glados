@@ -93,7 +93,7 @@ verifVars (Program n defs) = do
 --
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefFunction _ params ret _ _ _) = hasAny ret || any (hasAny . paramType) params
 isGeneric (DefOverride {}) = False
 isGeneric _ = False
 
@@ -105,8 +105,8 @@ hasAny _ = False
 
 
 getDefName :: TopLevelDef -> String
-getDefName (DefFunction n _ _ _ _) = n
-getDefName (DefOverride n _ _ _ _) = n
+getDefName (DefFunction n _ _ _ _ _) = n
+getDefName (DefOverride n _ _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
 getDefName (DefSomewhere {}) = ""
 
@@ -118,17 +118,17 @@ mangleFuncStack fs = fs
 --
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
-verifTopLevel (DefFunction name params r_t body isExport) = do
+verifTopLevel (DefFunction name params r_t body isExport visibility) = do
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
-  pure $ DefFunction name params r_t body' isExport
+  pure $ DefFunction name params r_t body' isExport visibility
 
-verifTopLevel (DefOverride name params r_t body isExport) = do
+verifTopLevel (DefOverride name params r_t body isExport visibility) = do
   let paramTypes = map paramType params
       mangledName = mangleName name r_t paramTypes
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
-  pure $ DefOverride mangledName params r_t body' isExport
+  pure $ DefOverride mangledName params r_t body' isExport visibility
 
 verifTopLevel (DefStruct name fields methods) = do
   methods' <- mapM (verifMethod name) methods
@@ -394,15 +394,15 @@ verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 
-verifMethod sName (DefFunction methodName params retType body isExport) = do
+verifMethod sName (DefFunction methodName params retType body isExport visibility) = do
   checkMethodParams methodName params
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       baseName = sName ++ "_" ++ methodName
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
-  pure $ DefFunction baseName params' retType body' isExport
+  pure $ DefFunction baseName params' retType body' isExport visibility
 
-verifMethod sName (DefOverride methodName params retType body isExport) = do
+verifMethod sName (DefOverride methodName params retType body isExport visibility) = do
   checkMethodParams methodName params
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       paramTypes = map paramType params'
@@ -410,7 +410,7 @@ verifMethod sName (DefOverride methodName params retType body isExport) = do
       mangledName = mangleName baseName retType paramTypes
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
-  pure $ DefOverride mangledName params' retType body' isExport
+  pure $ DefOverride mangledName params' retType body' isExport visibility
 
 verifMethod _ def = pure def
 

@@ -59,9 +59,9 @@ parseTopLevelDef = do
   t <- peek
   case T.tokenKind t of
     T.KwExport -> parseExportedDef
-    T.KwDef -> parseFunction False
+    T.KwDef -> parseFunction False Public
     T.KwStruct -> parseStruct
-    T.KwOverride -> parseOverride False
+    T.KwOverride -> parseOverride False Public
     T.KwSomewhere -> parseSomewhere
     _ -> failParse "Expected top-level definition (def, struct, override, export, somewhere)"
 
@@ -74,18 +74,18 @@ parseExportedDef = do
   _ <- expect T.KwExport
   t <- peek
   case T.tokenKind t of
-    T.KwDef -> parseFunction True
-    T.KwOverride -> parseOverride True
+    T.KwDef -> parseFunction True Public
+    T.KwOverride -> parseOverride True Public
     _ -> failParse "Expected 'def' or 'override' after 'export'"
 
-parseFunction :: Bool -> Parser TopLevelDef
-parseFunction isExport = do
+parseFunction :: Bool -> Visibility -> Parser TopLevelDef
+parseFunction isExport visibility = do
   _ <- expect T.KwDef
   name <- parseIdentifier
   params <- withContext ("parameters of function '" ++ name ++ "'") parseParams
   retType <- withContext ("return type of function '" ++ name ++ "'") parseReturnType
   body <- withContext ("body of function '" ++ name ++ "'") parseBlock
-  pure $ DefFunction name params retType body isExport
+  pure $ DefFunction name params retType body isExport visibility
 
 --
 -- structs
@@ -117,8 +117,8 @@ parseStructItem = do
   visibility <- parseVisibility
   t <- peek
   case T.tokenKind t of
-    T.KwDef -> Right <$> parseFunction False
-    T.KwOverride -> Right <$> parseOverride False
+    T.KwDef -> Right <$> parseFunction False visibility
+    T.KwOverride -> Right <$> parseOverride False visibility
     T.Identifier _ -> Left <$> parseField visibility <* expect T.Semicolon
     _ -> failParse "Expected struct field or method"
 
@@ -126,14 +126,14 @@ parseStructItem = do
 -- overrides
 --
 
-parseOverride :: Bool -> Parser TopLevelDef
-parseOverride isExport = do
+parseOverride :: Bool -> Visibility -> Parser TopLevelDef
+parseOverride isExport visibility = do
   _ <- expect T.KwOverride *> expect T.KwDef
   name <- parseIdentifier
   params <- withContext ("parameters of override '" ++ name ++ "'") parseParams
   retType <- withContext ("return type of override '" ++ name ++ "'") parseReturnType
   body <- withContext ("body of override '" ++ name ++ "'") parseBlock
-  pure $ DefOverride name params retType body isExport
+  pure $ DefOverride name params retType body isExport visibility
 
 --
 -- parameters

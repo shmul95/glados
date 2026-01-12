@@ -128,7 +128,8 @@ data TopLevelDef
         funcParams :: [Parameter],
         funcReturnType :: Type,
         funcBody :: Block,
-        funcIsExport :: Bool
+        funcIsExport :: Bool,
+        funcVisibility :: Visibility
       }
   | -- | struct definition
     -- struct Vec2f
@@ -157,7 +158,8 @@ data TopLevelDef
         overrideParams :: [Parameter],
         overrideReturnType :: Type,
         overrideBody :: Block,
-        overrideIsExport :: Bool
+        overrideIsExport :: Bool,
+        overrideVisibility :: Visibility
       }
   | -- | somewhere block (forward declarations)
     -- somewhere

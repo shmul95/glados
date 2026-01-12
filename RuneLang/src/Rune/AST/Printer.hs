@@ -78,8 +78,8 @@ visitTopLevel d@DefOverride {} = visitOverride d
 visitTopLevel d@DefSomewhere {} = visitSomewhere d
 
 visitFunction :: TopLevelDef -> Printer ()
-visitFunction (DefFunction name params retType body isExport) = do
-  emit $ (if isExport then "export " else "") <> "DefFunction " <> name
+visitFunction (DefFunction name params retType body isExport visibility) = do
+  emit $ show visibility <> (if isExport then " export " else " ") <> "DefFunction " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine
@@ -100,8 +100,8 @@ visitStruct (DefStruct name fields methods) = do
 visitStruct _ = return ()
 
 visitOverride :: TopLevelDef -> Printer ()
-visitOverride (DefOverride name params retType body isExport) = do
-  emit $ (if isExport then "export " else "") <> "DefOverride " <> name
+visitOverride (DefOverride name params retType body isExport visibility) = do
+  emit $ show visibility <> (if isExport then " export " else " ") <> "DefOverride " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine

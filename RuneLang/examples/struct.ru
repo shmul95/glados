@@ -1,9 +1,9 @@
 struct Vec2f
 {
     public x: f32;
-    y: f32;
+    private y: f32;
 
-    def new() -> Vec2f
+    protected def new() -> Vec2f
     {
         show("Default constructor called\n");
         Vec2f { x: 0.0, y: 0.0 }

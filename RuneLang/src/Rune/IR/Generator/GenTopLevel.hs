@@ -55,7 +55,7 @@ genTopLevel DefSomewhere {} = pure []
 -- def foo(a: i32, b: f32) -> i32 { ... }
 -- DEF foo(p_a: i32, p_b: f32)
 genFunction :: TopLevelDef -> IRGen [IRTopLevel]
-genFunction (DefFunction name params retType body isExport) = do
+genFunction (DefFunction name params retType body isExport _) = do
   resetFunctionState name
 
   irParams <- mapM genParam params
@@ -74,8 +74,8 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- | generate IR for an override function
 -- show(Vec2f) -> show_Vec2f
 genOverride :: TopLevelDef -> IRGen [IRTopLevel]
-genOverride (DefOverride name params retType body isExport) =
-  genFunction (DefFunction name params retType body isExport)
+genOverride (DefOverride name params retType body isExport visibility) =
+  genFunction (DefFunction name params retType body isExport visibility)
 genOverride _ = throwError "genOverride called on non-override"
 
 -- | generate IR for a struct definition and its methods
@@ -91,10 +91,10 @@ genStruct _ = pure []
 
 -- | generate IR for a struct method
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
-genStructMethod _ (DefFunction methName params retType body _) =
-  genFunction (DefFunction methName params retType body False)
-genStructMethod _ (DefOverride methName params retType body _) =
-  genFunction (DefFunction methName params retType body False)
+genStructMethod _ (DefFunction methName params retType body _ visibility) =
+  genFunction (DefFunction methName params retType body False visibility)
+genStructMethod _ (DefOverride methName params retType body _ visibility) =
+  genFunction (DefFunction methName params retType body False visibility)
 genStructMethod _ _ = pure []
 
 --

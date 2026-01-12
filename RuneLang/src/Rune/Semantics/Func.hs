@@ -41,7 +41,7 @@ findFunc (Program _ defs) = do
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
 -- | find normal function definitions - keep original name, no mangling
-findDefs s (DefFunction name params rType _ _) =
+findDefs s (DefFunction name params rType _ _ _) =
     let paramTypes = map paramType params
         sig = (rType, paramTypes)
     in if HM.member name s
@@ -49,7 +49,7 @@ findDefs s (DefFunction name params rType _ _) =
        else Right $ HM.insert name sig s
 
 -- | find override function definitions - mangle the name
-findDefs s (DefOverride name params rType _ _) =
+findDefs s (DefOverride name params rType _ _ _) =
     let paramTypes = map paramType params
         sig = (rType, paramTypes)
         mangledName = mangleFuncName name rType paramTypes
@@ -67,7 +67,7 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
 
 -- | find struct method definitions
 findDefs s (DefStruct name _ methods) =
-    let defFuncNames = [methodName | DefFunction methodName _ _ _ _ <- methods]
+    let defFuncNames = [methodName | DefFunction methodName _ _ _ _ _ <- methods]
         funcDuplicates = defFuncNames List.\\ List.nub defFuncNames
         msg = "DuplicateMethodInStruct: Duplicate method '%s' in struct '%s' (use override for additional signatures)"
     in case funcDuplicates of
@@ -83,14 +83,14 @@ isStaticMethod _     = False
 transformStructMethods :: String -> [TopLevelDef] -> [TopLevelDef]
 transformStructMethods sName = map transform
   where
-    transform (DefFunction methodName params rType body isExport) =
+    transform (DefFunction methodName params rType body isExport visibility) =
       let baseName = sName ++ "_" ++ methodName
           params' = if isStaticMethod methodName then params else fixSelfType sName params
-      in DefFunction baseName params' rType body isExport
-    transform (DefOverride methodName params rType body isExport) =
+      in DefFunction baseName params' rType body isExport visibility
+    transform (DefOverride methodName params rType body isExport visibility) =
       let baseName = sName ++ "_" ++ methodName
           params' = if isStaticMethod methodName then params else fixSelfType sName params
-      in DefOverride baseName params' rType body isExport
+      in DefOverride baseName params' rType body isExport visibility
     transform other = other
 
 mangleFuncName :: String -> Type -> [Type] -> String
