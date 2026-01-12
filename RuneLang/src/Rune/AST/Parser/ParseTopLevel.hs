@@ -156,9 +156,9 @@ parseTypedParam :: Parser Parameter
 parseTypedParam = do
   name <- parseIdentifier
   _ <- expect T.Colon
-  pType <- parseType
   isVariadic <- check T.Ellipsis
   when isVariadic advance
+  pType <- parseType
   pure $ Parameter name pType isVariadic
 
 --
