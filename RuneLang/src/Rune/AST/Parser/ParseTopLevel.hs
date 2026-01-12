@@ -201,10 +201,21 @@ parseFunctionSignature = do
   when isOverride advance
   _ <- expect T.KwDef
   name <- parseIdentifier
-  paramTypes <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamTypeInSignature (expect T.Comma))
+  params <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamInSignature (expect T.Comma))
   retType <- parseReturnType
   _ <- expect T.Semicolon
-  pure $ FunctionSignature name paramTypes retType isOverride
+  let (fixedParams, variadicType) = splitVariadicParams params
+  pure $ FunctionSignature name fixedParams retType isOverride variadicType
+  where
+    splitVariadicParams ps = case reverse ps of
+      ((t, True):rest) -> (map fst (reverse rest), Just t)
+      _ -> (map fst ps, Nothing)
+
+-- | Parse a parameter in a function signature, returning (Type, isVariadic)
+parseParamInSignature :: Parser (Type, Bool)
+parseParamInSignature =
+  ((\p -> (paramType p, paramIsVariadic p)) <$> try parseTypedParam)
+    <|> ((\t -> (t, False)) <$> parseType)
 
 parseParamTypeInSignature :: Parser Type
 parseParamTypeInSignature = 
