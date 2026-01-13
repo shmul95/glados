@@ -119,16 +119,20 @@ mangleFuncStack fs = fs
 -- verif
 --
 
+resolveFinalName :: String -> Type -> [Type] -> SemM String
+resolveFinalName baseName retType paramTypes = do
+  fs <- gets stFuncs
+  pure $ case HM.lookup baseName fs of
+    Just ((exRet, exArgs), _) ->
+      if exRet == retType && exArgs == paramTypes
+      then baseName
+      else mangleName baseName retType paramTypes
+    Nothing -> baseName
+
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport visibility) = do
-  fs <- gets stFuncs
   let paramTypes = map paramType params
-      finalName = case HM.lookup name fs of
-        Just ((exRet, exArgs), _) ->
-            if exRet == r_t && exArgs == paramTypes
-            then name
-            else mangleName name r_t paramTypes
-        Nothing -> name
+  finalName <- resolveFinalName name r_t paramTypes
 
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
@@ -414,21 +418,17 @@ verifExprWithContext _ _ expr = pure expr
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 
 verifMethod sName (DefFunction methodName params retType body isExport visibility) = do
+  modify $ \st -> st {stCurrentStruct = Just sName}
   checkMethodParams methodName params
-  fs <- gets stFuncs
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
 
-      finalName = case HM.lookup baseName fs of
-        Just ((exRet, exArgs), _) ->
-            if exRet == retType && exArgs == paramTypes
-            then baseName
-            else mangleName baseName retType paramTypes
-        Nothing -> baseName
+  finalName <- resolveFinalName baseName retType paramTypes
 
-      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
+  let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
+  modify $ \st -> st {stCurrentStruct = Nothing}
   pure $ DefFunction finalName params' retType body' isExport visibility
 
 verifMethod _ def = pure def
