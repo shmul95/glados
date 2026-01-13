@@ -19,12 +19,12 @@ import Control.Monad.State.Strict
 
 import Text.Printf (printf)
 
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust, isJust)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
 
 import Rune.AST.Nodes
-import Rune.Semantics.Func (findFunc)
+import Rune.Semantics.Func (findFunc, inferParamType)
 import Rune.Semantics.Struct (findStruct)
 import Rune.Semantics.Generic (instantiate)
 
@@ -69,7 +69,9 @@ type SemM a = StateT SemState (Either String) a
 
 verifVars :: Program -> Either String (Program, FuncStack)
 verifVars (Program n defs) = do
-  let (templatesList, concreteDefs) = List.partition isGeneric defs
+  -- Apply type inference to parameters before checking if generic
+  let defsWithInferredTypes = map applyInferenceToParams defs
+      (templatesList, concreteDefs) = List.partition isGeneric defsWithInferredTypes
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
@@ -96,6 +98,12 @@ isGeneric :: TopLevelDef -> Bool
 isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
 isGeneric _ = False
 
+-- | Apply type inference to function parameters from default values
+applyInferenceToParams :: TopLevelDef -> TopLevelDef
+applyInferenceToParams (DefFunction name params ret body isExport) =
+  DefFunction name (map inferParamType params) ret body isExport
+applyInferenceToParams def = def
+
 
 hasAny :: Type -> Bool
 hasAny TypeAny = True
@@ -121,7 +129,7 @@ verifTopLevel (DefFunction name params r_t body isExport) = do
   let paramTypes = map paramType params
       finalName = case HM.lookup name fs of
         Just (exRet, exArgs) ->
-            if exRet == r_t && exArgs == paramTypes
+            if exRet == r_t && map paramType exArgs == paramTypes
             then name
             else mangleName name r_t paramTypes
         Nothing -> name
@@ -189,9 +197,9 @@ verifScope vs (StmtFor pos v t (Just start) end body : stmts) = do
   ss      <- gets stStructs
   let s   = (fs, vs, ss)
       SourcePos file line col = pos
-  
+
   start'  <- verifExpr vs start
-  e_t     <- lift $ either 
+  e_t     <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["for loop start"]) 
                Right $ exprType s start'
 
@@ -220,7 +228,7 @@ verifScope vs (StmtForEach pos v t iter body : stmts) = do
       SourcePos file line col = pos
 
   iter'   <- verifExpr vs iter
-  e_t     <- lift $ either 
+  e_t     <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid iterable" msg ["for-each iterable"]) 
                Right $ exprType s iter'
 
@@ -228,7 +236,7 @@ verifScope vs (StmtForEach pos v t iter body : stmts) = do
     TypeArray inner -> pure inner
     TypeString -> pure TypeChar
     TypeAny -> pure TypeAny
-    _ -> pure TypeAny 
+    _ -> pure TypeAny
 
   vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs v file line col elem_t
   t'      <- lift $ either (Left . formatSemanticError) Right $ checkMultipleType v file line col t elem_t
@@ -249,10 +257,10 @@ verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
       SourcePos file line col = pos
 
   rv'     <- verifExpr vs rv
-  rv_t    <- lift $ either 
+  rv_t    <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["assignment RHS"]) 
                Right $ exprType s rv'
-  
+
   vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs lv file line col rv_t
   stmts'  <- verifScope vs' stmts
   pure $ StmtAssignment pos (ExprVar pv lv) rv' : stmts'
@@ -265,19 +273,19 @@ verifScope vs (StmtAssignment pos lhs rv : stmts) = do
 
   lhs'    <- verifExpr vs lhs
   rv'     <- verifExpr vs rv
-  
-  lhs_t   <- lift $ either 
+
+  lhs_t   <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid lhs type" msg ["assignment LHS"]) 
                Right $ exprType s lhs'
-  rv_t    <- lift $ either 
+  rv_t    <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid rhs type" msg ["assignment RHS"]) 
                Right $ exprType s rv'
-  
+
   unless (isTypeCompatible lhs_t rv_t) $
-    lift $ Left $ formatSemanticError $ SemanticError file line col 
-      (printf "expression of type %s" (show lhs_t)) 
+    lift $ Left $ formatSemanticError $ SemanticError file line col
+      (printf "expression of type %s" (show lhs_t))
       (printf "type %s" (show rv_t)) ["assignment", "global context"]
-  
+
   stmts'  <- verifScope vs stmts
   pure $ StmtAssignment pos lhs' rv' : stmts'
 
@@ -306,19 +314,19 @@ verifExprWithContext hint vs (ExprUnary pos op val) = do
 verifExprWithContext hint vs (ExprBinary pos op l r) = do
   l' <- verifExprWithContext hint vs l
   r' <- verifExprWithContext hint vs r
-  
+
   fs <- gets stFuncs
   ss <- gets stStructs
   let s   = (fs, vs, ss)
       SourcePos file line col = pos
-  
-  leftType  <- lift $ either 
+
+  leftType  <- lift $ either
                  (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary left operand"]) 
                  Right $ exprType s l'
-  rightType <- lift $ either 
+  rightType <- lift $ either
                  (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary right operand"]) 
                  Right $ exprType s r'
-  
+
   case iHTBinary op leftType rightType of
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
@@ -329,10 +337,15 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   let s = (fs, vs, ss)
 
   args' <- mapM (verifExpr vs) args
-  argTypes <- lift $ mapM (exprType s) args'
+  _ <- lift $ mapM (exprType s) args'
 
-  callExpr <- resolveCall cPos vPos s hint name args' argTypes
-  pure $ ExprCall cPos callExpr args'
+  -- Inject default values for missing parameters
+  finalArgs <- injectDefaultArgs fs name args' vs
+
+  finalArgTypes <- lift $ mapM (exprType s) finalArgs
+
+  callExpr <- resolveCall cPos vPos s hint name finalArgs finalArgTypes
+  pure $ ExprCall cPos callExpr finalArgs
 
 verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
   fs <- gets stFuncs
@@ -345,9 +358,11 @@ verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) 
     Just _ -> do
       let baseName = target ++ "_" ++ method
       args' <- mapM (verifExpr vs) args
-      argTypes <- lift $ mapM (exprType s) args'
-      callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
-      pure $ ExprCall cPos callExpr args'
+      _ <- lift $ mapM (exprType s) args'
+      finalArgs <- injectDefaultArgs fs baseName args' vs
+      finalArgTypes <- lift $ mapM (exprType s) finalArgs
+      callExpr <- resolveCall cPos vPos s hint baseName finalArgs finalArgTypes
+      pure $ ExprCall cPos callExpr finalArgs
 
     -- instance method call: variable.method(args)
     Nothing -> do
@@ -355,12 +370,25 @@ verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) 
       let baseName = show targetType ++ "_" ++ method
 
       args' <- mapM (verifExpr vs) args
-      argTypes <- lift $ mapM (exprType s) args'
-      let allArgs = ExprVar vPos target : args'
-          allArgTypes = targetType : argTypes
+      _ <- lift $ mapM (exprType s) args'
+      let selfArg = ExprVar vPos target
 
-      callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
-      pure $ ExprCall cPos callExpr allArgs
+      -- Inject defaults for instance methods (after self parameter)
+      finalArgs <- case HM.lookup baseName fs of
+        Just (_, params) | not (null params) ->
+          let missingParams = drop (length args' + 1) params  -- +1 for self
+          in if not (null missingParams) && all (isJust . paramDefault) missingParams
+               then
+                 let defaults = [fromJust (paramDefault p) | p <- missingParams]
+                 in do
+                   verifiedDefaults <- mapM (verifExpr vs) defaults
+                   pure (selfArg : args' ++ verifiedDefaults)
+               else pure (selfArg : args')
+        _ -> pure (selfArg : args')
+
+      finalArgTypes <- lift $ mapM (exprType s) finalArgs
+      callExpr <- resolveCall cPos vPos s hint baseName finalArgs finalArgTypes
+      pure $ ExprCall cPos callExpr finalArgs
 
 verifExprWithContext _ _ (ExprCall {}) =
   lift $ Left "Invalid function call target"
@@ -403,7 +431,7 @@ verifMethod sName (DefFunction methodName params retType body isExport) = do
 
       finalName = case HM.lookup baseName fs of
         Just (exRet, exArgs) ->
-            if exRet == retType && exArgs == paramTypes
+            if exRet == retType && map paramType exArgs == paramTypes
             then baseName
             else mangleName baseName retType paramTypes
         Nothing -> baseName
@@ -413,6 +441,23 @@ verifMethod sName (DefFunction methodName params retType body isExport) = do
   pure $ DefFunction finalName params' retType body' isExport
 
 verifMethod _ def = pure def
+
+--
+-- helper
+--
+
+-- | Inject default parameter values for missing arguments
+injectDefaultArgs :: FuncStack -> String -> [Expression] -> VarStack -> SemM [Expression]
+injectDefaultArgs fs name args vs =
+  case HM.lookup name fs of
+    Just (_, params) | length args < length params ->
+      let missingParams = drop (length args) params
+          -- Extract only the expressions from parameters that have defaults
+          defaultExprs = [expr | p <- missingParams, Just expr <- [paramDefault p]]
+      in do
+        verifiedDefaults <- mapM (verifExpr vs) defaultExprs
+        pure (args ++ verifiedDefaults)
+    _ -> pure args
 
 --
 -- instanciation
@@ -450,12 +495,12 @@ resolveReturnType originalName argTypes mCtx =
 alreadyInstantiated :: String -> SemM Bool
 alreadyInstantiated name = HM.member name <$> gets stInstantiated
 
-
 registerInstantiation :: String -> TopLevelDef -> Type -> [Type] -> SemM ()
 registerInstantiation name def retTy argTys =
-  modify $ \st -> st
+  let params = map (\t -> Parameter "" t Nothing) argTys
+  in modify $ \st -> st
     { stNewDefs      = stNewDefs st <> [def]
-    , stFuncs        = HM.insert name (retTy, argTys) (stFuncs st)
+    , stFuncs        = HM.insert name (retTy, params) (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 

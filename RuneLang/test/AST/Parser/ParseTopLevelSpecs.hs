@@ -115,22 +115,22 @@ testParseParams = testGroup "parseParams"
   [ testCase "Empty" $ assertS "()" parseParams [tok T.LParen, tok T.RParen] []
   , testCase "List with comma" $ assertS "(x:i32, y:i32)" parseParams 
       [tok T.LParen, tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Comma, tok (T.Identifier "y"), tok T.Colon, tok T.TypeI32, tok T.RParen] 
-      [Parameter "x" TypeI32, Parameter "y" TypeI32]
+      [Parameter "x" TypeI32 Nothing, Parameter "y" TypeI32 Nothing]
   ]
 
 testParseParameter :: TestTree
 testParseParameter = testGroup "parseParameter"
-  [ testCase "Self branch"  $ assertS "self" parseParameter [tok (T.Identifier "self")] (Parameter "self" TypeAny)
-  , testCase "Typed branch" $ assertS "typed" parseParameter [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32)
+  [ testCase "Self branch"  $ assertS "self" parseParameter [tok (T.Identifier "self")] (Parameter "self" TypeAny Nothing)
+  , testCase "Typed branch" $ assertS "typed" parseParameter [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32 Nothing)
   ]
 
 testParseSelfParam :: TestTree
 testParseSelfParam = testCase "parseSelfParam" $
-  assertS "self" parseSelfParam [tok (T.Identifier "self")] (Parameter "self" TypeAny)
+  assertS "self" parseSelfParam [tok (T.Identifier "self")] (Parameter "self" TypeAny Nothing)
 
 testParseTypedParam :: TestTree
 testParseTypedParam = testGroup "parseTypedParam"
-  [ testCase "Success" $ assertS "x: i32" parseTypedParam [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32)
+  [ testCase "Success" $ assertS "x: i32" parseTypedParam [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32] (Parameter "x" TypeI32 Nothing)
   , testCase "failParse branch" $ assertF "no colon error" parseTypedParam [tok (T.Identifier "x"), tok T.Semicolon]
   ]
 

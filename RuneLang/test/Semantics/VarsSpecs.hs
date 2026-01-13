@@ -212,13 +212,13 @@ forEachStringProgram = Program "fe"
 
 forEachArrayProgram :: Program
 forEachArrayProgram = Program "fe-arr"
-  [DefFunction "f" [Parameter "a" (TypeArray TypeI32)] TypeNull
+  [DefFunction "f" [Parameter "a" (TypeArray TypeI32) Nothing] TypeNull
     [StmtForEach dummyPos "x" Nothing (ExprVar dummyPos "a") []]
     False]
 
 forEachAnyProgram :: Program
 forEachAnyProgram = Program "feany"
-  [DefFunction "f" [Parameter "a" TypeAny] TypeNull
+  [DefFunction "f" [Parameter "a" TypeAny Nothing] TypeNull
     [StmtForEach dummyPos "x" Nothing (ExprVar dummyPos "a") []]
     False]
 
@@ -242,14 +242,14 @@ assignmentSimpleProgram = Program "assign-simple"
 structAssignmentProgram :: Program
 structAssignmentProgram = Program "assign"
   [DefStruct "S" [Field "x" TypeI32] [],
-   DefFunction "f" [Parameter "s" (TypeCustom "S")] TypeNull
+   DefFunction "f" [Parameter "s" (TypeCustom "S") Nothing] TypeNull
     [StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "s") "x") (ExprLitInt dummyPos 42)]
     False]
 
 assignmentIncompatibleProgram :: Program
 assignmentIncompatibleProgram = Program "assignerr"
   [DefStruct "S" [Field "x" TypeI32] [],
-   DefFunction "f" [Parameter "s" (TypeCustom "S")] TypeNull
+   DefFunction "f" [Parameter "s" (TypeCustom "S") Nothing] TypeNull
     [StmtAssignment dummyPos (ExprAccess dummyPos (ExprVar dummyPos "s") "x") (ExprLitString dummyPos "bad")]
     False]
 
@@ -337,13 +337,13 @@ unaryNegateProgram = Program "unary-negate"
 
 arrayIndexProgram :: Program
 arrayIndexProgram = Program "idx"
-  [DefFunction "f" [Parameter "a" (TypeArray TypeI32)] TypeI32
+  [DefFunction "f" [Parameter "a" (TypeArray TypeI32) Nothing] TypeI32
     [StmtReturn dummyPos (Just (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)))]
     False]
 
 arrayIndexVarProgram :: Program
 arrayIndexVarProgram = Program "aidx"
-  [DefFunction "f" [Parameter "a" (TypeArray TypeI32), Parameter "i" TypeI32] TypeI32
+  [DefFunction "f" [Parameter "a" (TypeArray TypeI32) Nothing, Parameter "i" TypeI32 Nothing] TypeI32
     [StmtReturn dummyPos (Just (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprVar dummyPos "i")))]
     False]
 
@@ -360,7 +360,7 @@ arrayLiteralProgram = Program "arrlit"
 structAccessProgram :: Program
 structAccessProgram = Program "struct-access"
   [DefStruct "S" [Field "x" TypeI32] [],
-   DefFunction "f" [Parameter "s" (TypeCustom "S")] TypeI32
+   DefFunction "f" [Parameter "s" (TypeCustom "S") Nothing] TypeI32
     [StmtReturn dummyPos (Just (ExprAccess dummyPos (ExprVar dummyPos "s") "x"))]
     False]
 
@@ -405,12 +405,12 @@ undefinedVarProgram = Program "undef-var"
 methodNoSelfProgram :: Program
 methodNoSelfProgram = Program "method-wrong-first"
   [DefStruct "S" []
-    [DefFunction "f" [Parameter "x" TypeI32] TypeNull [] False]]
+    [DefFunction "f" [Parameter "x" TypeI32 Nothing] TypeNull [] False]]
 
 methodWrongFirstParamProgram :: Program
 methodWrongFirstParamProgram = Program "method-wrong-first"
   [DefStruct "S" []
-    [DefFunction "f" [Parameter "notself" TypeI32] TypeNull [] False]]
+    [DefFunction "f" [Parameter "notself" TypeI32 Nothing] TypeNull [] False]]
 
 --
 -- Method Call Programs (via ExprAccess)
@@ -419,7 +419,7 @@ methodWrongFirstParamProgram = Program "method-wrong-first"
 methodCallProgram :: Program
 methodCallProgram = Program "method-call"
   [DefStruct "S" []
-    [DefFunction "f" [Parameter "self" TypeAny] TypeNull [] False],
+    [DefFunction "f" [Parameter "self" TypeAny Nothing] TypeNull [] False],
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "s" Nothing (ExprStructInit dummyPos "S" []),
      StmtExpr dummyPos (ExprCall dummyPos (ExprAccess dummyPos (ExprVar dummyPos "s") "f") [])]
@@ -428,7 +428,7 @@ methodCallProgram = Program "method-call"
 methodCallWithArgsProgram :: Program
 methodCallWithArgsProgram = Program "method-call-args"
   [DefStruct "S" []
-    [DefFunction "set" [Parameter "self" TypeAny, Parameter "val" TypeI32] TypeNull [] False],
+    [DefFunction "set" [Parameter "self" TypeAny Nothing, Parameter "val" TypeI32 Nothing] TypeNull [] False],
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "s" Nothing (ExprStructInit dummyPos "S" []),
      StmtExpr dummyPos (ExprCall dummyPos (ExprAccess dummyPos (ExprVar dummyPos "s") "set") [ExprLitInt dummyPos 42])]
@@ -437,7 +437,7 @@ methodCallWithArgsProgram = Program "method-call-args"
 methodCallReturnProgram :: Program
 methodCallReturnProgram = Program "method-call-ret"
   [DefStruct "S" [Field "x" TypeI32]
-    [DefFunction "get" [Parameter "self" TypeAny] TypeI32 [StmtReturn dummyPos (Just (ExprAccess dummyPos (ExprVar dummyPos "self") "x"))] False],
+    [DefFunction "get" [Parameter "self" TypeAny Nothing] TypeI32 [StmtReturn dummyPos (Just (ExprAccess dummyPos (ExprVar dummyPos "self") "x"))] False],
    DefFunction "main" [] TypeNull
     [StmtVarDecl dummyPos "s" Nothing (ExprStructInit dummyPos "S" [("x", ExprLitInt dummyPos 10)]),
      StmtVarDecl dummyPos "val" Nothing (ExprCall dummyPos (ExprAccess dummyPos (ExprVar dummyPos "s") "get") [])]
@@ -458,7 +458,7 @@ methodCallUndefinedProgram = Program "method-undef"
 methodWithBodyProgram :: Program
 methodWithBodyProgram = Program "method-body"
   [DefStruct "S" [Field "x" TypeI32]
-    [DefFunction "inc" [Parameter "self" TypeAny] TypeNull
+    [DefFunction "inc" [Parameter "self" TypeAny Nothing] TypeNull
       [StmtVarDecl dummyPos "y" (Just TypeI32) (ExprLitInt dummyPos 1)]
       False]]
 
@@ -473,7 +473,7 @@ methodNoParamsProgram = Program "method-no-params"
 
 genericInstArgProgram :: Program
 genericInstArgProgram = Program "gen"
-  [DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
+  [DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [ExprLitInt dummyPos 42])] False]
 
 genericInstContextProgram :: Program
@@ -483,7 +483,7 @@ genericInstContextProgram = Program "genctx"
 
 genericCacheProgram :: Program
 genericCacheProgram = Program "cache"
-  [DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
+  [DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
    DefFunction "m" [] TypeNull
     [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [ExprLitInt dummyPos 1]),
      StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [ExprLitInt dummyPos 2])]
@@ -496,7 +496,7 @@ genericFailProgram = Program "genfail"
 
 genericNoArgsProgram :: Program
 genericNoArgsProgram = Program "gen-no-args"
-  [DefFunction "id" [Parameter "x" TypeAny] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
+  [DefFunction "id" [Parameter "x" TypeAny Nothing] TypeAny [StmtReturn dummyPos (Just (ExprVar dummyPos "x"))] False,
    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [])] False]
 
 --
@@ -505,7 +505,7 @@ genericNoArgsProgram = Program "gen-no-args"
 
 testMangleFuncStack :: IO ()
 testMangleFuncStack = do
-  let fs = HM.fromList [("i32_f_i32", (TypeI32, [TypeI32])), ("f32_f_f32", (TypeF32, [TypeF32]))]
+  let fs = HM.fromList [("i32_f_i32", (TypeI32, [Parameter "x" TypeI32 Nothing])), ("f32_f_f32", (TypeF32, [Parameter "x" TypeF32 Nothing]))]
       mangled = mangleFuncStack fs
   assertBool "Should contain mangled names" (HM.member "i32_f_i32" mangled)
   assertBool "Should contain other mangled name" (HM.member "f32_f_f32" mangled)

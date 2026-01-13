@@ -6,10 +6,11 @@ module Rune.Semantics.Func
   , findDefs
   , transformStructMethods
   , mangleFuncName
+  , inferParamType
   )
 where
 #else
-module Rune.Semantics.Func (findFunc) where
+module Rune.Semantics.Func (findFunc, inferParamType) where
 #endif
 
 import Control.Monad (foldM)
@@ -29,8 +30,8 @@ import Rune.Semantics.Helper (fixSelfType)
 findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) = do
   let builtins = HM.fromList
-        [ ("show" , (TypeNull, [TypeAny]))
-        , ("error", (TypeNull, [TypeAny]))
+        [ ("show" , (TypeNull, [Parameter "value" TypeAny Nothing]))
+        , ("error", (TypeNull, [Parameter "msg" TypeAny Nothing]))
         ]
   foldM findDefs builtins defs
 
@@ -43,11 +44,11 @@ findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 -- | find function definitions
 findDefs s (DefFunction name params rType _ _) =
     let paramTypes = map paramType params
-        sig = (rType, paramTypes)
+        sig = (rType, params)
     in case HM.lookup name s of
          Nothing -> Right $ HM.insert name sig s
          Just (existingRet, existingArgs) ->
-             if existingRet == rType && existingArgs == paramTypes
+             if existingRet == rType && existingArgs == params
              then Left $ printf "FuncAlreadyExist: %s was already defined with same signature" name
              else
                  let mangledName = mangleFuncName name rType paramTypes
@@ -59,12 +60,32 @@ findDefs s (DefFunction name params rType _ _) =
 findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
     addSig fs (FunctionSignature name paramTypes rType) =
-      let sig = (rType, paramTypes)
+      let params = map (\pType -> Parameter "" pType Nothing) paramTypes
+          sig = (rType, params)
       in Right $ HM.insertWith (\_ old -> old) name sig fs
 
 -- | find struct method definitions
 findDefs s (DefStruct name _ methods) =
     foldM findDefs s (transformStructMethods name methods)
+
+-- | Infer parameter type from default value if type is TypeAny
+inferParamType :: Parameter -> Parameter
+inferParamType (Parameter name TypeAny (Just defaultExpr)) =
+  Parameter name (inferTypeFromExpr defaultExpr) (Just defaultExpr)
+inferParamType param = param
+
+-- | Infer type from a literal expression
+inferTypeFromExpr :: Expression -> Type
+inferTypeFromExpr (ExprLitInt _ _) = TypeI32
+inferTypeFromExpr (ExprLitFloat _ _) = TypeF32
+inferTypeFromExpr (ExprLitString _ _) = TypeString
+inferTypeFromExpr (ExprLitChar _ _) = TypeChar
+inferTypeFromExpr (ExprLitBool _ _) = TypeBool
+inferTypeFromExpr (ExprLitNull _) = TypeNull
+inferTypeFromExpr (ExprLitArray _ []) = TypeArray TypeAny
+inferTypeFromExpr (ExprLitArray _ (e:_)) = TypeArray (inferTypeFromExpr e)
+inferTypeFromExpr (ExprStructInit _ sName _) = TypeCustom sName
+inferTypeFromExpr _ = TypeAny  -- For complex expressions, keep TypeAny
 
 -- | check if a method is static (doesn't need self)
 -- TODO: add maybe more static method such as static keyword idk
@@ -77,6 +98,8 @@ transformStructMethods sName = map transform
   where
     transform (DefFunction methodName params rType body isExport) =
       let baseName = sName ++ "_" ++ methodName
+          -- paramsInferred = map inferParamType params
+          -- params' = if isStaticMethod methodName then paramsInferred else fixSelfType sName paramsInferred
           params' = if isStaticMethod methodName then params else fixSelfType sName params
       in DefFunction baseName params' rType body isExport
     transform other = other

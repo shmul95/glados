@@ -15,7 +15,7 @@ import Control.Monad (zipWithM)
 import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
 import qualified Data.HashMap.Strict as HM
-import Rune.AST.Nodes (Expression, Type(..))
+import Rune.AST.Nodes (Expression, Type(..), paramType)
 import Rune.IR.IRHelpers (registerCall, newTemp, astTypeToIRType, isFloatType)
 import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
@@ -32,15 +32,14 @@ type GenExprCallback = Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genCall :: GenExprCallback -> String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
 genCall genExpr funcName args = do
   fs <- gets gsFuncStack
-
   -- INFO: lookup for the resolved function signature
   let funcSignature = HM.lookup funcName fs
 
   -- INFO: generate arguments, using parameter type context
   argsData <- case funcSignature of
-    Just (_, paramTypes)
-      | length paramTypes == length args ->
-          zipWithM (genArgWithContext genExpr) args paramTypes
+    Just (_, params)
+      | length params == length args ->
+          zipWithM (genArgWithContext genExpr) args (map paramType params)
     _ -> mapM genExpr args
 
   -- INFO: prepare arguments (get addresses for structs ect...)

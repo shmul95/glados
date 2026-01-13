@@ -92,7 +92,7 @@ genStructMethod _ _ = pure []
 
 -- | generate IR for a function parameter and register it in the symbol table
 genParam :: Parameter -> IRGen (String, IRType)
-genParam (Parameter name typ) = do
+genParam (Parameter name typ _) = do
   let irType = case typ of
                  TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
                  TypeCustom s -> IRPtr (IRStruct s)

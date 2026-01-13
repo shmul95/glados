@@ -30,6 +30,7 @@ import Control.Applicative ((<|>))
 import Data.Either (partitionEithers)
 import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.AST.Parser.ParseBlock (parseBlock)
+import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (advance, between, check, expect, expectIdent, failParse, peek, sepBy, try, withContext)
 import Rune.AST.Types (Parser (..))
@@ -128,7 +129,7 @@ parseParameter = parseSelfParam <|> parseTypedParam
 
 parseSelfParam :: Parser Parameter
 parseSelfParam =
-  Parameter "self" TypeAny <$ expectIdent "self"
+  Parameter "self" TypeAny Nothing <$ expectIdent "self"
 
 --
 -- typed parameters
@@ -136,10 +137,20 @@ parseSelfParam =
 
 parseTypedParam :: Parser Parameter
 parseTypedParam =
-  Parameter
-    <$> parseIdentifier
-    <*> (expect T.Colon *> parseType)
-    <|> failParse "Expected typed parameter (name: type)"
+  parseTypedParamWithType <|> parseTypedParamWithDefault
+  where
+    -- Try to parse: name: type [= value]
+    parseTypedParamWithType = do
+      name <- parseIdentifier
+      _ <- expect T.Colon
+      pType <- parseType
+      pDefault <- try (Just <$> (expect T.OpAssign *> parseExpression)) <|> pure Nothing
+      pure $ Parameter name pType pDefault
+    -- Try to parse: name = value (no type annotation)
+    parseTypedParamWithDefault = do
+      name <- parseIdentifier
+      _ <- expect T.OpAssign
+      Parameter name TypeAny . Just <$> parseExpression
 
 --
 -- return type
@@ -185,5 +196,5 @@ parseFunctionSignature = do
   pure $ FunctionSignature name paramTypes retType
 
 parseParamTypeInSignature :: Parser Type
-parseParamTypeInSignature = 
+parseParamTypeInSignature =
   (paramType <$> try parseTypedParam) <|> parseType

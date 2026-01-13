@@ -13,7 +13,7 @@ module Rune.Semantics.Helper
   , fixSelfType
   ) where
 
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (fromMaybe, isNothing, isJust)
 import Data.List (intercalate)
 import qualified Data.HashMap.Strict as HM
 
@@ -52,10 +52,10 @@ checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expressi
 checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
       -- Find candidates by exact match on mangled name
-      exactMangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (fname, argTypes) k (ret, args)) fs
+      exactMangled = HM.filterWithKey (\k (ret, params) -> isRightFunction (fname, argTypes) k (ret, map paramType params)) fs
       -- For struct method overrides (names containing _), also check compatible manglings
       compatibleMangled = if isStructMethod fname
-                          then HM.toList $ HM.filterWithKey (\k (ret, args) -> isCompatibleMangling fname k ret args argTypes) fs
+                          then HM.toList $ HM.filterWithKey (\k (ret, params) -> isCompatibleMangling fname k ret (map paramType params) argTypes) fs
                           else []
       -- Also check direct name lookup
       candidates = case (HM.toList exactMangled, compatibleMangled, HM.lookup fname fs) of
@@ -65,13 +65,13 @@ checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
         ([], [], Nothing) -> []
   in case candidates of
     [] -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    [(name, (_, args))] ->
-      case checkEachParam s file line col 0 es args of
+    [(name, (_, params))] ->
+      case checkEachParam s file line col 0 es params of
         Nothing -> Right name
         Just err -> Left err
     multiples ->
       -- Filter to only those with matching parameter count and compatible types
-      case filter (\(_, (_, args)) -> isNothing $ checkEachParam s file line col 0 es args) multiples of
+      case filter (\(_, (_, params)) -> isNothing $ checkEachParam s file line col 0 es params) multiples of
         [(name, _)] -> Right name
         [] -> Left $ mkError ("function '" <> fname <> "' with compatible arguments") "no matching signature"
         _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
@@ -83,7 +83,7 @@ isStructMethod name = '_' `elem` name
 -- | Check if a function name is a valid mangling of the base name with compatible types
 isCompatibleMangling :: String -> String -> Type -> [Type] -> [Type] -> Bool
 isCompatibleMangling baseName fName retType funcArgTypes argTypes =
-  let -- The mangled name should be retType_baseName_... 
+  let -- The mangled name should be retType_baseName_...
       expectedPrefix = show retType <> "_" <> baseName
       isNameMatch = fName == baseName ||
                     fName == expectedPrefix ||
@@ -197,23 +197,28 @@ checkMultipleType v file line col (Just t) e_t
   | otherwise = Left $ SemanticError file line col (printf "variable '%s' to have type %s" v (show t)) (printf "type %s being assigned" (show e_t)) ["type check", "global context"]
 
 
-checkEachParam :: Stack -> String -> Int -> Int -> Int -> [Expression] -> [Type] -> Maybe SemanticError
-checkEachParam s file line col i (e:es) (t:at) =
+checkEachParam :: Stack -> String -> Int -> Int -> Int -> [Expression] -> [Parameter] -> Maybe SemanticError
+checkEachParam s file line col i (e:es) (p:ps) =
   case exprType s e of
     Left err -> Just $ SemanticError file line col "valid expression type" err ["parameter check", "function call"]
     Right t' ->
-      if isTypeCompatible t t'
-      then checkEachParam s file line col (i + 1) es at
-      else 
-        let expected = printf "argument %d to have type %s" i (show t)
-            got = printf "type %s" (show t')
-        in Just $ SemanticError file line col expected got ["parameter check", "function call", "global context"]
+      let pType = paramType p
+      in if isTypeCompatible pType t'
+         then checkEachParam s file line col (i + 1) es ps
+         else
+           let expected = printf "argument %d to have type %s" i (show pType)
+               got = printf "type %s" (show t')
+           in Just $ SemanticError file line col expected got ["parameter check", "function call", "global context"]
 
 checkEachParam _ _ _ _ _ [] [] = Nothing
-checkEachParam _ file line col i [] at =
-  let expected = printf "%d arguments" (length at + i)
-      got = printf "%d arguments (too few)" i
-  in Just $ SemanticError file line col expected got ["parameter count", "function call", "global context"]
+checkEachParam _ file line col i [] ps =
+  -- Check if remaining parameters all have default values
+  if all (isJust . paramDefault) ps
+  then Nothing
+  else
+    let expected = printf "%d arguments" (length ps + i)
+        got = printf "%d arguments (too few)" i
+    in Just $ SemanticError file line col expected got ["parameter count", "function call", "global context"]
 checkEachParam _ file line col i es [] =
   let expected = printf "%d arguments" i
       got = printf "%d arguments (too many)" (length es + i)
@@ -222,7 +227,7 @@ checkEachParam _ file line col i es [] =
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name argTypes =
-  let mangled = HM.filterWithKey (\k (ret, args) -> isRightFunction (name, argTypes) k (ret, args)) fs
+  let mangled = HM.filterWithKey (\k (ret, params) -> isRightFunction (name, argTypes) k (ret, map paramType params)) fs
   in case (HM.toList mangled, HM.lookup name fs) of
     ((_, (ret, _)):_, _) -> Just ret          -- Trouvé manglé
     ([], Just (ret, _))  -> Just ret          -- Trouvé en base
