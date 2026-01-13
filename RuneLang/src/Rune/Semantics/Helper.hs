@@ -213,7 +213,7 @@ checkEachParam s file line col i (e:es) (p:ps) =
 checkEachParam _ _ _ _ _ [] [] = Nothing
 checkEachParam _ file line col i [] ps =
   -- Check if remaining parameters all have default values
-  if all (\p -> isJust (paramDefault p)) ps
+  if all (isJust . paramDefault) ps
   then Nothing
   else
     let expected = printf "%d arguments" (length ps + i)

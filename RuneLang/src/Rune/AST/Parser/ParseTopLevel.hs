@@ -168,8 +168,7 @@ parseTypedParam =
     parseTypedParamWithDefault = do
       name <- parseIdentifier
       _ <- expect T.OpAssign
-      defaultExpr <- parseExpression
-      pure $ Parameter name TypeAny (Just defaultExpr)
+      Parameter name TypeAny . Just <$> parseExpression
 
 --
 -- return type
