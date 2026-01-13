@@ -49,6 +49,9 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
+import Debug.Trace (trace)
+-- import Rune.AST.Printer (prettyPrint)
+
 --
 -- state monad
 --
@@ -59,7 +62,7 @@ data SemState = SemState
   , stNewDefs      :: [TopLevelDef]           -- << new functions
   , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
   , stStructs      :: StructStack             -- << known structs
-  }
+  } deriving (Show)
 
 type SemM a = StateT SemState (Either String) a
 
@@ -86,7 +89,14 @@ verifVars (Program n defs) = do
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
-  pure (Program n allDefs, finalFuncStack)
+  trace ( 
+      printf "initial: %s\n final: %s\n" (show initialState) (show finalState)
+      -- printf "defs: %s\nallDefs: %s\n" (show defs) (show allDefs)
+      -- <> printf "stStructs: %s\n" (show $ stStructs finalState)
+      -- <> "\n\n" <> prettyPrint p
+    )(
+      pure (Program n allDefs, finalFuncStack)
+    )
 
 --
 -- private
@@ -108,7 +118,7 @@ getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _ _) = n
 getDefName (DefOverride n _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
-getDefName (DefSomewhere {}) = ""
+getDefName (DefSomewhere list) = trace (show list) ("")
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = fs

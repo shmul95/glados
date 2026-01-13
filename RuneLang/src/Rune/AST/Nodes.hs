@@ -154,7 +154,7 @@ data TopLevelDef
     --     override def bar(string) -> null;
     -- }
     DefSomewhere
-      { somewhereDecls :: [FunctionSignature]
+      { somewhereDecls :: [SomewhereDecl]
       }
   deriving (Show, Eq)
 
@@ -185,6 +185,21 @@ data FunctionSignature = FunctionSignature
     sigReturnType :: Type,
     sigIsOverride :: Bool
   }
+  deriving (Show, Eq)
+
+-- | structure signature for forward declaration
+data StructureSignature = StructureSignature
+  { sigName :: String,
+    sigAttributes :: [(String, Type)],
+    sigMethods :: [FunctionSignature]
+  }
+  deriving (Show, Eq)
+
+-- | everything that can be in a somewhere
+data SomewhereDecl
+  = DeclFuncSig FunctionSignature
+  | DeclStructSig StructureSignature
+  | DeclDefs TopLevelDef
   deriving (Show, Eq)
 
 -- | statements
