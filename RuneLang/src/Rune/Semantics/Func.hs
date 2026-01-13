@@ -27,12 +27,7 @@ import Rune.Semantics.Helper (fixSelfType)
 --
 
 findFunc :: Program -> Either String FuncStack
-findFunc (Program _ defs) = do
-  let builtins = HM.fromList
-        [ ("show" , (TypeNull, [TypeAny], Nothing, True))
-        , ("error", (TypeNull, [TypeAny], Nothing, True))
-        ]
-  foldM findDefs builtins defs
+findFunc (Program _ defs) = foldM findDefs HM.empty defs
 
 --
 -- private

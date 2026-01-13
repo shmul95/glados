@@ -404,40 +404,13 @@ emitCall = emitCallGen Nothing
 emitCallGen :: Maybe [Extern] -> StructMap -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCallGen mbExterns structs sm dest funcName args mbType =
   let argSetup    = setupCallArgs sm args
-      -- Check if we're spreading a varargs array
-      hasVarargsSpread = any (\op -> case getOperandType op of
-                                       Just (IRPtr (IRArray _ _)) -> True
-                                       _ -> False) args
-      firstFloatType =
-        foldr
-          (\op acc -> case (acc, getOperandType op) of
-                        (Nothing, Just t) | isFloatType t -> Just t
-                        _                                 -> acc)
-          Nothing
-          args
-      -- Don't apply printf fixup if we're spreading varargs (al is set by spreading code)
-      printfFixup = if hasVarargsSpread then [] else printfFixupHelp firstFloatType x86_64FloatArgsRegisters
       usePlt      = case mbExterns of
                       Just externs -> funcName `elem` externs
                       Nothing      -> False
       callTarget  = if usePlt then funcName <> " wrt ..plt" else funcName
       callInstr   = [emit 1 $ "call " <> callTarget]
       retSave     = saveCallResult structs sm dest mbType
-   in argSetup <> printfFixup <> callInstr <> retSave
-  where
-    printfFixupHelp (Just IRF32) (floatReg:_)
-      | funcName `elem` ["printf", "dprintf"] =
-        [ emit 1 $ "cvtss2sd " <> floatReg <> ", " <> floatReg
-        , emit 1   "mov eax, 1"
-        ]
-    printfFixupHelp (Just IRF64) (_:_) 
-      | funcName `elem` ["printf", "dprintf"] =
-        [ emit 1 "mov eax, 1" ]
-    printfFixupHelp Nothing _
-      | funcName `elem` ["printf", "dprintf"] = [emit 1 "xor eax, eax"]
-    printfFixupHelp _ _
-      | funcName `elem` ["printf", "dprintf"] = []
-    printfFixupHelp _ _ = []
+   in argSetup <> callInstr <> retSave
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
 setupCallArgs sm args =
