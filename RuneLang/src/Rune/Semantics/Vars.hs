@@ -603,4 +603,3 @@ checkMethodVisibility fs baseName currentStruct sName isSelf method file line co
     [] -> pure ()
     (visibility:_) ->
       raiseVisibilityError visibility currentStruct sName isSelf method "method" file line col "method call"
-
