@@ -1,4 +1,4 @@
-override def error(value: i32, message: string) -> null
+def error(value: i32, message: string) -> null
 {
     error("ERROR: ");
     error(message);
@@ -7,7 +7,7 @@ override def error(value: i32, message: string) -> null
     error('\n')
 }
 
-override def show(value: i32, message: string) -> null
+def show(value: i32, message: string) -> null
 {
     show("SUCCESS: ");
     show(message);

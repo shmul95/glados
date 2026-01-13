@@ -1,4 +1,4 @@
-override def show(msg: string, value: i32) -> null
+def show(msg: string, value: i32) -> null
 {
     show(msg);
     show(value);

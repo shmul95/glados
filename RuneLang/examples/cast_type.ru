@@ -1,4 +1,4 @@
-override def show(n: i32, f: f32) -> null
+def show(n: i32, f: f32) -> null
 {
     show("i32: ");
     show(n);

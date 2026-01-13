@@ -8,7 +8,7 @@ struct Vec2f
         Vec2f { x: 0.0, y: 0.0 }
     }
 
-    override def new(x: f32, y: f32) -> Vec2f
+    def new(x: f32, y: f32) -> Vec2f
     {
         Vec2f { x: x, y: y }
     }
@@ -21,7 +21,7 @@ struct Vec2f
         }
     }
 
-    override def add(self, f: f32) -> Vec2f
+    def add(self, f: f32) -> Vec2f
     {
         Vec2f {
             x: self.x + f,
@@ -30,7 +30,7 @@ struct Vec2f
     }
 }
 
-override def show(v: Vec2f) -> null
+def show(v: Vec2f) -> null
 {
     show("Vec2f(x: ");
     show(v.x);
