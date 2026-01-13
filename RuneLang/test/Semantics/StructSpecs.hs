@@ -183,7 +183,7 @@ duplicateMethodProgram =
         "Vector"
         [ Field "x" TypeF32
         ]
-        [ DefFunction "len" [Parameter "self" TypeAny] TypeI32 [] False,
-          DefFunction "len" [Parameter "self" TypeAny] TypeF32 [] False
+        [ DefFunction "len" [Parameter "self" TypeAny Nothing] TypeI32 [] False,
+          DefFunction "len" [Parameter "self" TypeAny Nothing] TypeF32 [] False
         ]
     ]

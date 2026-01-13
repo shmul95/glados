@@ -30,8 +30,8 @@ import Rune.Semantics.Helper (fixSelfType)
 findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) = do
   let builtins = HM.fromList
-        [ ("show" , (TypeNull, [Parameter "value" TypeAny Nothing]))
-        , ("error", (TypeNull, [Parameter "msg" TypeAny Nothing]))
+        [ ("show" , (TypeNull, [Parameter "x" TypeAny Nothing]))
+        , ("error", (TypeNull, [Parameter "x" TypeAny Nothing]))
         ]
   foldM findDefs builtins defs
 

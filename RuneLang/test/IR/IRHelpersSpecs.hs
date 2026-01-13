@@ -14,7 +14,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as Set
 import Rune.IR.IRHelpers
 import Rune.IR.Nodes (GenState(..), IRType(..), IROperand(..), IRInstruction(..), IRLabel(..), IRTopLevel(..), IRGlobalValue(..))
-import Rune.AST.Nodes (Type(..))
+import Rune.AST.Nodes (Type(..), Parameter(..))
 import Data.List (isInfixOf)
 import IR.TestUtils (runGen, runGenUnsafe)
 
@@ -414,20 +414,20 @@ testIsSigned = testGroup "isSigned"
 testSelectReturnType :: TestTree
 testSelectReturnType = testGroup "selectReturnType"
   [ testCase "Returns correct return type for existing function" $
-      let fs = HM.fromList [("i32_f_i32_f32", (TypeI32, [TypeI32, TypeF32]))]
+      let fs = HM.fromList [("i32_f_i32_f32", (TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]))]
           args = [IRI32, IRF32]
       in runGenUnsafe (selectReturnType fs "f" args) @?= IRI32
   
   , testCase "Maps IR types back to AST types correctly" $
-      let fs = HM.fromList [("u32_g_u32_ptr_i32_S", (TypeU32, [TypeU32, TypePtr TypeI32, TypeCustom "S"]))]
+      let fs = HM.fromList [("u32_g_u32_ptr_i32_S", (TypeU32, [Parameter "a" TypeU32 Nothing, Parameter "b" (TypePtr TypeI32) Nothing, Parameter "c" (TypeCustom "S") Nothing]))]
           args = [IRU32, IRPtr IRI32, IRPtr (IRStruct "S")]
       in runGenUnsafe (selectReturnType fs "g" args) @?= IRU32 
   , testCase "Select signature Nothing" $
-      let fs = HM.fromList [("f64_h_f32", (TypeF64, [TypeF32]))]
+      let fs = HM.fromList [("f64_h_f32", (TypeF64, [Parameter "x" TypeF32 Nothing]))]
           args = [IRF32]
       in runGenUnsafe (selectReturnType fs "h" args) @?= IRF64
   , testCase "Returns Left for no matching signature" $ do
-        let fs = HM.fromList [("i32_mismatched_i32_f32", (TypeI32, [TypeI32, TypeF32]))]
+        let fs = HM.fromList [("i32_mismatched_i32_f32", (TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]))]
             funcName = "mismatched"
             args = [IRI32, IRU64, IRI8]
             result = runGen (selectReturnType fs funcName args)

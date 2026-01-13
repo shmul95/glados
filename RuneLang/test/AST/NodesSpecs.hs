@@ -87,11 +87,11 @@ testParameterAndField =
   testGroup
     "Parameter and Field Accessors"
     [ testCase "Parameter accessors" $
-        let p = Parameter {paramName = "x", paramType = TypeI32}
+        let p = Parameter {paramName = "x", paramType = TypeI32, paramDefault = Nothing}
          in do
               paramName p @?= "x"
               paramType p @?= TypeI32
-              show p @?= "Parameter {paramName = \"x\", paramType = i32}",
+              show p @?= "Parameter {paramName = \"x\", paramType = i32, paramDefault = Nothing}",
       testCase "Field accessors" $
         let f = Field {fieldName = "y", fieldType = TypeF64}
          in do

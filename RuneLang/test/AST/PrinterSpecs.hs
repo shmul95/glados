@@ -93,14 +93,14 @@ helperTests = testGroup "Helper Function Tests"
       assertEqual "NewLine" "\n" (runPrinter newLine)
   , testCase "indent & dedent effect" $
       let action = do
-            emitParam (Parameter "p1" TypeI32)
+            emitParam (Parameter "p1" TypeI32 Nothing)
             indent
             newLine
-            emitParam (Parameter "p2" TypeI32)
+            emitParam (Parameter "p2" TypeI32 Nothing)
             dedent
       in assertEqual "Indent/Dedent" "\np1: i32\n  \n  p2: i32" (runPrinter action)
   , testCase "emitParam" $
-      assertEqual "emitParam" "\np: i32" (runPrinter (emitParam (Parameter "p" TypeI32)))
+      assertEqual "emitParam" "\np: i32" (runPrinter (emitParam (Parameter "p" TypeI32 Nothing)))
   ]
 
 expressionPrinterTests :: TestTree
