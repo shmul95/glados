@@ -285,6 +285,12 @@ visitExpression (ExprSizeof _ val) = do
     Left t  -> emit $ "Type: " <> showType t
     Right e -> visitExpression e
   dedent
+visitExpression (ExprFold _ expr) = do
+  emit "ExprFold"
+  indent
+  newLine
+  visitExpression expr
+  dedent
 
 --
 -- private helpers
