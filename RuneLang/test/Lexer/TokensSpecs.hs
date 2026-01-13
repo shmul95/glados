@@ -42,7 +42,7 @@ tokenKindDerivingTests =
   testGroup
     "TokenKind Deriving (Show, Eq, Ord)"
     [ testTokenKindGroup "Keywords"
-        [ KwDef, KwReturn, KwStruct, KwIf, KwElse, KwFor, KwTo, KwOverride, KwIn, KwLoop, KwStop, KwNext, KwSomewhere, KwExport, KwSizeof, KwAs ]
+        [ KwDef, KwReturn, KwStruct, KwIf, KwElse, KwFor, KwTo, KwIn, KwLoop, KwStop, KwNext, KwSomewhere, KwExport, KwSizeof, KwAs ]
     , testTokenKindGroup "Primitives"
         [ TypeI8, TypeI16, TypeI32, TypeI64, TypeF32, TypeF64, TypeBool, TypeU8, TypeU16, TypeU32, TypeU64, TypeChar, TypeString, TypeAny, TypeNull ]
     , testTokenKindGroup "Literals"

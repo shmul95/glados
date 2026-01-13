@@ -66,10 +66,7 @@ checkFieldsTests = testGroup "checkFields"
 
 checkMethodsTests :: TestTree
 checkMethodsTests = testGroup "checkMethods"
-  [ testCase "rejects duplicate method names" $
-      case findStruct duplicateMethodProgram of
-        Left err -> "duplicate method" `isInfixOf` err @? "Expected duplicate method error"
-        Right _ -> assertFailure "Expected error for duplicate method"
+  [ 
   ]
 
 validateFieldTypeTests :: TestTree
@@ -173,17 +170,4 @@ duplicateFieldProgram =
         , Field "value" TypeF32
         ]
         []
-    ]
-
-duplicateMethodProgram :: Program
-duplicateMethodProgram =
-  Program
-    "duplicate-method"
-    [ DefStruct
-        "Vector"
-        [ Field "x" TypeF32
-        ]
-        [ DefFunction "len" [Parameter "self" TypeAny] TypeI32 [] False,
-          DefFunction "len" [Parameter "self" TypeAny] TypeF32 [] False
-        ]
     ]

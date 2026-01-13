@@ -142,30 +142,21 @@ topLevelDefTests = testGroup "TopLevelDef Tests"
       assertBool "Show" (not (null (show defFunc)))
   , testCase "Show DefStruct" $
       assertBool "Show" (not (null (show defStruct)))
-  , testCase "Show DefOverride" $
-      assertBool "Show" (not (null (show defOverride)))
   , testCase "Eq DefFunction" $ do
       assertBool "Equal" (defFunc == defFunc)
       assertBool "Unequal name" (defFunc /= defFunc {funcName = "bar"})
   , testCase "Eq DefStruct" $ do
       assertBool "Equal" (defStruct == defStruct)
       assertBool "Unequal name" (defStruct /= defStruct {structName = "Vec3f"})
-  , testCase "Eq DefOverride" $ do
-      assertBool "Equal" (defOverride == defOverride)
-      assertBool "Unequal name" (defOverride /= defOverride {overrideName = "display"})
-      assertBool "Unequal body" (defOverride /= defOverride {overrideBody = blockB})
   , testCase "Eq Different Constructors" $ do
       assertBool "DefFunction /= DefStruct" (defFunc /= defStruct)
-      assertBool "DefStruct /= DefOverride" (defStruct /= defOverride)
   ]
   where
     param = Parameter "x" TypeI32
     field = Field "x" TypeI32
     blockA = [StmtStop dummyPos]
-    blockB = [StmtNext dummyPos]
     defFunc = DefFunction "foo" [param] TypeI32 blockA False
     defStruct = DefStruct "Vec2f" [field] [defFunc]
-    defOverride = DefOverride "show" [param] TypeNull blockA False
 
 statementTests :: TestTree
 statementTests = testGroup "Statement Tests"

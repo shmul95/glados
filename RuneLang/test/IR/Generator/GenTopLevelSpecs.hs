@@ -23,7 +23,6 @@ genTopLevelTests :: TestTree
 genTopLevelTests = testGroup "Rune.IR.Generator.GenTopLevel"
   [ testGenTopLevel
   , testGenFunction
-  , testGenOverride
   , testGenStruct
   , testGenStructMethod
   , testGenParam
@@ -44,13 +43,6 @@ testGenTopLevel = testGroup "genTopLevel"
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> irFuncName func @?= "test"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Routes DefOverride to genOverride" $
-      let def = DefOverride "Point_show" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "Point_show"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Routes DefStruct to genStruct" $
@@ -89,23 +81,6 @@ testGenFunction = testGroup "genFunction"
       in case result of
         [IRFunctionDef func] -> do
           assertBool "Body should have IRRET" $ not $ null (irFuncBody func)
-        _ -> assertBool "Expected IRFunctionDef" False
-  ]
-
-testGenOverride :: TestTree
-testGenOverride = testGroup "genOverride"
-  [ testCase "genOverride with params" $
-      let def = DefOverride "print" [Parameter "x" TypeI32] TypeNull [] False
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "print"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Handles empty params" $
-      let def = DefOverride "test" [] TypeNull [] False
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "test"
         _ -> assertBool "Expected IRFunctionDef" False
   ]
 

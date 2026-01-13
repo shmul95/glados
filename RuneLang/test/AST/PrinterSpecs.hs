@@ -201,18 +201,12 @@ topLevelPrinterTests = testGroup "TopLevel Printer Tests"
   , testCase "Struct" $
       let def = DefStruct "S" [Field "x" TypeI32] []
       in assertEqual "Struct" "DefStruct S\n  Fields:\n    x: i32\n  Methods:" (runPrinter $ visitTopLevel def)
-  , testCase "Override" $
-      let def = DefOverride "f" [] TypeNull [] False
-      in assertEqual "Override" "DefOverride f\n  Parameters:\n  ReturnType: null\n  Body:" (runPrinter $ visitTopLevel def)
   
   , testCase "visitFunction (Ignore other types)" $
       assertEqual "Ignore Struct" "" (runPrinter $ visitFunction (DefStruct "S" [] []))
   
   , testCase "visitStruct (Ignore other types)" $
       assertEqual "Ignore Function" "" (runPrinter $ visitStruct (DefFunction "f" [] TypeNull [] False))
-
-  , testCase "visitOverride (Ignore other types)" $
-      assertEqual "Ignore Function" "" (runPrinter $ visitOverride (DefFunction "f" [] TypeNull [] False))
   ]
 
 programPrinterTests :: TestTree

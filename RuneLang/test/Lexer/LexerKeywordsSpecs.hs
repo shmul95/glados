@@ -16,7 +16,6 @@ lexerKeywordsTests =
     [ test_kw_definition
     , test_kw_control_flow_if_for
     , test_kw_control_flow_loop_next_stop
-    , test_kw_override
     , test_kw_logical
     , test_kw_somewhere_export
     , test_kw_reserved_check
@@ -46,11 +45,6 @@ test_kw_control_flow_loop_next_stop :: TestTree
 test_kw_control_flow_loop_next_stop = testCase "Kw Loop, Next, Stop" $
   lexTest "loop next stop"
     [ tok KwLoop "loop" 1 1, tok KwNext "next" 1 6, tok KwStop "stop" 1 11, tok EOF "" 1 15 ]
-
-test_kw_override :: TestTree
-test_kw_override = testCase "Kw Override" $
-  lexTest "override"
-    [ tok KwOverride "override" 1 1, tok EOF "" 1 9 ]
 
 test_kw_somewhere_export :: TestTree
 test_kw_somewhere_export = testCase "Kw Somewhere, Export" $

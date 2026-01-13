@@ -137,21 +137,7 @@ testTopLevelDefAccessors =
          in do
               structName def @?= "Vec2"
               structFields def @?= []
-              structMethods def @?= [],
-      testCase "DefOverride accessors" $
-        let def =
-              DefOverride
-                { overrideName = "toString",
-                  overrideParams = [],
-                  overrideReturnType = TypeString,
-                  overrideBody = dummyBlock,
-                  overrideIsExport = False
-                }
-         in do
-              overrideName def @?= "toString"
-              overrideParams def @?= []
-              overrideReturnType def @?= TypeString
-              overrideBody def @?= dummyBlock
+              structMethods def @?= []
     ]
 
 testStatementAccessors :: TestTree

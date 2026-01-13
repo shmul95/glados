@@ -22,7 +22,6 @@ parseTopLevelTests =
       testParseStruct,
       testParseStructBody,
       testParseStructItem,
-      testParseOverride,
       testParseParams,
       testParseParameter,
       testParseSelfParam,
@@ -77,7 +76,6 @@ testParseTopLevelDef = testGroup "parseTopLevelDef"
   [ testCase "KwExport" $ assertS "export" parseTopLevelDef [tok T.KwExport, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] True)
   , testCase "KwDef"    $ assertS "def"    parseTopLevelDef [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] False)
   , testCase "KwStruct" $ assertS "struct" parseTopLevelDef [tok T.KwStruct, tok (T.Identifier "S"), tok T.LBrace, tok T.RBrace] (DefStruct "S" [] [])
-  , testCase "KwOverride"$ assertS "override" parseTopLevelDef [tok T.KwOverride, tok T.KwDef, tok (T.Identifier "o"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefOverride "o" [] TypeNull [] False)
   , testCase "KwSomewhere"$ assertS "somewhere" parseTopLevelDef [tok T.KwSomewhere, tok T.LBrace, tok T.RBrace] (DefSomewhere [])
   , testCase "Fallthrough error" $ assertF "error msg" parseTopLevelDef [tok T.Semicolon]
   ]
@@ -85,7 +83,6 @@ testParseTopLevelDef = testGroup "parseTopLevelDef"
 testParseExportedDef :: TestTree
 testParseExportedDef = testGroup "parseExportedDef"
   [ testCase "KwDef"      $ assertS "export def" parseExportedDef [tok T.KwExport, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefFunction "f" [] TypeNull [] True)
-  , testCase "KwOverride" $ assertS "export override" parseExportedDef [tok T.KwExport, tok T.KwOverride, tok T.KwDef, tok (T.Identifier "o"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefOverride "o" [] TypeNull [] True)
   , testCase "Fallthrough error" $ assertF "error after export" parseExportedDef [tok T.KwExport, tok T.KwStruct]
   ]
 
@@ -111,12 +108,6 @@ testParseStructItem = testGroup "parseStructItem"
   [ testCase "KwDef" $ assertS "method" parseStructItem [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (Right (DefFunction "f" [] TypeNull [] False))
   , testCase "Identifier" $ assertS "field" parseStructItem [tok (T.Identifier "x"), tok T.Colon, tok T.TypeI32, tok T.Semicolon] (Left (Field "x" TypeI32))
   , testCase "Fallthrough error" $ assertF "item error" parseStructItem [tok T.KwSomewhere]
-  ]
-
-testParseOverride :: TestTree
-testParseOverride = testGroup "parseOverride"
-  [ testCase "Success" $ assertS "override" (parseOverride False) [tok T.KwOverride, tok T.KwDef, tok (T.Identifier "o"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.LBrace, tok T.RBrace] (DefOverride "o" [] TypeNull [] False)
-  , testCase "Context fail body" $ assertF "override body ctx" (parseOverride False) [tok T.KwOverride, tok T.KwDef, tok (T.Identifier "o"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok (T.Identifier "no_brace")]
   ]
 
 testParseParams :: TestTree
@@ -162,16 +153,15 @@ testParseFunctionSignatures = testGroup "parseFunctionSignatures"
   [ testCase "isEnd True"  $ assertS "empty" parseFunctionSignatures [tok T.RBrace] []
   , testCase "isEnd False" $ assertS "list"  parseFunctionSignatures 
       [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon, tok T.RBrace] 
-      [FunctionSignature "f" [] TypeNull False]
+      [FunctionSignature "f" [] TypeNull]
   ]
 
 testParseFunctionSignature :: TestTree
 testParseFunctionSignature = testGroup "parseFunctionSignature"
-  [ testCase "isOverride True"  $ assertS "override" parseFunctionSignature [tok T.KwOverride, tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature "f" [] TypeNull True)
-  , testCase "isOverride False (pure())" $ assertS "def" parseFunctionSignature [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature "f" [] TypeNull False)
+  [ testCase "def" $ assertS "def" parseFunctionSignature [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] (FunctionSignature "f" [] TypeNull)
   , testCase "Comma coverage" $ assertS "params" parseFunctionSignature 
       [tok T.KwDef, tok (T.Identifier "f"), tok T.LParen, tok T.TypeI32, tok T.Comma, tok T.TypeF32, tok T.RParen, tok T.OpArrow, tok T.TypeNull, tok T.Semicolon] 
-      (FunctionSignature "f" [TypeI32, TypeF32] TypeNull False)
+      (FunctionSignature "f" [TypeI32, TypeF32] TypeNull)
   ]
 
 testParseParamTypeInSignature :: TestTree
