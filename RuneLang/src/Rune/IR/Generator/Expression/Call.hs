@@ -15,7 +15,7 @@ import Control.Monad (zipWithM)
 import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
 import qualified Data.HashMap.Strict as HM
-import Rune.AST.Nodes (Expression, Type(..))
+import Rune.AST.Nodes (Expression (..), Type (..))
 import Rune.IR.IRHelpers (registerCall, newTemp, astTypeToIRType, isFloatType)
 import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
@@ -35,8 +35,11 @@ genCall genExpr funcName args = do
   fs <- gets gsFuncStack
   let signature = HM.lookup funcName fs
 
+  -- INFO: expand fold expressions before processing
+  expandedArgs <- expandFoldArgs args
+
   -- INFO: generate arguments, using parameter type context
-  argData <- lowerArguments signature
+  argData <- lowerArguments signature expandedArgs
 
   -- INFO: prepare fixed arguments (get addresses for structs ect...)
   let (fixedData, varData) = splitBySignature signature argData
@@ -61,19 +64,43 @@ genCall genExpr funcName args = do
     genWithCtx :: Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
     genWithCtx = genArgWithContext genExpr
 
-    lowerArguments :: Maybe FuncSig -> IRGen [([IRInstruction], IROperand, IRType)]
-    lowerArguments sig = case sig of
+    expandFoldArgs :: [Expression] -> IRGen [Expression]
+    expandFoldArgs [] = pure []
+    expandFoldArgs (ExprFold _ expr : rest) = do
+      -- When we see ...expr, we mark it specially for later expansion
+      -- For now, just pass the inner expression but remember it needs unfolding
+      restExpanded <- expandFoldArgs rest
+      pure (ExprFold undefined expr : restExpanded)
+    expandFoldArgs (e : rest) = do
+      restExpanded <- expandFoldArgs rest
+      pure (e : restExpanded)
+
+    lowerArguments :: Maybe FuncSig -> [Expression] -> IRGen [([IRInstruction], IROperand, IRType)]
+    lowerArguments sig expandedArgs' = case sig of
 
       -- NOTE: exact match
-      Just (_, params, Nothing, _) | length params == length args ->
-        zipWithM genWithCtx args params
+      Just (_, params, Nothing, _) | length expandedArgs' == length params ->
+        zipWithM genWithCtx expandedArgs' params
 
-      -- NOTE: variadic match
-      Just (_, params, Just varT, _) | length args >= length params ->
-        let (f, v) = splitAt (length params) args
-        in (++) <$> zipWithM genWithCtx f params <*> mapM (`genWithCtx` varT) v
+      -- NOTE: variadic match with fold expression
+      Just (_, params, Just varT, isExt) | length expandedArgs' >= length params -> do
+        let (f, v) = splitAt (length params) expandedArgs'
+        fixedArgs <- zipWithM genWithCtx f params
+        
+        -- Check if we have a single ExprFold in varargs position calling external function
+        case (v, isExt) of
+          ([ExprFold _ inner], True) -> do
+            -- This is ...args being passed to external C function
+            -- Generate the inner expression which should be the varargs array
+            (instrs, op, opType) <- genExpr inner
+            -- Return it marked for spreading
+            pure $ fixedArgs ++ [(instrs, op, opType)]
+          _ -> do
+            -- Normal varargs handling
+            varArgs <- mapM (`genWithCtx` varT) v
+            pure $ fixedArgs ++ varArgs
 
-      _ -> mapM genExpr args
+      _ -> mapM genExpr expandedArgs'
 
     splitBySignature :: Maybe FuncSig -> [a] -> ([a], [a])
     splitBySignature (Just (_, params, Just _, _)) allData = splitAt (length params) allData
