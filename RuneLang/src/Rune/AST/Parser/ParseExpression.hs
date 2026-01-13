@@ -112,6 +112,7 @@ parseUnary =
         _ <- expect T.OpDec
         ExprUnary pos PrefixDec <$> parseUnary,
       parseSizeof,
+      parseFold,
       parsePostfix
     ]
 
@@ -125,6 +126,13 @@ parseSizeof = do
       Left <$> parseType
     ]
   pure $ ExprSizeof pos val
+
+parseFold :: Parser Expression
+parseFold = do
+  pos <- getCurrentPos
+  _   <- expect T.Ellipsis
+  expr <- parsePostfix
+  pure $ ExprFold pos expr
 
 parsePostfix :: Parser Expression
 parsePostfix = chainPostfix parsePrimary op
