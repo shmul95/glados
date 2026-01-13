@@ -198,13 +198,26 @@ emitFunctionEpilogue endLabel =
 emitParameters :: [(String, IRType)] -> Map String Int -> [String]
 emitParameters params stackMap =
   let (instrs, _, _) = foldl step ([], 0, 0) params
-   in instrs
+      -- Check if last parameter is varargs (array pointer)
+      isVarargs = case params of
+                    [] -> False
+                    _ -> case snd (last params) of
+                           IRPtr (IRArray _ _) -> True
+                           _ -> False
+      -- If varargs, save remaining argument registers to the varargs array area
+      varargsInstrs = if isVarargs && not (null params)
+                        then emitVarargsCollection (fst (last params)) stackMap (length params - 1)
+                        else []
+   in instrs <> varargsInstrs
   where
     getStoreInstr sizeSpec irName xmmReg IRF32 = emit 1 $ "movss " <> sizeSpec <> " " <> stackAddr stackMap irName <> ", " <> xmmReg
     getStoreInstr sizeSpec irName xmmReg IRF64 = emit 1 $ "movsd " <> sizeSpec <> " " <> stackAddr stackMap irName <> ", " <> xmmReg
     getStoreInstr _ _ _ t                      = emit 1 $ "; TODO: unsupported float param type: " <> show t
 
     step (acc, intIdx, floatIdx) (irName, t)
+      | IRPtr (IRArray _ _) <- t = 
+          -- Don't load varargs param from register, we'll build the array manually
+          (acc, intIdx, floatIdx)
       | isFloatType t && floatIdx < length x86_64FloatArgsRegisters =
           let xmmReg = x86_64FloatArgsRegisters !! floatIdx
               sizeSpec = getSizeSpecifier t
@@ -215,6 +228,32 @@ emitParameters params stackMap =
               storeInstr = storeReg stackMap irName reg t
            in (acc <> [storeInstr], intIdx + 1, floatIdx)
       | otherwise = (acc, intIdx, floatIdx)
+
+-- | Save varargs registers to array for varargs parameter  
+emitVarargsCollection :: String -> Map String Int -> Int -> [String]
+emitVarargsCollection varargsName stackMap numFixedParams =
+  let -- Save to a single contiguous array: [int_regs..., float_regs...]
+      remainingIntRegs = drop numFixedParams x86_64ArgsRegisters
+      arrayOffset = case Map.lookup (varargsName <> "_data") stackMap of
+                         Just off -> off
+                         Nothing -> error $ "Varargs array data not found: " <> varargsName
+      -- Save remaining integer registers at the start
+      saveIntInstrs = concat $ zipWith (saveIntReg arrayOffset) [0..] remainingIntRegs
+      -- Save ALL XMM registers after the integer registers
+      floatStartIdx = length remainingIntRegs
+      saveFloatInstrs = concat $ zipWith (saveFloatReg arrayOffset floatStartIdx) [0..] x86_64FloatArgsRegisters
+      -- Set the varargs pointer
+      ptrSetup = [ emit 1 $ "lea rax, [rbp" <> show arrayOffset <> "]"
+                 , emit 1 $ "mov qword " <> stackAddr stackMap varargsName <> ", rax"
+                 ]
+  in [emit 1 "; collect varargs"] <> saveIntInstrs <> saveFloatInstrs <> ptrSetup
+  where
+    saveIntReg baseOffset idx reg =
+      let offset = baseOffset + idx * 8
+      in [emit 1 $ "mov qword [rbp" <> show offset <> "], " <> reg]
+    saveFloatReg baseOffset startIdx idx xmm =
+      let offset = baseOffset + (startIdx + idx) * 8
+      in [emit 1 $ "movq qword [rbp" <> show offset <> "], " <> xmm]
 
 --
 -- instruction emission
@@ -365,6 +404,10 @@ emitCall = emitCallGen Nothing
 emitCallGen :: Maybe [Extern] -> StructMap -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCallGen mbExterns structs sm dest funcName args mbType =
   let argSetup    = setupCallArgs sm args
+      -- Check if we're spreading a varargs array
+      hasVarargsSpread = any (\op -> case getOperandType op of
+                                       Just (IRPtr (IRArray _ _)) -> True
+                                       _ -> False) args
       firstFloatType =
         foldr
           (\op acc -> case (acc, getOperandType op) of
@@ -372,7 +415,8 @@ emitCallGen mbExterns structs sm dest funcName args mbType =
                         _                                 -> acc)
           Nothing
           args
-      printfFixup = printfFixupHelp firstFloatType x86_64FloatArgsRegisters
+      -- Don't apply printf fixup if we're spreading varargs (al is set by spreading code)
+      printfFixup = if hasVarargsSpread then [] else printfFixupHelp firstFloatType x86_64FloatArgsRegisters
       usePlt      = case mbExterns of
                       Just externs -> funcName `elem` externs
                       Nothing      -> False
@@ -403,7 +447,15 @@ setupCallArgs sm args =
     step :: ([String], Int, Int) -> IROperand -> ([String], Int, Int)
     step (acc, intIdx, floatIdx) op =
       let mt = getOperandType op
-       in stepType (acc, intIdx, floatIdx) op mt
+       in case mt of
+            Just (IRPtr (IRArray _ _)) -> 
+              -- This is a varargs array that needs spreading
+              let spreadCode = generateSpreadCode sm op intIdx floatIdx
+                  -- For now, assume max 6 args can be spread (conservative estimate)
+                  newIntIdx = min 6 (intIdx + 6)
+                  newFloatIdx = min 8 (floatIdx + 8)
+              in (acc <> spreadCode, newIntIdx, newFloatIdx)
+            _ -> stepType (acc, intIdx, floatIdx) op mt
 
     stepType (acc, intIdx, floatIdx) _ Nothing
       = (acc, intIdx, floatIdx)
@@ -415,6 +467,39 @@ setupCallArgs sm args =
           let reg = x86_64ArgsRegisters !! intIdx
           in (acc <> loadRegWithExt sm (reg, op) , intIdx + 1 , floatIdx)
       | otherwise = (acc, intIdx, floatIdx)
+
+-- | Generate code to spread varargs array into registers
+-- This loads from BOTH the integer and float arrays  
+generateSpreadCode :: Map String Int -> IROperand -> Int -> Int -> [String]
+generateSpreadCode sm arrayOp startIntIdx startFloatIdx =
+  let arrayReg = "r10"
+      floatArrayReg = "r11"
+      -- Load integer array pointer
+      loadIntArray = loadReg sm arrayReg arrayOp
+      -- Calculate float array pointer based on number of integer registers after fixed params
+      remainingIntRegs = drop startIntIdx x86_64ArgsRegisters
+      floatArrayOffsetBytes = length remainingIntRegs * 8
+      loadFloatArray = [emit 1 $ "lea " <> floatArrayReg <> ", [" <> arrayReg <> " + " <> show floatArrayOffsetBytes <> "]"]
+      -- Available integer registers starting from startIntIdx
+      intRegs = drop startIntIdx x86_64ArgsRegisters
+      -- Available float registers starting from startFloatIdx
+      floatRegs = drop startFloatIdx x86_64FloatArgsRegisters
+      -- Load from integer array to integer registers
+      loadIntInstrs = concat $ zipWith (loadIntElement arrayReg) ([0..] :: [Int]) (take 5 intRegs)
+      -- Load from float array to float registers  
+      loadFloatInstrs = concat $ zipWith (loadFloatElement floatArrayReg) ([0..] :: [Int]) (take 8 floatRegs)
+      -- Set al to 8 (max number of float registers that might be used)
+      setAl = [emit 1 "mov al, 8"]
+  in loadIntArray <> loadFloatArray <> loadIntInstrs <> loadFloatInstrs <> setAl
+  where
+    loadIntElement baseReg idx targetReg =
+      [ emit 1 $ "; load int vararg[" <> show idx <> "]"
+      , emit 1 $ "mov " <> targetReg <> ", [" <> baseReg <> " + " <> show (idx * 8) <> "]"
+      ]
+    loadFloatElement baseReg idx targetXmm =
+      [ emit 1 $ "; load float vararg[" <> show idx <> "]"
+      , emit 1 $ "movq " <> targetXmm <> ", [" <> baseReg <> " + " <> show (idx * 8) <> "]"
+      ]
 
 saveCallResult :: StructMap -> Map String Int -> String -> Maybe IRType -> [String]
 saveCallResult _ _ "" _           = []
