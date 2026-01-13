@@ -154,8 +154,8 @@ parseSelfParam =
 --
 
 parseTypedParam :: Parser Parameter
-parseTypedParam = 
-  try parseTypedParamWithType <|> parseTypedParamWithDefault
+parseTypedParam =
+  parseTypedParamWithType <|> parseTypedParamWithDefault
   where
     -- Try to parse: name: type [= value]
     parseTypedParamWithType = do
@@ -164,13 +164,11 @@ parseTypedParam =
       pType <- parseType
       pDefault <- try (Just <$> (expect T.OpAssign *> parseExpression)) <|> pure Nothing
       pure $ Parameter name pType pDefault
-    
     -- Try to parse: name = value (no type annotation)
     parseTypedParamWithDefault = do
       name <- parseIdentifier
       _ <- expect T.OpAssign
       defaultExpr <- parseExpression
-      -- Type will be inferred at semantic analysis time
       pure $ Parameter name TypeAny (Just defaultExpr)
 
 --

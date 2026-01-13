@@ -83,7 +83,7 @@ isStructMethod name = '_' `elem` name
 -- | Check if a function name is a valid mangling of the base name with compatible types
 isCompatibleMangling :: String -> String -> Type -> [Type] -> [Type] -> Bool
 isCompatibleMangling baseName fName retType funcArgTypes argTypes =
-  let -- The mangled name should be retType_baseName_... 
+  let -- The mangled name should be retType_baseName_...
       expectedPrefix = show retType <> "_" <> baseName
       isNameMatch = fName == baseName ||
                     fName == expectedPrefix ||

@@ -167,8 +167,8 @@ type Block = [Statement]
 
 -- | function parameter
 -- (x: i32, y: f64) or (msg = "shmeul")
-data Parameter = Parameter 
-  { paramName :: String, 
+data Parameter = Parameter
+  { paramName :: String,
     paramType :: Type,
     paramDefault :: Maybe Expression
   }

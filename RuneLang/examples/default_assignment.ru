@@ -1,9 +1,10 @@
-def zebi(msg: str = "shmeul") -> null
+def assignment(msg = "shmeul") -> null
 {
     show(msg);
 }
 
 def main() -> null
 {
-    zebi();
+    assignment();
+    assignment("christian");
 }

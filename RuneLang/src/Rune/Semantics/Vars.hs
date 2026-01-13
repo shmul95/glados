@@ -69,7 +69,9 @@ type SemM a = StateT SemState (Either String) a
 
 verifVars :: Program -> Either String (Program, FuncStack)
 verifVars (Program n defs) = do
-  let (templatesList, concreteDefs) = List.partition isGeneric defs
+  -- Apply type inference to parameters before checking if generic
+  let defsWithInferredTypes = map applyInferenceToParams defs
+      (templatesList, concreteDefs) = List.partition isGeneric defsWithInferredTypes
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
 
   fs <- findFunc (Program n concreteDefs)
@@ -96,6 +98,14 @@ isGeneric :: TopLevelDef -> Bool
 isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
 isGeneric (DefOverride {}) = False
 isGeneric _ = False
+
+-- | Apply type inference to function parameters from default values
+applyInferenceToParams :: TopLevelDef -> TopLevelDef
+applyInferenceToParams (DefFunction name params ret body isExport) =
+  DefFunction name (map inferParamType params) ret body isExport
+applyInferenceToParams (DefOverride name params ret body isExport) =
+  DefOverride name (map inferParamType params) ret body isExport
+applyInferenceToParams def = def
 
 
 hasAny :: Type -> Bool
@@ -189,9 +199,9 @@ verifScope vs (StmtFor pos v t (Just start) end body : stmts) = do
   ss      <- gets stStructs
   let s   = (fs, vs, ss)
       SourcePos file line col = pos
-  
+
   start'  <- verifExpr vs start
-  e_t     <- lift $ either 
+  e_t     <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["for loop start"]) 
                Right $ exprType s start'
 
@@ -220,7 +230,7 @@ verifScope vs (StmtForEach pos v t iter body : stmts) = do
       SourcePos file line col = pos
 
   iter'   <- verifExpr vs iter
-  e_t     <- lift $ either 
+  e_t     <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid iterable" msg ["for-each iterable"]) 
                Right $ exprType s iter'
 
@@ -228,7 +238,7 @@ verifScope vs (StmtForEach pos v t iter body : stmts) = do
     TypeArray inner -> pure inner
     TypeString -> pure TypeChar
     TypeAny -> pure TypeAny
-    _ -> pure TypeAny 
+    _ -> pure TypeAny
 
   vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs v file line col elem_t
   t'      <- lift $ either (Left . formatSemanticError) Right $ checkMultipleType v file line col t elem_t
@@ -249,10 +259,10 @@ verifScope vs (StmtAssignment pos (ExprVar pv lv) rv : stmts) = do
       SourcePos file line col = pos
 
   rv'     <- verifExpr vs rv
-  rv_t    <- lift $ either 
+  rv_t    <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type deduction" msg ["assignment RHS"]) 
                Right $ exprType s rv'
-  
+
   vs'     <- lift $ either (Left . formatSemanticError) Right $ assignVarType vs lv file line col rv_t
   stmts'  <- verifScope vs' stmts
   pure $ StmtAssignment pos (ExprVar pv lv) rv' : stmts'
@@ -265,19 +275,19 @@ verifScope vs (StmtAssignment pos lhs rv : stmts) = do
 
   lhs'    <- verifExpr vs lhs
   rv'     <- verifExpr vs rv
-  
-  lhs_t   <- lift $ either 
+
+  lhs_t   <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid lhs type" msg ["assignment LHS"]) 
                Right $ exprType s lhs'
-  rv_t    <- lift $ either 
+  rv_t    <- lift $ either
                (\msg -> Left . formatSemanticError $ SemanticError file line col "valid rhs type" msg ["assignment RHS"]) 
                Right $ exprType s rv'
-  
+
   unless (isTypeCompatible lhs_t rv_t) $
-    lift $ Left $ formatSemanticError $ SemanticError file line col 
-      (printf "expression of type %s" (show lhs_t)) 
+    lift $ Left $ formatSemanticError $ SemanticError file line col
+      (printf "expression of type %s" (show lhs_t))
       (printf "type %s" (show rv_t)) ["assignment", "global context"]
-  
+
   stmts'  <- verifScope vs stmts
   pure $ StmtAssignment pos lhs' rv' : stmts'
 
@@ -306,19 +316,19 @@ verifExprWithContext hint vs (ExprUnary pos op val) = do
 verifExprWithContext hint vs (ExprBinary pos op l r) = do
   l' <- verifExprWithContext hint vs l
   r' <- verifExprWithContext hint vs r
-  
+
   fs <- gets stFuncs
   ss <- gets stStructs
   let s   = (fs, vs, ss)
       SourcePos file line col = pos
-  
-  leftType  <- lift $ either 
+
+  leftType  <- lift $ either
                  (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary left operand"]) 
                  Right $ exprType s l'
-  rightType <- lift $ either 
+  rightType <- lift $ either
                  (\msg -> Left . formatSemanticError $ SemanticError file line col "valid type" msg ["binary right operand"]) 
                  Right $ exprType s r'
-  
+
   case iHTBinary op leftType rightType of
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
@@ -364,7 +374,7 @@ verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) 
       args' <- mapM (verifExpr vs) args
       _ <- lift $ mapM (exprType s) args'
       let selfArg = ExprVar vPos target
-      
+
       -- Inject defaults for instance methods (after self parameter)
       finalArgs <- case HM.lookup baseName fs of
         Just (_, params) | length args' < length (drop 1 params) && not (null params) ->
