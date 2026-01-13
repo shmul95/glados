@@ -147,6 +147,7 @@ exprType s (ExprIndex _ target _) = exprType s target >>= extractArrayType
 
 exprType _ (ExprLitArray _ []) = Right $ TypeArray TypeAny
 exprType _ (ExprSizeof _ _) = Right TypeU64
+exprType s (ExprFold _ expr) = exprType s expr
 
 exprType s (ExprLitArray _ (e:es)) = do
   firstType <- exprType s e
