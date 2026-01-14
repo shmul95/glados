@@ -41,7 +41,7 @@ import Control.Monad ((>=>), when, unless)
 
 import Data.Bifunctor (first)
 import Data.Functor ((<&>))
-import Data.List (partition)
+import Data.List (partition, isSuffixOf)
 import Data.Maybe (catMaybes)
 
 import System.Exit (ExitCode(ExitFailure, ExitSuccess), exitWith)
@@ -219,9 +219,6 @@ preprocessUseStatements _ content = do
     isPrefixOf [] _ = True
     isPrefixOf _ [] = False
     isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
-    
-    isSuffixOf :: Eq a => [a] -> [a] -> Bool
-    isSuffixOf xs ys = reverse xs `isPrefixOf` reverse ys
     
     dropWhileEnd :: (a -> Bool) -> [a] -> [a]
     dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x:xs) []

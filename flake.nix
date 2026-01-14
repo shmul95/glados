@@ -15,6 +15,11 @@
           stack ghc hlint
           nasm gdb gcc gnumake
         ];
+
+        shellHook = ''
+          export PATH="$PATH:${pkgs.gcc}/bin:${pkgs.nasm}/bin"
+          echo "Available tools: $(which gcc) $(which nasm)"
+        '';
       };
     };
 }
