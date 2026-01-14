@@ -4,6 +4,8 @@ somewhere
     extern def free(ptr: *any) -> null;
     extern def realloc(ptr: *any, size: u64) -> *any;
     extern def memset(ptr: *any, value: u8, size: u64) -> *any;
+
+    def error(v: string) -> i32;
 }
 
 /**
