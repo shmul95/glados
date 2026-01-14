@@ -45,7 +45,7 @@ testTypes =
   testGroup
     "Type"
     [ testCase "All Type constructors and Show" $
-            types =
+        let types =
               [ TypeI8, TypeI16, TypeI32, TypeI64,
                 TypeF32, TypeF64, TypeBool,
                 TypeU8, TypeU16, TypeU32, TypeU64,
