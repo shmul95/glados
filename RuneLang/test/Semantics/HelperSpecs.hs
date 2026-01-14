@@ -1,7 +1,7 @@
 module Semantics.HelperSpecs (helperSemanticsTests) where
 
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=), assertFailure, (@?))
+import Test.Tasty.HUnit (testCase, (@?=), assertFailure)
 import qualified Data.HashMap.Strict as HM
 import Data.List (isInfixOf)
 
@@ -218,14 +218,12 @@ exprTypeTests = testGroup "exprType Tests"
       let vs = HM.singleton "a" TypeAny
       in exprType (funcStack1, vs, HM.empty) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
   , testCase "ExprLitArray incompatible elements - Error" $ 
-      (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of 
-          Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
-          Right _ -> assertFailure "Expected error")
-  , testCase "ExprIndex on non-array - Error" $ 
-      (case exprType stack1 (ExprIndex dummyPos (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 0)) of 
-          Left err -> "IndexingNonArray:" `isInfixOf` err @? "Expected IndexingNonArray error"
-          Right _ -> assertFailure "Expected error")
-  , testCase "ExprStructInit Type" $ 
+      (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of
+                Left err -> err @?= "incompatible array element types, expected i32"
+                Right _ -> assertFailure "Expected error")  , testCase "ExprIndex on non-array - Error" $ 
+      (case exprType stack1 (ExprIndex dummyPos (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 0)) of
+                Left err -> err @?= "cannot index type i32"
+                Right _ -> assertFailure "Expected error")  , testCase "ExprStructInit Type" $ 
       exprType stack1 (ExprStructInit dummyPos "Vec2f" []) @?= Right (TypeCustom "Vec2f")
   , testCase "ExprAccess Type" $ 
       exprType stack1 (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Left "[ERROR]: test.ru:0:0: error:\n  Expected: field access to be valid on type any\n  Got: cannot access field 'x' on type 'any'\n  ... in field access\n  ... in global context"
