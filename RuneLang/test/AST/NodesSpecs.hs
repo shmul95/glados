@@ -113,7 +113,7 @@ testParameterAndField =
               paramName p @?= "x"
               paramType p @?= TypeI32
               paramDefault p @?= Just dummyExpr
-              show p @?= "Parameter {paramName = \"x\", paramType = i32, paramDefault = Just (ExprLitInt (SourcePos {posFile = \"test.rn\", posLine = 1, posCol = 1}) 42)}",
+              show p @?= "Parameter {paramName = \"x\", paramType = i32, paramDefault = Just (ExprLitInt test.ru:0:0 42)}",
       testCase "Field accessors" $
         let f = Field {fieldName = "y", fieldType = TypeF64}
          in do
@@ -150,7 +150,7 @@ testTopLevelDefAccessors =
               funcReturnType def @?= TypeNull
               funcBody def @?= dummyBlock
               funcIsExport def @?= True
-              show def @?= "DefFunction {funcName = \"main\", funcParams = [], funcReturnType = null, funcBody = [StmtReturn (SourcePos {posFile = \"test.rn\", posLine = 1, posCol = 1}) Nothing], funcIsExport = True}",
+              show def @?= "DefFunction {funcName = \"main\", funcParams = [], funcReturnType = null, funcBody = [StmtReturn test.ru:0:0 Nothing], funcIsExport = True}",
       testCase "DefStruct accessors" $
         let def =
               DefStruct
