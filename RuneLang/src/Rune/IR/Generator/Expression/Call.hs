@@ -26,7 +26,7 @@ import Rune.IR.IRHelpers
     irTypeToASTType,
     isFloatType
   )
-import Rune.Semantics.Helper (isTypeCompatible)
+import Rune.Semantics.Helper
 import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), IRType (..))
 
 --
@@ -67,7 +67,7 @@ genUnrolledCall genExpr funcName matchingFuncs (_, (retType, params)) args = do
   -- Generate all variadic arguments
   variadicArgsData <- mapM genExpr variadicArgs
   
-  let irRetType = astTypeToIRTypeWithArrays retType
+  let irRetType = astTypeToIRType retType
   
   -- For each variadic argument, find the right overload based on type and call it
   (allInstrs, resultOps) <- mapAndUnzipM (genOverloadedCall genExpr funcName matchingFuncs irRetType) variadicArgsData
@@ -107,7 +107,7 @@ genStandardCall genExpr funcName args = do
       allInstrs     = concat instrs
 
   retType <- case funcSignature of
-    Just (rt, _) -> pure $ astTypeToIRTypeWithArrays rt
+    Just (rt, _) -> pure $ astTypeToIRType rt
     Nothing      -> throwError $ "IR error: Function " <> funcName <> " not found in function stack"
 
   registerCall funcName
@@ -201,7 +201,7 @@ extractBaseName name =
 genArgWithContext :: GenExprCallback -> Expression -> Type -> IRGen ([IRInstruction], IROperand, IRType)
 genArgWithContext genExpr expr expectedType = do
   (instrs, op, inferredType) <- genExpr expr
-  let targetType = astTypeToIRTypeWithArrays expectedType
+  let targetType = astTypeToIRType expectedType
   
   if inferredType /= targetType && needsInference op inferredType targetType
     then do
@@ -238,26 +238,3 @@ prepareParamArg pType argInstrs argOp argType =
             addrTemp = "addr_tmp"
         in (argInstrs ++ [IRASSIGN constTemp argOp argType, IRADDR addrTemp constTemp (IRPtr argType)], IRTemp addrTemp (IRPtr argType))
     else prepareArg (argInstrs, argOp, argType)
-
---
--- Small Utils
---
-
-astTypeToIRTypeWithArrays :: Type -> IRType
-astTypeToIRTypeWithArrays (TypeArray elemType) = IRPtr (IRArray (astTypeToIRType elemType) 0)
-astTypeToIRTypeWithArrays t                    = astTypeToIRType t
-
-hasVariadicParam :: [Parameter] -> Bool
-hasVariadicParam = any (isVariadicParam . paramType)
-
-isVariadicParam :: Type -> Bool
-isVariadicParam (TypeVariadic _) = True
-isVariadicParam _ = False
-
-isRefParam :: Type -> Bool
-isRefParam (TypeRef _) = True
-isRefParam _ = False
-
-unwrapRef :: Type -> Type
-unwrapRef (TypeRef t) = t
-unwrapRef t = t
