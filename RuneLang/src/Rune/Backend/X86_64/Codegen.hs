@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 
-#if defined(TESTING_EXPORT)
 module Rune.Backend.X86_64.Codegen
+#if defined(TESTING_EXPORT)
   ( emitAssembly,
     emitAssemblyLib,
     emitExterns,
@@ -9,18 +9,28 @@ module Rune.Backend.X86_64.Codegen
     emitDataSection,
     emitTextSection,
     emitTextSectionLib,
+    emitTextSectionGen,
     emitFunction,
     emitFunctionLib,
+    emitFunctionGen,
     emitFunctionPrologue,
+    emitFunctionPrologueGen,
     emitFunctionEpilogue,
     emitParameters,
     emitInstruction,
+    emitInstructionGen,
     emitAssign,
+    emitStructCopy,
+    emitAssignSimple,
     emitCall,
+    emitCallGen,
     setupCallArgs,
     saveCallResult,
+    saveStructResult,
     emitRet,
+    emitStructRet,
     emitDeref,
+    emitLoadOffset,
     emitAllocArray,
     emitAllocArrayOnStack,
     emitGetElem,
@@ -32,21 +42,27 @@ module Rune.Backend.X86_64.Codegen
     emitDirectCmpJump,
     emitIntCmpJump,
     emitFloatCmpJump,
+    emitTestJump,
     emitRmWarning,
     collectStaticArrays,
     isStaticOperand,
     getDataDirective,
     showStaticOperand,
+    emitCast,
+    isIntegerType,
+    isPointerType,
+    isSignedInt,
+    emitIntToFloat,
+    emitFloatToInt,
+    emitFloatToFloat,
+    emitIntToInt,
     commaSep
-  )
-where
 #else
-module Rune.Backend.X86_64.Codegen
-  ( emitAssembly,
-    emitAssemblyLib,
+    emitAssembly,
+    emitAssemblyLib
+#endif
   )
 where
-#endif
 
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
