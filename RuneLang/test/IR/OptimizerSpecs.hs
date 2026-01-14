@@ -5,6 +5,7 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Rune.IR.Optimizer
 import Rune.IR.Nodes
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Control.Monad.State
 
 --
@@ -20,6 +21,11 @@ optimizerTests = testGroup "Rune.IR.Optimizer"
   , testRenameInstr
   , testSimplify
   , testOptimizationLogic
+  , testDeadCodeElimination
+  , testPeephole
+  , testSingleInstrOpt
+  , testJumpThreading
+  , testReachable
   ]
 
 --
@@ -195,7 +201,6 @@ testSimplify = testGroup "Simplification"
         check (IRGET_FIELD "x" c "f" "f2" IRI64) (IRGET_FIELD "x" (IRConstInt 10) "f" "f2" IRI64)
         check (IRSET_FIELD c "f" "f2" d) (IRSET_FIELD (IRConstInt 10) "f" "f2" (IRConstInt 20))
         
-        -- The optimizer now does constant folding, so these become IRASSIGN
         check (IRADD_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 30) IRI64)
         check (IRSUB_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt (-10)) IRI64)
         check (IRMUL_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 200) IRI64)
@@ -294,9 +299,107 @@ testOptimizationLogic = testGroup "Logic"
           (res, _) = runState (inlineFunction "r" "add" callee args []) st
           
           prefix = "add_r_"
-          -- The optimizer now folds IRConstInt 10 + 1 = 11, 
-          -- and assigns directly to sum
           expected = [ IRALLOC (prefix ++ "sum") IRI64
                      ]
       in res @?= expected
+  ]
+
+testDeadCodeElimination :: TestTree
+testDeadCodeElimination = testGroup "DeadCodeElimination"
+  [ testCase "countUses counts variable occurrences" $
+      let instrs = [ IRASSIGN "x" (IRConstInt 1) IRI64
+                   , IRADD_OP "y" (IRTemp "x" IRI64) (IRTemp "x" IRI64) IRI64
+                   ]
+          uses = countUses instrs
+      in M.findWithDefault 0 "x" uses @?= 2
+
+  , testCase "eliminateDeadCode removes unused assignments" $
+      let instrs = [ IRASSIGN "unused" (IRConstInt 1) IRI64
+                   , IRASSIGN "used" (IRConstInt 2) IRI64
+                   , IRRET (Just (IRTemp "used" IRI64))
+                   ]
+          uses = countUses instrs
+          optimized = eliminateDeadCode uses instrs
+      in length optimized @?= 2
+
+  , testCase "eliminateDeadCode keeps side-effect instructions" $
+      let instrs = [ IRCALL "res" "foo" [] Nothing
+                   , IRSTORE (IRTemp "addr" (IRPtr IRI64)) (IRConstInt 1)
+                   , IRRET Nothing
+                   ]
+          uses = M.empty
+          optimized = eliminateDeadCode uses instrs
+      in length optimized @?= 3
+  ]
+
+testPeephole :: TestTree
+testPeephole = testGroup "Peephole"
+  [ testCase "Assign propagation: x = op; y = x -> y = op" $
+      let res = tryPeephole M.empty (IRASSIGN "x" (IRConstInt 10) IRI64) (IRASSIGN "y" (IRTemp "x" IRI64) IRI64)
+      in res @?= Just [IRASSIGN "y" (IRConstInt 10) IRI64]
+
+  , testCase "Peephole: ADD + ASSIGN -> ADD (rename)" $
+      let inst1 = IRADD_OP "x" (IRConstInt 1) (IRConstInt 2) IRI64
+          inst2 = IRASSIGN "y" (IRTemp "x" IRI64) IRI64
+          uc = M.singleton "x" 1
+          res = tryPeephole uc inst1 inst2
+      in res @?= Just [IRADD_OP "y" (IRConstInt 1) (IRConstInt 2) IRI64]
+
+  , testCase "Redundant math optimizations (add 0)" $
+      let inst1 = IRADD_OP "x" (IRTemp "a" IRI64) (IRConstInt 0) IRI64
+          inst2 = IRASSIGN "y" (IRTemp "x" IRI64) IRI64
+          res = tryPeephole M.empty inst1 inst2
+      in res @?= Just [IRASSIGN "y" (IRTemp "a" IRI64) IRI64]
+
+  , testCase "ADDR + GET_FIELD inline" $
+      let uc = M.singleton "addr" 1
+          inst1 = IRADDR "addr" "base" (IRPtr (IRStruct "S"))
+          inst2 = IRGET_FIELD "val" (IRTemp "addr" (IRPtr (IRStruct "S"))) "S" "field" IRI64
+          res = tryPeephole uc inst1 inst2
+      in res @?= Just [IRGET_FIELD "val" (IRTemp "base" (IRStruct "S")) "S" "field" IRI64]
+  ]
+
+testSingleInstrOpt :: TestTree
+testSingleInstrOpt = testGroup "SingleInstrOpt"
+  [ testCase "Converts x = x + 1 to INC x" $
+      let inst = IRADD_OP "x" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+      in singleInstrOpt inst @?= IRINC (IRTemp "x" IRI64)
+
+  , testCase "Converts x = 1 + x to INC x" $
+      let inst = IRADD_OP "x" (IRConstInt 1) (IRTemp "x" IRI64) IRI64
+      in singleInstrOpt inst @?= IRINC (IRTemp "x" IRI64)
+
+  , testCase "Converts x = x - 1 to DEC x" $
+      let inst = IRSUB_OP "x" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+      in singleInstrOpt inst @?= IRDEC (IRTemp "x" IRI64)
+  ]
+
+testJumpThreading :: TestTree
+testJumpThreading = testGroup "JumpThreading"
+  [ testCase "Threads CMP_EQ + JUMP_TRUE to JUMP_EQ" $
+      let cmp = IRCMP_EQ "c" (IRTemp "x" IRI64) (IRTemp "y" IRI64)
+          jmp = IRJUMP_TRUE (IRTemp "c" IRBool) (IRLabel "lbl")
+      in threadJump cmp jmp @?= IRJUMP_EQ (IRTemp "x" IRI64) (IRTemp "y" IRI64) (IRLabel "lbl")
+
+  , testCase "Threads CMP_LT + JUMP_FALSE to JUMP_GTE" $
+      let cmp = IRCMP_LT "c" (IRTemp "x" IRI64) (IRTemp "y" IRI64)
+          jmp = IRJUMP_FALSE (IRTemp "c" IRBool) (IRLabel "lbl")
+      in threadJump cmp jmp @?= IRJUMP_GTE (IRTemp "x" IRI64) (IRTemp "y" IRI64) (IRLabel "lbl")
+  ]
+
+testReachable :: TestTree
+testReachable = testGroup "Reachable"
+  [ testCase "getReachable finds all reachable functions" $
+      let f1 = IRFunction "main" [] Nothing [IRCALL "r" "sub" [] Nothing] False
+          f2 = IRFunction "sub" [] Nothing [] False
+          f3 = IRFunction "dead" [] Nothing [] False
+          
+          funcs = M.fromList [("main", f1), ("sub", f2), ("dead", f3)]
+          roots = S.singleton "main"
+          
+          reached = getReachable funcs roots
+      in do
+        S.member "main" reached @?= True
+        S.member "sub" reached @?= True
+        S.member "dead" reached @?= False
   ]
