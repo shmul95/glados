@@ -66,8 +66,8 @@ type SemM a = StateT SemState (Either String) a
 -- | Extract all DeclDefs from somewhere blocks and return them as separate top-level definitions
 -- Also return cleaned somewhere blocks with only signatures  
 -- Note: DeclUse statements should have been preprocessed away by this point
-extractAndCleanSomewhereDefls :: [TopLevelDef] -> ([TopLevelDef], [TopLevelDef])
-extractAndCleanSomewhereDefls defs = 
+extractAndCleanSomewhereDefs :: [TopLevelDef] -> ([TopLevelDef], [TopLevelDef])
+extractAndCleanSomewhereDefs defs =
   let (extracted, cleaned) = unzip $ map processTopLevel defs
   in (concat extracted, cleaned)
   where
