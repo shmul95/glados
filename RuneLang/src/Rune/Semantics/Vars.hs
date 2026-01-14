@@ -169,12 +169,12 @@ verifScope vs (StmtReturn pos (Just e) : stmts) = do
   e'      <- verifExpr vs e
   if not (null stmts)
     then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
-    else pure $ StmtReturn pos (Just e') : []
+    else pure $ [StmtReturn pos (Just e')]
 
 verifScope _ (StmtReturn pos Nothing : stmts) = do
   if not (null stmts)
     then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
-    else pure $ StmtReturn pos (Just (ExprLitNull pos)) : []
+    else pure $ [StmtReturn pos (Just (ExprLitNull pos))]
 
 verifScope vs (StmtIf pos cond a (Just b) : stmts) = do
   cond'   <- verifExpr vs cond
