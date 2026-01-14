@@ -66,6 +66,29 @@ data SemState = SemState
 
 type SemM a = StateT SemState (Either String) a
 
+-- | Extract all DeclDefs from somewhere blocks and return them as separate top-level definitions
+-- Also return cleaned somewhere blocks with only signatures
+extractAndCleanSomewhereDefls :: [TopLevelDef] -> ([TopLevelDef], [TopLevelDef])
+extractAndCleanSomewhereDefls defs = 
+  let (extracted, cleaned) = unzip $ map processTopLevel defs
+  in (concat extracted, cleaned)
+  where
+    processTopLevel :: TopLevelDef -> ([TopLevelDef], TopLevelDef)
+    processTopLevel (DefSomewhere decls) =
+      let (extractedDefs, remainingDecls) = partitionSomewhereDecls decls
+      in (extractedDefs, DefSomewhere remainingDecls)
+    processTopLevel other = ([], other)
+    
+    partitionSomewhereDecls :: [SomewhereDecl] -> ([TopLevelDef], [SomewhereDecl])
+    partitionSomewhereDecls decls =
+      let extractedDefs = [def | DeclDefs def <- decls]
+          remainingDecls = [decl | decl <- decls, not (isDeclDefs decl)]
+      in (extractedDefs, remainingDecls)
+    
+    isDeclDefs :: SomewhereDecl -> Bool
+    isDeclDefs (DeclDefs _) = True
+    isDeclDefs _ = False
+
 --
 -- public
 --
@@ -74,9 +97,13 @@ verifVars :: Program -> Either String (Program, FuncStack)
 verifVars (Program n defs) = do
   let (templatesList, concreteDefs) = List.partition isGeneric defs
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
+      
+      -- Extract all full definitions from somewhere blocks and flatten them
+      (flattenedDefs, cleanedDefs) = extractAndCleanSomewhereDefls concreteDefs
+      allConcreteDefs = flattenedDefs ++ cleanedDefs
 
-  fs <- findFunc (Program n concreteDefs)
-  ss <- findStruct (Program n concreteDefs)
+  fs <- findFunc (Program n allConcreteDefs)
+  ss <- findStruct (Program n allConcreteDefs)
 
   let initialState = SemState
         { stFuncs = fs
@@ -86,7 +113,7 @@ verifVars (Program n defs) = do
         , stStructs = ss
         }
 
-  (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
+  (defs', finalState) <- runStateT (mapM verifTopLevel allConcreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
   trace ( 
