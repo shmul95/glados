@@ -7,6 +7,7 @@ somewhere
     def test_errors() -> null;
     def test_sizeof() -> null;
     def test_struct() -> null;
+    def test_bitwise() -> null;
 }
 
 /**
@@ -22,4 +23,5 @@ export def test_features() -> null
     test_errors();
     test_sizeof();
     test_struct();
+    test_bitwise();
 }
