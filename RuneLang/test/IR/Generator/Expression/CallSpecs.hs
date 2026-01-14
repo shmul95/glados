@@ -15,6 +15,7 @@ import TestHelpers (dummyPos)
 import Control.Monad.State (evalState)
 import Control.Monad.Except (runExceptT)
 import qualified Data.HashMap.Strict as HM
+import Data.List (isInfixOf)
 
 --
 -- helpers
@@ -24,8 +25,12 @@ isCall :: IRInstruction -> Bool
 isCall (IRCALL {}) = True
 isCall _ = False
 
+isAdd :: IRInstruction -> Bool
+isAdd (IRADD_OP {}) = True
+isAdd _ = False
+
 inside :: String -> String -> Bool
-inside needle haystack = needle `HM.member` (HM.fromList $ zip (words haystack) (repeat ()))
+inside needle haystack = needle `isInfixOf` haystack
 
 isAddr :: IRInstruction -> Bool
 isAddr (IRADDR {}) = True
@@ -81,6 +86,26 @@ testStrategyDecisions = testGroup "selectCallStrategy & shouldUnroll"
           matching = [variadic, ("p_i32", (TypeI32, [Parameter "a" TypeI32 Nothing]))]
           args = [ExprLitInt dummyPos 1]
       in shouldUnroll "p" args matching (Just variadic) @?= False
+
+  , testCase "shouldUnroll: returns true when conditions met" $
+      let variadic = ("p", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
+          single = ("p_i32", (TypeI32, [Parameter "v" TypeI32 Nothing]))
+          matching = [variadic, single]
+          args = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2]
+      in shouldUnroll "p" args matching (Just variadic) @?= True
+
+  , testCase "selectCallStrategy: selects VariadicUnroll when shouldUnroll is true" $
+      let variadic = ("p", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
+          single = ("p_i32", (TypeI32, [Parameter "v" TypeI32 Nothing]))
+          matching = [variadic, single]
+          args = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2]
+      in selectCallStrategy "p" args matching (Just variadic) @?= VariadicUnroll matching variadic
+
+  , testCase "maxNonVariadicParams: calculates correctly" $
+      let f1 = ("f", (TypeNull, [Parameter "a" TypeI32 Nothing]))
+          f2 = ("f", (TypeNull, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing]))
+          fvar = ("f", (TypeNull, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
+      in maxNonVariadicParams [f1, f2, fvar] @?= 2
   ]
 
 testStandardCallPaths :: TestTree
@@ -99,6 +124,20 @@ testStandardCallPaths = testGroup "genStandardCall Fallbacks"
       in case res of
            Left _ -> return ()
            Right _ -> return ()
+
+  , testCase "genStandardCall: variadic path without unrolling" $
+      let genExpr _ = return ([], IRConstInt 1, IRI32)
+          -- Only one function, so unrolling disabled
+          variadic = ("sum", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
+          matching = [variadic]
+          fs = HM.fromList matching
+          args = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2]
+          (instrs, _, _) = runGenWithFuncStackUnsafe fs (genStandardCall genExpr "sum" args)
+      in do
+         -- Should have 1 call to "sum" with 2 arguments
+         case filter isCall instrs of
+           [IRCALL _ "sum" ops _] -> length ops @?= 2
+           _ -> assertBool "Expected single call to sum with 2 ops" False
   ]
 
 testUnrolledVariadicPaths :: TestTree
@@ -112,6 +151,18 @@ testUnrolledVariadicPaths = testGroup "genUnrolledCall & Overloads"
           fs = HM.fromList matching
           (instrs, _, _) = runGenWithFuncStackUnsafe fs (genUnrolledCall genExpr "p" matching variadic args)
       in (length $ filter isCall instrs) @?= 1
+
+  , testCase "genUnrolledCall: multiple variadic arguments trigger accumulateResults" $
+      let genExpr _ = return ([], IRConstInt 1, IRI32)
+          variadic = ("sum", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
+          overload = ("sum_i32", (TypeI32, [Parameter "v" TypeI32 Nothing]))
+          matching = [variadic, overload]
+          args = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2] -- 2 args > maxNonVariadic (1 for sum_i32)
+          fs = HM.fromList matching
+          (instrs, _, _) = runGenWithFuncStackUnsafe fs (genUnrolledCall genExpr "sum" matching variadic args)
+      in do
+         -- accumulateResults generates IRADD_OP
+         assertBool "Should have IRADD_OP" (any isAdd instrs)
 
   , testCase "genOverloadedCall: fallback to baseName when no bestMatch found" $
       let genExpr _ = return ([], IRConstInt 1, IRI32)
