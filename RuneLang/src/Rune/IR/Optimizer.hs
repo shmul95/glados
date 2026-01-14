@@ -60,7 +60,10 @@ runIROptimizer (IRProgram name tops) = IRProgram name $ filter isAlive optimized
   where
     optimized = optimizeTopLevel (funcMap tops) <$> tops
     optFuncs  = funcMap optimized
-    roots     = if M.member "main" optFuncs then S.singleton "main" else M.keysSet optFuncs
+    -- Include main and all exported functions as roots
+    mainRoot  = if M.member "main" optFuncs then S.singleton "main" else S.empty
+    exportRoots = S.fromList [irFuncName f | IRFunctionDef f <- optimized, irFuncIsExport f]
+    roots     = if S.null mainRoot && S.null exportRoots then M.keysSet optFuncs else S.union mainRoot exportRoots
     reachable = getReachable optFuncs roots
     
     isAlive (IRFunctionDef f) = S.member (irFuncName f) reachable
@@ -350,7 +353,8 @@ isInlineable f =
       len = length body
       hasControlFlow = any isControlFlow body
       isRecursive = any isSelfCall body
-  in len < 15 && not hasControlFlow && not isRecursive
+      isExported = irFuncIsExport f
+  in len < 15 && not hasControlFlow && not isRecursive && not isExported
   where
     isSelfCall (IRCALL _ name _ _) = name == irFuncName f
     isSelfCall _ = False
