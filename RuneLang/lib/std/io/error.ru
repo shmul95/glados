@@ -1,6 +1,6 @@
 somewhere
 {
-    extern def dprintf(fd: i32, format: string, args: ...any) -> i32;
+    def dprintf(fd: i32, format: string, args: ...any) -> i32;
 }
 
 /**
