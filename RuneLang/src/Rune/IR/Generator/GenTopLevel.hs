@@ -24,17 +24,23 @@ where
 import Control.Monad.State (modify)
 import Control.Monad.Except (throwError)
 import Data.Map (empty, insert)
-import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
+import Rune.AST.Nodes
+  ( Field (..)
+  , Parameter (..)
+  , TopLevelDef (..)
+  , Type (..)
+  , SomewhereDecl (..)
+  )
 import Rune.IR.Generator.GenStatement (genStatement)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
 import Rune.IR.Nodes
-  ( GenState (..),
-    IRFunction (..),
-    IRGen,
-    IRInstruction (..),
-    IROperand (IRParam),
-    IRTopLevel (..),
-    IRType (..),
+  ( GenState (..)
+  , IRFunction (..)
+  , IRGen
+  , IRInstruction (..)
+  , IROperand (IRParam)
+  , IRTopLevel (..)
+  , IRType (..)
   )
 
 --
@@ -45,7 +51,7 @@ genTopLevel :: TopLevelDef -> IRGen [IRTopLevel]
 genTopLevel def@DefFunction {} = genFunction def
 genTopLevel ovr@DefOverride {} = genOverride ovr
 genTopLevel str@DefStruct {} = genStruct str
-genTopLevel DefSomewhere {} = pure []
+genTopLevel swh@DefSomewhere {} = genSomewhere swh
 
 --
 -- private
@@ -96,6 +102,15 @@ genStructMethod _ (DefFunction methName params retType body _) =
 genStructMethod _ (DefOverride methName params retType body _) =
   genFunction (DefFunction methName params retType body False)
 genStructMethod _ _ = pure []
+
+-- | include in the generation everything in the somewhere
+genSomewhere :: TopLevelDef -> IRGen [IRTopLevel]
+genSomewhere (DefSomewhere decls) = do
+  results <- mapM genSomewhereDecl decls
+  pure $ concat results
+  where
+    genSomewhereDecl (DeclDefs def) = genTopLevel def
+    genSomewhereDecl _ = pure []  -- Other SomewhereDecl types don't generate IR
 
 --
 -- helpers
