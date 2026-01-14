@@ -7,6 +7,8 @@ somewhere
     
     def assert(condition: bool, message: string) -> bool;
     def assert_eq(a: string, b: string, message: string) -> bool;
+
+    def error(s: string) -> null;
 }
 
 /**
