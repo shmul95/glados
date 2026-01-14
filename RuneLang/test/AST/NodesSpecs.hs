@@ -13,7 +13,8 @@ astNodesTests :: TestTree
 astNodesTests =
   testGroup
     "Rune.AST.Nodes Specs"
-    [ testTypes,
+    [ testSourcePos,
+      testTypes,
       testBinaryOps,
       testUnaryOps,
       testParameterAndField,
@@ -22,8 +23,10 @@ astNodesTests =
       testStatementAccessors,
       testConditionalAndLoopAccessors,
       testExpressionAccessors,
+      testFunctionSignature,
       testGetExprPos,
-      testGetStmtPos
+      testGetStmtPos,
+      testOrdInstances
     ]
 
 --
@@ -39,6 +42,18 @@ dummyExpr = ExprLitInt dummyPos 42
 --
 -- private
 --
+
+testSourcePos :: TestTree
+testSourcePos =
+  testGroup
+    "SourcePos"
+    [ testCase "Accessors and Show" $ do
+        let pos = SourcePos "test.rn" 10 5
+        posFile pos @?= "test.rn"
+        posLine pos @?= 10
+        posCol pos @?= 5
+        show pos @?= "test.rn:10:5"
+    ]
 
 testTypes :: TestTree
 testTypes =
@@ -62,7 +77,7 @@ testTypes =
                 "arri32", "ptr_i32", "ref_i32", "...i32"
               ]
          in map show types @?= expectedStrs,
-      testCase "Eq/Ord derived instances" $
+      testCase "Eq instance" $
         (TypeI32 == TypeI32) @?= True
     ]
 
@@ -72,7 +87,9 @@ testBinaryOps =
     "BinaryOp"
     [ testCase "Constructors and Show" $
         let ops = [Add, Sub, Mul, Div, Mod, Eq, Neq, Lt, Lte, Gt, Gte, And, Or, BitAnd]
-         in length ops @?= 14
+         in do
+           length ops @?= 14
+           show Add @?= "Add"
     ]
 
 testUnaryOps :: TestTree
@@ -81,7 +98,9 @@ testUnaryOps =
     "UnaryOp"
     [ testCase "Constructors and Show" $
         let ops = [Negate, Not, BitNot, PropagateError, PrefixInc, PrefixDec, PostfixInc, PostfixDec]
-         in length ops @?= 8
+         in do
+           length ops @?= 8
+           show Negate @?= "Negate"
     ]
 
 testParameterAndField :: TestTree
@@ -89,11 +108,12 @@ testParameterAndField =
   testGroup
     "Parameter and Field Accessors"
     [ testCase "Parameter accessors" $
-        let p = Parameter {paramName = "x", paramType = TypeI32, paramDefault = Nothing}
+        let p = Parameter {paramName = "x", paramType = TypeI32, paramDefault = Just dummyExpr}
          in do
               paramName p @?= "x"
               paramType p @?= TypeI32
-              show p @?= "Parameter {paramName = \"x\", paramType = i32, paramDefault = Nothing}",
+              paramDefault p @?= Just dummyExpr
+              show p @?= "Parameter {paramName = \"x\", paramType = i32, paramDefault = Just (ExprLitInt (SourcePos {posFile = \"test.rn\", posLine = 1, posCol = 1}) 42)}",
       testCase "Field accessors" $
         let f = Field {fieldName = "y", fieldType = TypeF64}
          in do
@@ -122,13 +142,15 @@ testTopLevelDefAccessors =
                   funcParams = [],
                   funcReturnType = TypeNull,
                   funcBody = dummyBlock,
-                  funcIsExport = False
+                  funcIsExport = True
                 }
          in do
               funcName def @?= "main"
               funcParams def @?= []
               funcReturnType def @?= TypeNull
-              funcBody def @?= dummyBlock,
+              funcBody def @?= dummyBlock
+              funcIsExport def @?= True
+              show def @?= "DefFunction {funcName = \"main\", funcParams = [], funcReturnType = null, funcBody = [StmtReturn (SourcePos {posFile = \"test.rn\", posLine = 1, posCol = 1}) Nothing], funcIsExport = True}",
       testCase "DefStruct accessors" $
         let def =
               DefStruct
@@ -140,7 +162,28 @@ testTopLevelDefAccessors =
               structName def @?= "Vec2"
               structFields def @?= []
               structMethods def @?= []
+    , testCase "DefSomewhere accessors" $
+        let sig = FunctionSignature "foo" [] TypeNull False
+            def = DefSomewhere [sig]
+         in do
+              somewhereDecls def @?= [sig]
     ]
+
+testFunctionSignature :: TestTree
+testFunctionSignature =
+  testCase "FunctionSignature accessors" $
+    let sig = FunctionSignature 
+                { sigName = "ext", 
+                  sigParams = [TypeI32], 
+                  sigReturnType = TypeBool, 
+                  sigIsExtern = True 
+                }
+    in do
+      sigName sig @?= "ext"
+      sigParams sig @?= [TypeI32]
+      sigReturnType sig @?= TypeBool
+      sigIsExtern sig @?= True
+      (sig == sig) @?= True
 
 testStatementAccessors :: TestTree
 testStatementAccessors =
@@ -149,6 +192,7 @@ testStatementAccessors =
     [ testCase "StmtVarDecl accessors" $
         let stmt = StmtVarDecl {stmtPos = dummyPos, varName = "x", varType = Just TypeI32, varValue = dummyExpr}
          in do
+              stmtPos (stmt :: Statement) @?= dummyPos
               varName stmt @?= "x"
               varType stmt @?= Just TypeI32
               varValue stmt @?= dummyExpr
@@ -159,7 +203,9 @@ testStatementAccessors =
               assignRValue stmt @?= dummyExpr
     , testCase "StmtReturn accessors" $
         case StmtReturn dummyPos (Just dummyExpr) of
-          StmtReturn _ val -> val @?= Just dummyExpr
+          StmtReturn pos val -> do
+            pos @?= dummyPos
+            val @?= Just dummyExpr
     ]
 
 testConditionalAndLoopAccessors :: TestTree
@@ -201,10 +247,7 @@ testConditionalAndLoopAccessors =
               forEachVar stmt @?= "item"
               forEachVarType stmt @?= Nothing
               forEachIterable stmt @?= ExprVar dummyPos "list"
-              forEachBody stmt @?= dummyBlock,
-      testCase "StmtLoop/Stop/Next/Expr constructors" $
-        let list = [StmtLoop dummyPos dummyBlock, StmtStop dummyPos, StmtNext dummyPos, StmtExpr dummyPos dummyExpr]
-         in length list @?= 4
+              forEachBody stmt @?= dummyBlock
     ]
 
 testExpressionAccessors :: TestTree
@@ -214,6 +257,7 @@ testExpressionAccessors =
     [ testCase "ExprCall accessors" $
         let expr = ExprCall {exprPos = dummyPos, callName = ExprVar dummyPos "foo", callArgs = [dummyExpr]}
          in do
+              exprPos (expr :: Expression) @?= dummyPos -- Appel explicite
               callName expr @?= ExprVar dummyPos "foo"
               callArgs expr @?= [dummyExpr]
     , testCase "ExprStructInit accessors" $
@@ -226,63 +270,54 @@ testExpressionAccessors =
          in do
               accessTarget expr @?= ExprVar dummyPos "p"
               accessField expr @?= "x"
-    , testCase "ExprBinary/Unary/Literals constructors" $
-        let exprs =
-              [ ExprBinary dummyPos Add dummyExpr dummyExpr,
-                ExprUnary dummyPos Negate dummyExpr,
-                ExprLitInt dummyPos 1,
-                ExprLitFloat dummyPos 1.0,
-                ExprLitString dummyPos "s",
-                ExprLitChar dummyPos 'c',
-                ExprLitBool dummyPos True,
-                ExprLitNull dummyPos,
-                ExprVar dummyPos "x",
-                ExprSizeof dummyPos (Left TypeI32)
-              ]
-         in length exprs @?= 10,
-      testCase "ExprIndex accessors" $
+    , testCase "ExprIndex accessors" $
         let expr = ExprIndex {exprPos = dummyPos, indexTarget = ExprVar dummyPos "arr", indexValue = dummyExpr}
          in do
           indexTarget expr @?= ExprVar dummyPos "arr"
           indexValue expr @?= dummyExpr
+    , testCase "ExprCast accessors" $
+        let expr = ExprCast dummyPos dummyExpr TypeF32
+        in do
+          castExpr expr @?= dummyExpr
+          castType expr @?= TypeF32
     ]
 
 testGetExprPos :: TestTree
 testGetExprPos =
-  testGroup
-    "getExprPos"
-    [ testCase "All Expression constructors" $ do
-        getExprPos (ExprBinary dummyPos Add dummyExpr dummyExpr) @?= dummyPos
-        getExprPos (ExprUnary dummyPos Negate dummyExpr) @?= dummyPos
-        getExprPos (ExprCall dummyPos (ExprVar dummyPos "f") []) @?= dummyPos
-        getExprPos (ExprStructInit dummyPos "S" []) @?= dummyPos
-        getExprPos (ExprAccess dummyPos dummyExpr "x") @?= dummyPos
-        getExprPos (ExprIndex dummyPos dummyExpr dummyExpr) @?= dummyPos
-        getExprPos (ExprCast dummyPos dummyExpr TypeI32) @?= dummyPos
-        getExprPos (ExprLitInt dummyPos 1) @?= dummyPos
-        getExprPos (ExprLitFloat dummyPos 1.0) @?= dummyPos
-        getExprPos (ExprLitString dummyPos "s") @?= dummyPos
-        getExprPos (ExprLitChar dummyPos 'c') @?= dummyPos
-        getExprPos (ExprLitBool dummyPos True) @?= dummyPos
-        getExprPos (ExprLitNull dummyPos) @?= dummyPos
-        getExprPos (ExprVar dummyPos "v") @?= dummyPos
-        getExprPos (ExprLitArray dummyPos []) @?= dummyPos
-        getExprPos (ExprSizeof dummyPos (Left TypeI32)) @?= dummyPos
-    ]
+  testCase "getExprPos for all constructors" $ do
+    getExprPos (ExprBinary dummyPos Add dummyExpr dummyExpr) @?= dummyPos
+    getExprPos (ExprUnary dummyPos Negate dummyExpr) @?= dummyPos
+    getExprPos (ExprCall dummyPos (ExprVar dummyPos "f") []) @?= dummyPos
+    getExprPos (ExprStructInit dummyPos "S" []) @?= dummyPos
+    getExprPos (ExprAccess dummyPos dummyExpr "x") @?= dummyPos
+    getExprPos (ExprIndex dummyPos dummyExpr dummyExpr) @?= dummyPos
+    getExprPos (ExprCast dummyPos dummyExpr TypeI32) @?= dummyPos
+    getExprPos (ExprLitInt dummyPos 1) @?= dummyPos
+    getExprPos (ExprLitFloat dummyPos 1.0) @?= dummyPos
+    getExprPos (ExprLitString dummyPos "s") @?= dummyPos
+    getExprPos (ExprLitChar dummyPos 'c') @?= dummyPos
+    getExprPos (ExprLitBool dummyPos True) @?= dummyPos
+    getExprPos (ExprLitNull dummyPos) @?= dummyPos
+    getExprPos (ExprVar dummyPos "v") @?= dummyPos
+    getExprPos (ExprLitArray dummyPos []) @?= dummyPos
+    getExprPos (ExprSizeof dummyPos (Left TypeI32)) @?= dummyPos
 
 testGetStmtPos :: TestTree
 testGetStmtPos =
-  testGroup
-    "getStmtPos"
-    [ testCase "All Statement constructors" $ do
-        getStmtPos (StmtVarDecl dummyPos "x" Nothing dummyExpr) @?= dummyPos
-        getStmtPos (StmtAssignment dummyPos dummyExpr dummyExpr) @?= dummyPos
-        getStmtPos (StmtReturn dummyPos Nothing) @?= dummyPos
-        getStmtPos (StmtIf dummyPos dummyExpr [] Nothing) @?= dummyPos
-        getStmtPos (StmtFor dummyPos "i" Nothing Nothing dummyExpr []) @?= dummyPos
-        getStmtPos (StmtForEach dummyPos "i" Nothing dummyExpr []) @?= dummyPos
-        getStmtPos (StmtLoop dummyPos []) @?= dummyPos
-        getStmtPos (StmtStop dummyPos) @?= dummyPos
-        getStmtPos (StmtNext dummyPos) @?= dummyPos
-        getStmtPos (StmtExpr dummyPos dummyExpr) @?= dummyPos
-    ]
+  testCase "getStmtPos for all constructors" $ do
+    getStmtPos (StmtVarDecl dummyPos "x" Nothing dummyExpr) @?= dummyPos
+    getStmtPos (StmtAssignment dummyPos dummyExpr dummyExpr) @?= dummyPos
+    getStmtPos (StmtReturn dummyPos Nothing) @?= dummyPos
+    getStmtPos (StmtIf dummyPos dummyExpr [] Nothing) @?= dummyPos
+    getStmtPos (StmtFor dummyPos "i" Nothing Nothing dummyExpr []) @?= dummyPos
+    getStmtPos (StmtForEach dummyPos "i" Nothing dummyExpr []) @?= dummyPos
+    getStmtPos (StmtLoop dummyPos []) @?= dummyPos
+    getStmtPos (StmtStop dummyPos) @?= dummyPos
+    getStmtPos (StmtNext dummyPos) @?= dummyPos
+    getStmtPos (StmtExpr dummyPos dummyExpr) @?= dummyPos
+
+testOrdInstances :: TestTree
+testOrdInstances =
+  testCase "Ord instances coverage" $ do
+    compare (SourcePos "a" 1 1) (SourcePos "b" 1 1) @?= LT
+    compare TypeI8 TypeI16 @?= LT
