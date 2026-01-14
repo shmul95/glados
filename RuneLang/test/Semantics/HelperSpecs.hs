@@ -92,15 +92,26 @@ semanticErrorAccessorsTests = testCase "SemanticError accessors" $ do
   seContext err @?= ["context1", "context2"]
 
 typeCompatibleTests :: TestTree
-typeCompatibleTests = testGroup "isTypeCompatible additional branches"
-  [ testCase "i32 compatible with i64" $ isTypeCompatible TypeI64 TypeI32 @? "i64 < i32"
-  , testCase "f32 compatible with f64" $ isTypeCompatible TypeF64 TypeF32 @? "f64 < f32"
-  , testCase "i16 compatible with i8"  $ isTypeCompatible TypeI16 TypeI8  @? "i16 < i8"
-  , testCase "f64 compatible with f32" $ isTypeCompatible TypeF64 TypeF32 @? "f64 < f32"
-  , testCase "int family compatibility" $ isTypeCompatible TypeI64 TypeU32 @? "i64 < u32"
-  , testCase "float family compatibility" $ isTypeCompatible TypeF64 TypeF32 @? "f64 < f32"
-  , testCase "I32 actual with integer expected (U64)" $ isTypeCompatible TypeU64 TypeI32 @? "u64 < i32"
-  , testCase "Incompatible types (I32 and String)" $ isTypeCompatible TypeI32 TypeString @?= False
+typeCompatibleTests = testGroup "isTypeCompatible"
+  [ testCase "Any left" $ isTypeCompatible TypeAny TypeString @?= True
+  , testCase "Any right" $ isTypeCompatible TypeString TypeAny @?= True
+  , testCase "Ptr Any left" $ isTypeCompatible (TypePtr TypeAny) TypeI32 @?= True
+  , testCase "Ptr Any right" $ isTypeCompatible TypeI32 (TypePtr TypeAny) @?= True
+  , testCase "Ptr Null match" $ isTypeCompatible (TypePtr TypeI32) TypeNull @?= True
+  , testCase "Null Ptr match" $ isTypeCompatible TypeNull (TypePtr TypeF32) @?= True
+  , testCase "Ptr Char String" $ isTypeCompatible (TypePtr TypeChar) TypeString @?= True
+  , testCase "String Ptr Char" $ isTypeCompatible TypeString (TypePtr TypeChar) @?= True
+  , testCase "Recursive Ptr" $ isTypeCompatible (TypePtr TypeI32) (TypePtr TypeI32) @?= True
+  , testCase "Ref accepts value" $ isTypeCompatible (TypeRef TypeI32) TypeI32 @?= True
+  , testCase "Value passed as Ref" $ isTypeCompatible TypeI32 (TypeRef TypeI32) @?= True
+  , testCase "Variadic match" $ isTypeCompatible (TypeVariadic TypeI32) TypeI32 @?= True
+  , testCase "Same type match" $ isTypeCompatible TypeBool TypeBool @?= True
+  , testCase "I32 promotion" $ isTypeCompatible TypeI64 TypeI32 @?= True
+  , testCase "F32 promotion" $ isTypeCompatible TypeF64 TypeF32 @?= True
+  , testCase "Int family" $ isTypeCompatible TypeI16 TypeU8 @?= True
+  , testCase "Float family" $ isTypeCompatible TypeF64 TypeF32 @?= True
+  , testCase "Incompatible mixed" $ isTypeCompatible TypeBool TypeI32 @?= False
+  , testCase "Incompatible structs" $ isTypeCompatible (TypeCustom "A") (TypeCustom "B") @?= False
   ]
 
 specificityTests :: TestTree
@@ -268,7 +279,7 @@ selectSignatureTests = testGroup "selectSignature Tests"
   ]
 
 checkEachParamTests :: TestTree
-checkEachParamTests = testGroup "checkEachParam Tests (100% Coverage)"
+checkEachParamTests = testGroup "checkEachParam Tests"
   [ testCase "Match simple: multiple params" $
       checkEachParam stack1 "test.ru" 1 1 0 
         [ExprLitInt dummyPos 1, ExprLitFloat dummyPos 2.0] 
