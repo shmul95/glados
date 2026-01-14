@@ -59,11 +59,13 @@ findDefs s (DefOverride name params rType _ _) =
       Nothing -> Left $ printf msg name
 
 -- | find function signatures defined somewhere else
-findDefs s (DefSomewhere sigs) = foldM addSig s sigs
+findDefs s (DefSomewhere sigs) = foldM addSomewhereDecl s sigs
   where
-    addSig fs (FunctionSignature name paramTypes rType _isOverride) =
+    addSomewhereDecl fs (DeclFuncSig (FunctionSignature name paramTypes rType _isOverride)) =
       let sig = (rType, paramTypes)
       in Right $ HM.insertWith (\_ old -> old) name sig fs
+    addSomewhereDecl fs (DeclDefs def) = findDefs fs def
+    addSomewhereDecl fs _ = Right fs  -- Handle other SomewhereDecl cases
 
 -- | find struct method definitions
 findDefs s (DefStruct name _ methods) =

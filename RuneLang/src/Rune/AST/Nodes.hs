@@ -12,6 +12,7 @@ module Rune.AST.Nodes
     Parameter (..),
     Field (..),
     FunctionSignature (..),
+    SomewhereDecl (..),
     Block,
     SourcePos (..),
     getExprPos,

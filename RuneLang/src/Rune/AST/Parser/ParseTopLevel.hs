@@ -17,6 +17,8 @@ module Rune.AST.Parser.ParseTopLevel
     parseReturnType,
     parseField,
     parseSomewhere,
+    parseSomewhereDecls,
+    parseSomewhereDecl,
     parseFunctionSignatures,
     parseFunctionSignature,
     parseParamTypeInSignature
@@ -30,7 +32,7 @@ where
 import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Data.Either (partitionEithers)
-import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..))
+import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..), SomewhereDecl (..))
 import Rune.AST.Parser.ParseBlock (parseBlock)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (advance, between, check, expect, expectIdent, failParse, peek, sepBy, try, withContext)
@@ -181,7 +183,26 @@ parseField = Field <$> parseIdentifier <*> (expect T.Colon *> parseType)
 parseSomewhere :: Parser TopLevelDef
 parseSomewhere =
   do _ <- expect T.KwSomewhere *> expect T.LBrace
-     DefSomewhere <$> parseFunctionSignatures
+     DefSomewhere <$> parseSomewhereDecls
+
+parseSomewhereDecls :: Parser [SomewhereDecl]
+parseSomewhereDecls = do
+  isEnd <- check T.RBrace
+  if isEnd then
+    advance >> pure []
+  else do
+    decl <- parseSomewhereDecl
+    rest <- parseSomewhereDecls
+    pure $ decl : rest
+
+parseSomewhereDecl :: Parser SomewhereDecl
+parseSomewhereDecl = do
+  tok <- peek
+  case T.tokenKind tok of
+    T.KwDef -> DeclFuncSig <$> parseFunctionSignature
+    T.KwOverride -> DeclFuncSig <$> parseFunctionSignature
+    T.KwStruct -> DeclDefs <$> parseStruct
+    _ -> failParse $ "Expected function signature or struct definition, got: " ++ show tok
 
 parseFunctionSignatures :: Parser [FunctionSignature]
 parseFunctionSignatures = do

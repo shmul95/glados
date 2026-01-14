@@ -114,14 +114,16 @@ visitSomewhere :: TopLevelDef -> Printer ()
 visitSomewhere (DefSomewhere sigs) = do
   emit "DefSomewhere"
   indent
-  emitBlock "Signatures:" (mapM_ emitSig sigs)
+  emitBlock "Signatures:" (mapM_ emitSomewhereDecl sigs)
   dedent
   where
-    emitSig (FunctionSignature name paramTypes retType isOverride) = do
+    emitSomewhereDecl (DeclFuncSig (FunctionSignature name paramTypes retType isOverride)) = do
       newLine
       emit $ (if isOverride then "override " else "") <> name <> "("
       emit $ unwords (map showType paramTypes)
       emit $ ") -> " <> showType retType
+    emitSomewhereDecl (DeclDefs def) = visitTopLevel def
+    emitSomewhereDecl _ = return ()  -- Handle other SomewhereDecl cases
 visitSomewhere _ = return ()
 
 visitStatement :: Statement -> Printer ()

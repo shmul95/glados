@@ -29,10 +29,18 @@ import qualified Data.List as List
 ---
 
 findStruct :: Program -> Either String StructStack
-findStruct (Program _ defs) = foldM addStruct HM.empty structs
+findStruct (Program _ defs) = foldM addStruct HM.empty (extractStructs defs)
   where
-    structs :: [TopLevelDef]
-    structs = [d | d@DefStruct{} <- defs]
+    extractStructs :: [TopLevelDef] -> [TopLevelDef]
+    extractStructs defs' = 
+      let directStructs = [d | d@DefStruct{} <- defs']
+          somewhereStructs = concatMap extractFromSomewhere defs'
+      in directStructs ++ somewhereStructs
+    
+    extractFromSomewhere :: TopLevelDef -> [TopLevelDef]
+    extractFromSomewhere (DefSomewhere decls) = 
+      [def | DeclDefs def@DefStruct{} <- decls]
+    extractFromSomewhere _ = []
 
     addStruct :: StructStack -> TopLevelDef -> Either String StructStack
     addStruct acc def@(DefStruct name fields methods)

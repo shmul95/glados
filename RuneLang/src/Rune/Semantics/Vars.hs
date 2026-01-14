@@ -90,7 +90,8 @@ verifVars (Program n defs) = do
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
   trace ( 
-      printf "initial: %s\n final: %s\n" (show initialState) (show finalState)
+      printf "initial: %s\nfinal: %s\n" (show $ stStructs initialState) (show $ stStructs finalState) <>
+      printf "initial: %s\nfinal: %s\n" (show $ stFuncs initialState) (show $ stFuncs finalState)
       -- printf "defs: %s\nallDefs: %s\n" (show defs) (show allDefs)
       -- <> printf "stStructs: %s\n" (show $ stStructs finalState)
       -- <> "\n\n" <> prettyPrint p
