@@ -370,14 +370,14 @@ getFieldType (SourcePos file line col) ss (TypeCustom s) field =
       Left $ SemanticError
         file line col
         (printf "struct '%s' to be a valid struct definition" s)
-        "invalid struct"
+        "not a struct definition"
         ["field access", "global context"]
 
 getFieldType (SourcePos file line col) _ t field =
   Left $ SemanticError
     file line col
-    (printf "field access on type %s" (show t))
-    (printf "cannot access field '%s'" field)
+    (printf "field access to be valid on type %s" (show t))
+    (printf "cannot access field '%s' on type '%s'" field (show t))
     ["field access", "global context"]
 
 fixSelfType :: String -> [Parameter] -> [Parameter]
