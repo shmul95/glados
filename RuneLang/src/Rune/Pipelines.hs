@@ -178,7 +178,58 @@ verifAndGenIR = checkSemantics >=> uncurry generateIR
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
 runPipeline fp = performSanityChecks >>= either (pure . Left) 
-  (const $ safeRead fp <&> (>>= pipeline . (fp,)))
+  (const $ safeRead fp >>= either (pure . Left) (processWithPreprocessing fp))
+
+-- | Process source with use-statement preprocessing
+processWithPreprocessing :: FilePath -> String -> IO (Either String IRProgram)
+processWithPreprocessing fp content = do
+  preprocessResult <- preprocessUseStatements fp content
+  case preprocessResult of
+    Left err -> pure $ Left err
+    Right expandedContent -> pure $ pipeline (fp, expandedContent)
+
+-- | Preprocess 'use' statements by expanding them inline
+preprocessUseStatements :: FilePath -> String -> IO (Either String String)
+preprocessUseStatements basePath content = do
+  -- Simple preprocessing: scan for "use filename.sw;" patterns and replace with file contents
+  -- This is a basic implementation - a full preprocessor would handle this more robustly
+  processLines (lines content) []
+  where
+    processLines :: [String] -> [String] -> IO (Either String String)
+    processLines [] acc = pure $ Right $ unlines (reverse acc)
+    processLines (line:rest) acc = 
+      case parseUseLine (strip line) of
+        Just fileName -> do
+          result <- safeRead fileName
+          case result of
+            Left err -> pure $ Left $ "Failed to read " ++ fileName ++ ": " ++ err
+            Right fileContent -> processLines rest (reverse (lines fileContent) ++ acc)
+        Nothing -> processLines rest (line : acc)
+    
+    parseUseLine :: String -> Maybe String
+    parseUseLine line
+      | "use " `isPrefixOf` line && ";" `isSuffixOf` line =
+          let withoutUse = drop 4 line
+              withoutSemicolon = take (length withoutUse - 1) withoutUse
+          in Just (strip withoutSemicolon)
+      | otherwise = Nothing
+    
+    strip :: String -> String
+    strip = dropWhile isSpace . dropWhileEnd isSpace
+    
+    isPrefixOf :: Eq a => [a] -> [a] -> Bool
+    isPrefixOf [] _ = True
+    isPrefixOf _ [] = False
+    isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
+    
+    isSuffixOf :: Eq a => [a] -> [a] -> Bool
+    isSuffixOf xs ys = isPrefixOf (reverse xs) (reverse ys)
+    
+    dropWhileEnd :: (a -> Bool) -> [a] -> [a]
+    dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x:xs) []
+    
+    isSpace :: Char -> Bool
+    isSpace c = c `elem` " \t\n\r"
 
 runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
 runPipelineAction inFile = (runPipeline inFile >>=) . either logError
