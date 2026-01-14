@@ -31,6 +31,7 @@ module Rune.Semantics.Vars (
   raiseVisibilityError,
   checkFieldVisibility,
   verifStaticMethodCall,
+  checkStaticMethodCall,
   verifInstanceMethodCall,
   checkMethodVisibility,
   SemState(..),
@@ -74,6 +75,8 @@ import Rune.Semantics.Helper
   , fixSelfType
   )
 import Rune.Semantics.OpType (iHTBinary)
+
+-- import Debug.Trace (trace)
 
 --
 -- state monad
@@ -515,7 +518,7 @@ isStaticMethod _     = False
 
 checkMethodParams :: String -> [Parameter] -> SemM ()
 checkMethodParams methodName params
-  | isStaticMethod methodName = pure ()  -- Static methods don't need self
+  | isStaticMethod methodName = pure ()
   | otherwise = case params of
       [] -> lift $ Left $ printf "Instance method '%s' must have at least one parameter (self)" methodName
       (p:_) | paramName p /= "self" ->
@@ -604,11 +607,6 @@ raiseVisibilityError visibility currentStruct sName isSelf memberName memberType
        else printf "cannot access %s %s '%s' on other instances (only 'self' allowed)" (show visibility) memberType memberName)
       [context, "visibility"]
 
--- | Check if field access is allowed based on visibility rules
-checkFieldVisibility :: Visibility -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
-checkFieldVisibility visibility currentStruct sName isSelf field file line col =
-  raiseVisibilityError visibility currentStruct sName isSelf field "field" file line col "field access"
-
 -- | Verify static method call (StructName.method)
 verifStaticMethodCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
 verifStaticMethodCall cPos vPos target method args hint vs = do
@@ -618,13 +616,22 @@ verifStaticMethodCall cPos vPos target method args hint vs = do
   let s = (fs, vs, ss)
       SourcePos file line col = cPos
       baseName = target ++ "_" ++ method
-
+  checkStaticMethodCall target method file line col
   args' <- mapM (verifExpr vs) args
   argTypes <- lift $ mapM (exprType s) args'
 
   checkMethodVisibility fs baseName currentStruct target False method file line col
   callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
   pure $ ExprCall cPos callExpr args'
+
+-- | Check that a method called statically is actually static
+checkStaticMethodCall :: String -> String -> String -> Int -> Int -> SemM ()
+checkStaticMethodCall target method file line col =
+  unless (isStaticMethod method) $
+    lift $ Left $ formatSemanticError $ SemanticError file line col
+      (printf "static call '%s.%s()'" target method)
+      (printf "method '%s' is not static (requires 'self' parameter)" method)
+      ["method call", "static vs instance"]
 
 -- | Verify instance method call (variable.method)
 verifInstanceMethodCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
@@ -648,6 +655,11 @@ verifInstanceMethodCall cPos vPos target method args hint vs = do
   checkMethodVisibility fs baseName currentStruct sName isSelf method file line col
   callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
   pure $ ExprCall cPos callExpr allArgs
+
+-- | Check if field access is allowed based on visibility rules
+checkFieldVisibility :: Visibility -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
+checkFieldVisibility visibility currentStruct sName isSelf field file line col =
+  raiseVisibilityError visibility currentStruct sName isSelf field "field" file line col "field access"
 
 -- | Check if method call is allowed based on visibility rules
 checkMethodVisibility :: FuncStack -> String -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()

@@ -36,6 +36,7 @@ varsSemanticsTests =
     , resolveCallTests
     , isStaticMethodTests
     , checkMethodParamsTests
+    , checkStaticMethodCallTests
     , canAccessMemberTests
     , isSelfAccessTests
     , verifFieldAccessTests
@@ -901,6 +902,44 @@ checkMethodParamsTests =
               result = runSemMForTest (checkMethodParams "myMethod" [Parameter "wrong" TypeAny Nothing]) state
           case result of
             Left err -> assertBool "should mention self" ("First parameter" `isInfixOf` err)
+            Right _ -> assertFailure "Expected error"
+      ]
+    ]
+
+-- ============================================================================
+-- checkStaticMethodCall Tests
+-- ============================================================================
+
+checkStaticMethodCallTests :: TestTree
+checkStaticMethodCallTests =
+  testGroup "checkStaticMethodCall"
+    [ testGroup "Success Cases"
+      [ testCase "allows static method 'new'" $ do
+          let state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (checkStaticMethodCall "Vec2f" "new" "test.ru" 1 1) state
+          result @?= Right ()
+      ]
+    , testGroup "Failure Cases"
+      [ testCase "rejects non-static method 'add'" $ do
+          let state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (checkStaticMethodCall "Vec2f" "add" "test.ru" 1 1) state
+          case result of
+            Left err -> do
+              assertBool "should mention static call" ("static call" `isInfixOf` err)
+              assertBool "should mention method name" ("Vec2f.add" `isInfixOf` err)
+              assertBool "should mention self parameter" ("requires 'self' parameter" `isInfixOf` err)
+            Right _ -> assertFailure "Expected error"
+      , testCase "rejects non-static method 'get_x'" $ do
+          let state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (checkStaticMethodCall "Point" "get_x" "test.ru" 10 5) state
+          case result of
+            Left err -> assertBool "should mention not static" ("not static" `isInfixOf` err)
+            Right _ -> assertFailure "Expected error"
+      , testCase "rejects empty method name" $ do
+          let state = mockSemState HM.empty HM.empty Nothing
+              result = runSemMForTest (checkStaticMethodCall "MyStruct" "" "test.ru" 1 1) state
+          case result of
+            Left err -> assertBool "should fail for empty method" (not (null err))
             Right _ -> assertFailure "Expected error"
       ]
     ]
