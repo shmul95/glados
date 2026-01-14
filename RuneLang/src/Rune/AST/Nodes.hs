@@ -129,7 +129,8 @@ data TopLevelDef
         funcReturnType :: Type,
         funcBody :: Block,
         funcIsExport :: Bool,
-        funcVisibility :: Visibility
+        funcVisibility :: Visibility,
+        funcIsStatic :: Bool
       }
   | -- | struct definition
     -- struct Vec2f
@@ -180,7 +181,12 @@ data Parameter = Parameter
 --     x: f32;
 --     y: f32;
 -- }
-data Field = Field {fieldName :: String, fieldType :: Type, fieldVisibility :: Visibility}
+data Field = Field
+  { fieldName       :: String
+  , fieldType       :: Type
+  , fieldVisibility :: Visibility
+  , fieldIsStatic   :: Bool
+  }
   deriving (Show, Eq)
 
 -- | function signature for forward declarations

@@ -24,6 +24,7 @@ data TokenKind
   | KwPublic
   | KwProtected
   | KwPrivate
+  | KwStatic
   -- | primitive types
   | TypeI8
   | TypeI16

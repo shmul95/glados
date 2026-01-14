@@ -51,10 +51,10 @@ checkParamType :: Stack -> (String, [Type]) -> String -> Int -> Int -> [Expressi
 checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError expected got = SemanticError file line col expected got ["function call", "global context"]
       -- Find candidates by exact match on mangled name
-      exactMangled = HM.filterWithKey (\k ((ret, params), _) -> isRightFunction (fname, argTypes) k (ret, map paramType params)) fs
+      exactMangled = HM.filterWithKey (\k ((ret, params), _, _) -> isRightFunction (fname, argTypes) k (ret, map paramType params)) fs
       -- For struct method overrides (names containing _), also check compatible manglings
       compatibleMangled = if isStructMethod fname
-                          then HM.toList $ HM.filterWithKey (\k ((ret, params), _) -> isCompatibleMangling fname k ret (map paramType params) argTypes) fs
+                          then HM.toList $ HM.filterWithKey (\k ((ret, params), _, _) -> isCompatibleMangling fname k ret (map paramType params) argTypes) fs
                           else []
       -- Also check direct name lookup
       candidates = case (HM.toList exactMangled, compatibleMangled, HM.lookup fname fs) of
@@ -64,13 +64,13 @@ checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
         ([], [], Nothing) -> []
   in case candidates of
     [] -> Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
-    [(name, ((_, params), _))] ->
+    [(name, ((_, params), _, _))] ->
       case checkEachParam s file line col 0 es params of
         Nothing -> Right name
         Just err -> Left err
     multiples ->
       -- Filter to only those with matching parameter count and compatible types
-      case filter (\(_, ((_, params), _)) -> isNothing $ checkEachParam s file line col 0 es params) multiples of
+      case filter (\(_, ((_, params), _, _)) -> isNothing $ checkEachParam s file line col 0 es params) multiples of
         [(name, _)] -> Right name
         [] -> Left $ mkError ("function '" <> fname <> "' with compatible arguments") "no matching signature"
         _ -> Left $ mkError (printf "multiple signatures for %s" fname) "ambiguous function call"
@@ -226,11 +226,11 @@ checkEachParam _ file line col i es [] =
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name argTypes =
-  let mangled = HM.filterWithKey (\k ((ret, params), _) -> isRightFunction (name, argTypes) k (ret, map paramType params)) fs
+  let mangled = HM.filterWithKey (\k ((ret, params), _, _) -> isRightFunction (name, argTypes) k (ret, map paramType params)) fs
   in case (HM.toList mangled, HM.lookup name fs) of
-    ((_, ((ret, _), _)):_, _) -> Just ret          -- Trouvé manglé
-    ([], Just ((ret, _), _))  -> Just ret          -- Trouvé en base
-    _                         -> Nothing            -- Pas trouvé
+    ((_, ((ret, _), _, _)):_, _) -> Just ret          -- Trouvé manglé
+    ([], Just ((ret, _), _, _))  -> Just ret          -- Trouvé en base
+    _                            -> Nothing           -- Pas trouvé
 
 getFieldType :: SourcePos -> StructStack -> Type -> String -> Either SemanticError Type
 getFieldType pos ss (TypeCustom sName) fldName =
@@ -239,9 +239,9 @@ getFieldType pos ss (TypeCustom sName) fldName =
   in case HM.lookup sName ss of
     Nothing -> Left $ mkError (printf "struct '%s' to exist" sName) "undefined struct"
     Just (DefStruct _ fields _) ->
-      case filter (\(Field fName _ _) -> fName == fldName) fields of
+      case filter (\(Field fName _ _ _) -> fName == fldName) fields of
         [] -> Left $ mkError (printf "field '%s' to exist in struct '%s'" fldName sName) "undefined field"
-        (Field _ t _:_) -> Right t
+        (Field _ t _ _:_) -> Right t
     Just _ -> Left $ mkError (printf "struct '%s' to be a valid struct definition" sName) "not a struct definition"
 
 getFieldType pos _ otherType fldName =

@@ -37,7 +37,7 @@ genCall genExpr funcName args = do
 
   -- INFO: generate arguments, using parameter type context
   argsData <- case funcSignature of
-    Just ((_, params), _)
+    Just ((_, params), _, _)
       | length params == length args ->
           zipWithM (genArgWithContext genExpr) args (map paramType params)
     _ -> mapM genExpr args
@@ -49,7 +49,7 @@ genCall genExpr funcName args = do
   -- INFO: determine return type (should always succeed)
   -- NOTE: otherwise should never happen due to semantic analysis
   retType <- case funcSignature of
-    Just ((rt, _), _) -> pure $ case rt of
+    Just ((rt, _), _, _) -> pure $ case rt of
                              TypeArray elemType -> IRPtr (IRArray (astTypeToIRType elemType) 0)
                              t -> astTypeToIRType t
     Nothing -> throwError $ "IR error: Function " <> funcName <> " not found in function stack"

@@ -20,8 +20,6 @@ module Rune.Semantics.Vars (
   alreadyInstantiated,
   registerInstantiation,
   resolveCall,
-  isStaticMethod,
-  checkMethodParams,
   canAccessMember,
   isSelfAccess,
   verifFieldAccess,
@@ -31,7 +29,6 @@ module Rune.Semantics.Vars (
   raiseVisibilityError,
   checkFieldVisibility,
   verifStaticMethodCall,
-  checkStaticMethodCall,
   verifInstanceMethodCall,
   checkMethodVisibility,
   SemState(..),
@@ -41,7 +38,7 @@ module Rune.Semantics.Vars (
 module Rune.Semantics.Vars (verifVars) where
 #endif
 
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import Control.Monad.State.Strict
 
 import Text.Printf (printf)
@@ -126,13 +123,13 @@ verifVars (Program n defs) = do
 --
 
 isGeneric :: TopLevelDef -> Bool
-isGeneric (DefFunction _ params ret _ _ _) = hasAny ret || any (hasAny . paramType) params
+isGeneric (DefFunction _ params ret _ _ _ _) = hasAny ret || any (hasAny . paramType) params
 isGeneric _ = False
 
 -- | Apply type inference to function parameters from default values
 applyInferenceToParams :: TopLevelDef -> TopLevelDef
-applyInferenceToParams (DefFunction name params ret body isExport visibility) =
-  DefFunction name (map inferParamType params) ret body isExport visibility
+applyInferenceToParams (DefFunction name params ret body isExport visibility isStatic) =
+  DefFunction name (map inferParamType params) ret body isExport visibility isStatic
 applyInferenceToParams def = def
 
 
@@ -143,7 +140,7 @@ hasAny _ = False
 
 
 getDefName :: TopLevelDef -> String
-getDefName (DefFunction n _ _ _ _ _) = n
+getDefName (DefFunction n _ _ _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
 getDefName (DefSomewhere {}) = ""
 
@@ -158,20 +155,20 @@ resolveFinalName :: String -> Type -> [Type] -> SemM String
 resolveFinalName baseName retType paramTypes = do
   fs <- gets stFuncs
   pure $ case HM.lookup baseName fs of
-    Just ((exRet, exArgs), _) ->
+    Just ((exRet, exArgs), _, _) ->
       if exRet == retType && map paramType exArgs == paramTypes
       then baseName
       else mangleName baseName retType paramTypes
     Nothing -> baseName
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
-verifTopLevel (DefFunction name params r_t body isExport visibility) = do
+verifTopLevel (DefFunction name params r_t body isExport visibility isStatic) = do
   let paramTypes = map paramType params
   finalName <- resolveFinalName name r_t paramTypes
 
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
-  pure $ DefFunction finalName params r_t body' isExport visibility
+  pure $ DefFunction finalName params r_t body' isExport visibility isStatic
 
 verifTopLevel (DefStruct name fields methods) = do
   methods' <- mapM (verifMethod name) methods
@@ -386,10 +383,34 @@ verifExprWithContext hint vs (ExprAccess pos target field) =
   verifFieldAccess pos target field hint vs
 
 verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
+  fs <- gets stFuncs
   ss <- gets stStructs
+  currentStruct <- gets stCurrentStruct
+  let s = (fs, vs, ss)
+      SourcePos file line col = cPos
+
+  args' <- mapM (verifExpr vs) args
+  argTypes <- lift $ mapM (exprType s) args'
+
   case HM.lookup target ss of
-    Just _ -> verifStaticMethodCall cPos vPos target method args hint vs
-    Nothing -> verifInstanceMethodCall cPos vPos target method args hint vs
+    Just _ -> do
+      let baseName = target ++ "_" ++ method
+      callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
+      let mangledName = case callExpr of ExprVar _ n -> n; _ -> ""
+      verifStaticMethodCall fs mangledName currentStruct target method file line col
+      pure $ ExprCall cPos callExpr args'
+    Nothing -> do
+      targetType <- lift $ exprType s (ExprVar vPos target)
+      let baseName = show targetType ++ "_" ++ method
+          sName = case targetType of { TypeCustom name -> name; _ -> show targetType }
+          isSelf = target == "self"
+          allArgs = ExprVar vPos target : args'
+          allArgTypes = targetType : argTypes
+
+      callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
+      let mangledName = case callExpr of ExprVar _ n -> n; _ -> ""
+      verifInstanceMethodCall fs mangledName currentStruct sName isSelf method file line col
+      pure $ ExprCall cPos callExpr allArgs
 
 verifExprWithContext _ _ (ExprCall {}) =
   lift $ Left "Invalid function call target"
@@ -418,11 +439,9 @@ verifExprWithContext _ vs (ExprVar pos var)
 verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
-
-verifMethod sName (DefFunction methodName params retType body isExport visibility) = do
+verifMethod sName (DefFunction methodName params retType body isExport visibility isStatic) = do
   modify $ \st -> st {stCurrentStruct = Just sName}
-  checkMethodParams methodName params
-  let params' = if isStaticMethod methodName then params else fixSelfType sName params
+  let params' = if isStatic then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
 
@@ -431,8 +450,7 @@ verifMethod sName (DefFunction methodName params retType body isExport visibilit
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
   body' <- verifScope vs body
   modify $ \st -> st {stCurrentStruct = Nothing}
-  pure $ DefFunction finalName params' retType body' isExport visibility
-
+  pure $ DefFunction finalName params' retType body' isExport visibility isStatic
 verifMethod _ def = pure def
 
 --
@@ -443,7 +461,7 @@ verifMethod _ def = pure def
 injectDefaultArgs :: FuncStack -> String -> [Expression] -> VarStack -> SemM [Expression]
 injectDefaultArgs fs name args vs =
   case HM.lookup name fs of
-    Just ((_, params), _) | length args < length params ->
+    Just ((_, params), _, _) | length args < length params ->
       let missingParams = drop (length args) params
           -- Extract only the expressions from parameters that have defaults
           defaultExprs = [expr | p <- missingParams, Just expr <- [paramDefault p]]
@@ -493,7 +511,7 @@ registerInstantiation name def retTy argTys =
   let params = map (\t -> Parameter "" t Nothing) argTys
   in modify $ \st -> st
     { stNewDefs      = stNewDefs st <> [def]
-    , stFuncs        = HM.insert name ((retTy, params), Public) (stFuncs st)
+    , stFuncs        = HM.insert name ((retTy, params), Public, False) (stFuncs st)
     , stInstantiated = HM.insert name True (stInstantiated st)
     }
 
@@ -511,19 +529,7 @@ resolveCall cPos vPos s hint name args argTypes = do
         Nothing -> lift $ Left $ formatSemanticError err
         Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
 
--- | Check if a method is static (doesn't need self)
-isStaticMethod :: String -> Bool
-isStaticMethod "new" = True
-isStaticMethod _     = False
 
-checkMethodParams :: String -> [Parameter] -> SemM ()
-checkMethodParams methodName params
-  | isStaticMethod methodName = pure ()
-  | otherwise = case params of
-      [] -> lift $ Left $ printf "Instance method '%s' must have at least one parameter (self)" methodName
-      (p:_) | paramName p /= "self" ->
-        lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
-      _ -> pure ()
 
 -- | Check if a member (field or method) can be accessed based on visibility rules
 -- Returns True if access is allowed, False otherwise
@@ -543,6 +549,13 @@ canAccessMember Protected currentStruct targetStruct isSelf =
 isSelfAccess :: Expression -> Bool
 isSelfAccess (ExprVar _ "self") = True
 isSelfAccess _                  = False
+
+-- This function is used to check if a function is static or not.
+-- It's here just to declare 'new' as a default static method.
+isStaticMethod :: String -> Bool -> Bool
+isStaticMethod _ True = True
+isStaticMethod "new" _ = True
+isStaticMethod _ False = False
 
 -- | Verify field access with visibility checking
 verifFieldAccess :: SourcePos -> Expression -> String -> Maybe Type -> VarStack -> SemM Expression
@@ -564,7 +577,7 @@ verifStructFieldAccess pos target' field targetType currentStruct ss file line c
   case targetType of
     TypeCustom sName -> do
       fields <- lookupStructFields ss sName file line col
-      Field _ _ visibility <- findField fields field sName file line col
+      Field _ _ visibility _ <- findField fields field sName file line col
       checkFieldVisibility visibility currentStruct sName (isSelfAccess target') field file line col
       pure $ ExprAccess pos target' field
     _ -> lift $ Left $ formatSemanticError $ SemanticError file line col
@@ -607,54 +620,31 @@ raiseVisibilityError visibility currentStruct sName isSelf memberName memberType
        else printf "cannot access %s %s '%s' on other instances (only 'self' allowed)" (show visibility) memberType memberName)
       [context, "visibility"]
 
--- | Verify static method call (StructName.method)
-verifStaticMethodCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
-verifStaticMethodCall cPos vPos target method args hint vs = do
-  currentStruct <- gets stCurrentStruct
-  fs <- gets stFuncs
-  ss <- gets stStructs
-  let s = (fs, vs, ss)
-      SourcePos file line col = cPos
-      baseName = target ++ "_" ++ method
-  checkStaticMethodCall target method file line col
-  args' <- mapM (verifExpr vs) args
-  argTypes <- lift $ mapM (exprType s) args'
+-- | Verify static method call - checks that the resolved method is actually static
+verifStaticMethodCall :: FuncStack -> String -> Maybe String -> String -> String -> String -> Int -> Int -> SemM ()
+verifStaticMethodCall fs mangledName currentStruct target method file line col = do
+  case HM.lookup mangledName fs of
+    Just (_, visibility, isStatic) -> do
+      unless (isStaticMethod method isStatic) $
+        lift $ Left $ formatSemanticError $ SemanticError file line col
+          (printf "static method call '%s.%s'" target method)
+          (printf "method '%s' is not static, use an instance instead" method)
+          ["static method call"]
+      raiseVisibilityError visibility currentStruct target False method "method" file line col "static method call"
+    Nothing -> pure ()
 
-  checkMethodVisibility fs baseName currentStruct target False method file line col
-  callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
-  pure $ ExprCall cPos callExpr args'
-
--- | Check that a method called statically is actually static
-checkStaticMethodCall :: String -> String -> String -> Int -> Int -> SemM ()
-checkStaticMethodCall target method file line col =
-  unless (isStaticMethod method) $
-    lift $ Left $ formatSemanticError $ SemanticError file line col
-      (printf "static call '%s.%s()'" target method)
-      (printf "method '%s' is not static (requires 'self' parameter)" method)
-      ["method call", "static vs instance"]
-
--- | Verify instance method call (variable.method)
-verifInstanceMethodCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
-verifInstanceMethodCall cPos vPos target method args hint vs = do
-  currentStruct <- gets stCurrentStruct
-  fs <- gets stFuncs
-  ss <- gets stStructs
-  let s = (fs, vs, ss)
-      SourcePos file line col = cPos
-
-  targetType <- lift $ exprType s (ExprVar vPos target)
-  args' <- mapM (verifExpr vs) args
-  argTypes <- lift $ mapM (exprType s) args'
-
-  let baseName = show targetType ++ "_" ++ method
-      isSelf = target == "self"
-      sName = case targetType of { TypeCustom name -> name; _ -> show targetType }
-      allArgs = ExprVar vPos target : args'
-      allArgTypes = targetType : argTypes
-
-  checkMethodVisibility fs baseName currentStruct sName isSelf method file line col
-  callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
-  pure $ ExprCall cPos callExpr allArgs
+-- | Verify instance method call - checks visibility only
+verifInstanceMethodCall :: FuncStack -> String -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
+verifInstanceMethodCall fs mangledName currentStruct sName isSelf method file line col = do
+  case HM.lookup mangledName fs of
+    Just (_, visibility, isStatic) -> do
+      when (isStaticMethod method isStatic) $
+        lift $ Left $ formatSemanticError $ SemanticError file line col
+          (printf "instance method call on '%s'" method)
+          (printf "method '%s' is static, call it with '%s.%s' instead" method sName method)
+          ["instance method call"]
+      raiseVisibilityError visibility currentStruct sName isSelf method "method" file line col "method call"
+    Nothing -> pure ()
 
 -- | Check if field access is allowed based on visibility rules
 checkFieldVisibility :: Visibility -> Maybe String -> String -> Bool -> String -> String -> Int -> Int -> SemM ()
@@ -666,7 +656,7 @@ checkMethodVisibility :: FuncStack -> String -> Maybe String -> String -> Bool -
 checkMethodVisibility fs baseName currentStruct sName isSelf method file line col = do
   let prefix = baseName ++ "$"
       matchingMethods = HM.filterWithKey (\k _ -> k == baseName || prefix `List.isPrefixOf` k) fs
-      visibilities = map (\(_, (_, vis)) -> vis) (HM.toList matchingMethods)
+      visibilities = map (\(_, (_, vis, _)) -> vis) (HM.toList matchingMethods)
   case visibilities of
     [] -> pure ()
     (visibility:_) ->

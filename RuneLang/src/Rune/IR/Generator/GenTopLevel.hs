@@ -53,7 +53,7 @@ genTopLevel DefSomewhere {} = pure []
 -- def foo(a: i32, b: f32) -> i32 { ... }
 -- DEF foo(p_a: i32, p_b: f32)
 genFunction :: TopLevelDef -> IRGen [IRTopLevel]
-genFunction (DefFunction name params retType body isExport _) = do
+genFunction (DefFunction name params retType body isExport _ _) = do
   resetFunctionState name
 
   irParams <- mapM genParam params
@@ -74,7 +74,7 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- STRUCT Vec2f { x: f32, y: f32 }
 genStruct :: TopLevelDef -> IRGen [IRTopLevel]
 genStruct (DefStruct name fields methods) = do
-  let irFields = map (\(Field n t _) -> (n, astTypeToIRType t)) fields
+  let irFields = map (\(Field n t _ _) -> (n, astTypeToIRType t)) fields
   modify $ \s -> s {gsStructs = insert name irFields (gsStructs s)}
   methodDefs <- concat <$> mapM (genStructMethod name) methods
   pure $ IRStructDef name irFields : methodDefs
@@ -82,8 +82,8 @@ genStruct _ = pure []
 
 -- | generate IR for a struct method
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]
-genStructMethod _ (DefFunction methName params retType body _ _) =
-  genFunction (DefFunction methName params retType body False Public)
+genStructMethod _ (DefFunction methName params retType body _ _ isStatic) =
+  genFunction (DefFunction methName params retType body False Public isStatic)
 genStructMethod _ _ = pure []
 
 --

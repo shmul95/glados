@@ -76,8 +76,8 @@ visitTopLevel d@DefStruct {} = visitStruct d
 visitTopLevel d@DefSomewhere {} = visitSomewhere d
 
 visitFunction :: TopLevelDef -> Printer ()
-visitFunction (DefFunction name params retType body isExport visibility) = do
-  emit $ show visibility <> (if isExport then " export " else " ") <> "DefFunction " <> name
+visitFunction (DefFunction name params retType body isExport visibility isStatic) = do
+  emit $ show visibility <> (if isExport then " export " else " ") <> (if isStatic then "static " else "") <> "DefFunction " <> name
   indent
   emitBlock "Parameters:" (mapM_ emitParam params)
   newLine
@@ -94,7 +94,7 @@ visitStruct (DefStruct name fields methods) = do
   emitBlock "Methods:" (mapM_ (\m -> newLine >> visitTopLevel m) methods)
   dedent
   where
-    emitField (Field n t v) = newLine >> emit (show v <> " " <> n <> ": " <> showType t)
+    emitField (Field n t v isStatic) = newLine >> emit (show v <> (if isStatic then " static " else " ") <> n <> ": " <> showType t)
 visitStruct _ = return ()
 
 visitSomewhere :: TopLevelDef -> Printer ()

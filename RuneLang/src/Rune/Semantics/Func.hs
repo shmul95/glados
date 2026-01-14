@@ -30,8 +30,8 @@ import Rune.Semantics.Helper (fixSelfType)
 findFunc :: Program -> Either String FuncStack
 findFunc (Program _ defs) = do
   let builtins = HM.fromList
-        [ ("show" , ((TypeNull, [Parameter "value" TypeAny Nothing]), Public))
-        , ("error", ((TypeNull, [Parameter "msg" TypeAny Nothing]), Public))
+        [ ("show" , ((TypeNull, [Parameter "value" TypeAny Nothing]), Public, False))
+        , ("error", ((TypeNull, [Parameter "msg" TypeAny Nothing]), Public, False))
         ]
   foldM findDefs builtins defs
 
@@ -42,12 +42,12 @@ findFunc (Program _ defs) = do
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
 -- | find function definitions
-findDefs s (DefFunction name params rType _ _ visibility) =
+findDefs s (DefFunction name params rType _ _ visibility isStatic) =
     let paramTypes = map paramType params
-        sig = ((rType, params), visibility)
+        sig = ((rType, params), visibility, isStatic)
     in case HM.lookup name s of
          Nothing -> Right $ HM.insert name sig s
-         Just ((existingRet, existingArgs), _) ->
+         Just ((existingRet, existingArgs), _, _) ->
              if existingRet == rType && existingArgs == params
              then Left $ printf "FuncAlreadyExist: %s was already defined with same signature" name
              else
@@ -61,7 +61,7 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
     addSig fs (FunctionSignature name paramTypes rType) =
       let params = map (\pType -> Parameter "" pType Nothing) paramTypes
-          sig = ((rType, params), Public)
+          sig = ((rType, params), Public, False)
       in Right $ HM.insertWith (\_ old -> old) name sig fs
 
 -- | find struct method definitions
@@ -89,19 +89,19 @@ inferTypeFromExpr _ = TypeAny  -- For complex expressions, keep TypeAny
 
 -- | check if a method is static (doesn't need self)
 -- TODO: add maybe more static method such as static keyword idk
-isStaticMethod :: String -> Bool
-isStaticMethod "new" = True
-isStaticMethod _     = False
+-- isStaticMethod :: String -> Bool
+-- isStaticMethod "new" = True
+-- isStaticMethod _     = False
 
 transformStructMethods :: String -> [TopLevelDef] -> [TopLevelDef]
 transformStructMethods sName = map transform
   where
-    transform (DefFunction methodName params rType body isExport visibility) =
+    transform (DefFunction methodName params rType body isExport visibility isStatic) =
       let baseName = sName ++ "_" ++ methodName
           -- paramsInferred = map inferParamType params
           -- params' = if isStaticMethod methodName then paramsInferred else fixSelfType sName paramsInferred
-          params' = if isStaticMethod methodName then params else fixSelfType sName params
-      in DefFunction baseName params' rType body isExport visibility
+          params' = if isStatic then params else fixSelfType sName params
+      in DefFunction baseName params' rType body isExport visibility isStatic
     transform other = other
 
 mangleFuncName :: String -> Type -> [Type] -> String

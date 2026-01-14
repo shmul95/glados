@@ -58,7 +58,7 @@ parseTopLevelDef = do
   t <- peek
   case T.tokenKind t of
     T.KwExport -> parseExportedDef
-    T.KwDef -> parseFunction False Public
+    T.KwDef -> parseFunction False Public False
     T.KwStruct -> parseStruct
     T.KwSomewhere -> parseSomewhere
     _ -> failParse "Expected top-level definition (def, struct, export, somewhere)"
@@ -72,17 +72,17 @@ parseExportedDef = do
   _ <- expect T.KwExport
   t <- peek
   case T.tokenKind t of
-    T.KwDef -> parseFunction True Public
+    T.KwDef -> parseFunction True Public False
     _ -> failParse "Expected 'def' after 'export'"
 
-parseFunction :: Bool -> Visibility -> Parser TopLevelDef
-parseFunction isExport visibility = do
+parseFunction :: Bool -> Visibility -> Bool -> Parser TopLevelDef
+parseFunction isExport visibility isStatic = do
   _ <- expect T.KwDef
   name <- parseIdentifier
   params <- withContext ("parameters of function '" ++ name ++ "'") parseParams
   retType <- withContext ("return type of function '" ++ name ++ "'") parseReturnType
   body <- withContext ("body of function '" ++ name ++ "'") parseBlock
-  pure $ DefFunction name params retType body isExport visibility
+  pure $ DefFunction name params retType body isExport visibility isStatic
 
 --
 -- structs
@@ -112,10 +112,11 @@ parseStructItemsLoop = do
 parseStructItem :: Parser (Either Field TopLevelDef)
 parseStructItem = do
   visibility <- parseVisibility
+  isStatic <- parseStaticModifier
   t <- peek
   case T.tokenKind t of
-    T.KwDef -> Right <$> parseFunction False visibility
-    T.Identifier _ -> Left <$> parseField visibility <* expect T.Semicolon
+    T.KwDef -> Right <$> parseFunction False visibility isStatic
+    T.Identifier _ -> Left <$> parseField visibility isStatic <* expect T.Semicolon
     _ -> failParse "Expected struct field or method"
 
 --
@@ -162,15 +163,26 @@ parseReturnType =
   (expect T.OpArrow <|> expect T.OpSquigArrow) *> parseType
 
 --
+-- static
+--
+
+parseStaticModifier :: Parser Bool
+parseStaticModifier = do
+  t <- peek
+  case T.tokenKind t of
+    T.KwStatic -> advance >> pure True
+    _ -> pure False
+
+--
 -- fields
 --
 
-parseField :: Visibility -> Parser Field
-parseField visibility = do
+parseField :: Visibility -> Bool -> Parser Field
+parseField visibility isStatic = do
   name <- parseIdentifier
   _ <- expect T.Colon
   typ <- parseType
-  pure $ Field name typ visibility
+  pure $ Field name typ visibility isStatic
 
 --
 -- visibility
