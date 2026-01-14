@@ -103,7 +103,7 @@ verifVars (Program n defs) = do
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
       
       -- Extract all full definitions from somewhere blocks and flatten them  
-      (flattenedDefs, cleanedDefs) = extractAndCleanSomewhereDefls concreteDefs
+      (flattenedDefs, cleanedDefs) = extractAndCleanSomewhereDefs concreteDefs
       allConcreteDefs = flattenedDefs ++ cleanedDefs
 
   fs <- findFunc (Program n allConcreteDefs)
