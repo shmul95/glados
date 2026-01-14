@@ -49,9 +49,6 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
-import Debug.Trace (trace)
--- import Rune.AST.Printer (prettyPrint)
-
 --
 -- state monad
 --
@@ -121,12 +118,7 @@ verifVars (Program n defs) = do
   (defs', finalState) <- runStateT (mapM verifTopLevel allConcreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
-  trace ( 
-      printf "initial: %s\nfinal: %s\n" (show $ stStructs initialState) (show $ stStructs finalState) <>
-      printf "initial: %s\nfinal: %s\n" (show $ stFuncs initialState) (show $ stFuncs finalState)
-    )(
-      pure (Program n allDefs, finalFuncStack)
-    )
+  pure (Program n allDefs, finalFuncStack)
 
 --
 -- private
@@ -148,7 +140,7 @@ getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _ _) = n
 getDefName (DefOverride n _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
-getDefName (DefSomewhere list) = trace (show list) ("")
+getDefName (DefSomewhere _) = ""
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = fs

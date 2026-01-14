@@ -69,9 +69,6 @@ import System.Process (rawSystem)
 import System.FilePath (takeExtension, dropExtension)
 import System.Directory (removeFile, getTemporaryDirectory, getHomeDirectory)
 
--- import Debug.Trace (trace)
--- import Text.Printf (printf)
-
 data LibraryOptions = LibraryOptions
   { libShared :: Bool
   , libStatic :: Bool
@@ -296,12 +293,6 @@ linkObjectsIntoExecutable objFiles exeFile libOpts = do
   home <- getHomeDirectory
   let args = linkArgs home objFiles exeFile libOpts
   runCommand "gcc" args "Object to executable compilation failed with exit code: "
-  -- trace (
-  --     printf "args: %s\n\nobjFiles: %s\nexeFile: %s\nlibOpts: %s\n"
-  --     (show args) (show objFiles) (show exeFile) (show libOpts)
-  --   )(
-  --     runCommand "gcc" args "Object to executable compilation failed with exit code: "
-  --   )
 
 linkArgs :: FilePath -> [FilePath] -> FilePath -> LibraryOptions -> [String]
 linkArgs home objFiles exeFile libOpts =
