@@ -1,9 +1,9 @@
 {-# LANGUAGE CPP #-}
 
 module Rune.Backend.X86_64.Codegen
-#if defined(TESTING_EXPORT)
   ( emitAssembly,
     emitAssemblyLib,
+#if defined(TESTING_EXPORT)
     emitExterns,
     emitRoDataSection,
     emitDataSection,
@@ -56,10 +56,7 @@ module Rune.Backend.X86_64.Codegen
     emitFloatToInt,
     emitFloatToFloat,
     emitIntToInt,
-    commaSep
-#else
-    emitAssembly,
-    emitAssemblyLib
+    commaSep,
 #endif
   )
 where
