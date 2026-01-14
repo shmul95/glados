@@ -71,7 +71,8 @@ initialState fs =
       gsCalledFuncs = Set.empty,
       gsStringMap = empty,
       gsFloatMap = empty,
-      gsFuncStack = fs
+      gsFuncStack = fs,
+      gsVariadicPacks = empty
     }
 
 getDefinedFuncName :: IRTopLevel -> [String]
