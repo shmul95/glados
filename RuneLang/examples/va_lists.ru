@@ -16,7 +16,7 @@ somewhere
     def show(v: *any) -> i32;
 }
 
-def show(args: ...any) -> i32
+def show(args: ...&any) -> i32
 {
     total: i32 = 0;
 
