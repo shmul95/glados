@@ -5,7 +5,7 @@ module Rune.Preprocess
 import Control.Exception (IOException, try)
 import Data.Bifunctor (first)
 import Data.Functor ((<&>))
-import Data.List (isSuffixOf, isPrefixOf, dropWhileEnd)
+import Data.List (isSuffixOf, dropWhileEnd)
 import Data.Char (isSpace)
 
 -- | Preprocess 'use' statements by expanding them inline
