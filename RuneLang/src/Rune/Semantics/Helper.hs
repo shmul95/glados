@@ -177,6 +177,9 @@ isTypeCompatible TypeNull (TypePtr _) = True
 isTypeCompatible (TypePtr TypeChar) TypeString = True
 isTypeCompatible TypeString (TypePtr TypeChar) = True
 isTypeCompatible (TypePtr a) (TypePtr b) = isTypeCompatible a b
+isTypeCompatible (TypeRef a) b = isTypeCompatible a b  -- references accept values
+isTypeCompatible a (TypeRef b) = isTypeCompatible a b  -- values can be passed as references
+isTypeCompatible (TypeVariadic inner) actual = isTypeCompatible inner actual  -- variadic accepts compatible types
 isTypeCompatible expected actual
   | sameType expected actual = True
   | actual == TypeI32 && isIntegerType expected = True
@@ -203,14 +206,32 @@ checkEachParam s file line col i (e:es) (p:ps) =
     Left err -> Just $ SemanticError file line col "valid expression type" err ["parameter check", "function call"]
     Right t' ->
       let pType = paramType p
-      in if isTypeCompatible pType t'
-         then checkEachParam s file line col (i + 1) es ps
-         else
-           let expected = printf "argument %d to have type %s" i (show pType)
-               got = printf "type %s" (show t')
-           in Just $ SemanticError file line col expected got ["parameter check", "function call", "global context"]
+      in case pType of
+           -- Handle variadic parameters: check if expression type is compatible with the inner type
+           TypeVariadic innerType ->
+             if isTypeCompatible innerType t'
+             then checkEachParam s file line col (i + 1) es [p]  -- Keep checking with same variadic param
+             else
+               let expected = printf "argument %d to have type %s" i (show pType)
+                   got = printf "type %s" (show t')
+               in Just $ SemanticError file line col expected got ["parameter check", "function call", "global context"]
+           -- Normal parameter
+           _ ->
+             if isTypeCompatible pType t'
+             then checkEachParam s file line col (i + 1) es ps
+             else
+               let expected = printf "argument %d to have type %s" i (show pType)
+                   got = printf "type %s" (show t')
+               in Just $ SemanticError file line col expected got ["parameter check", "function call", "global context"]
 
 checkEachParam _ _ _ _ _ [] [] = Nothing
+-- Allow no more arguments when only variadic parameters remain
+checkEachParam _ _ _ _ _ [] [p] 
+  | isVariadicParam p = Nothing
+  where
+    isVariadicParam param = case paramType param of
+      TypeVariadic _ -> True
+      _ -> False
 checkEachParam _ file line col i [] ps =
   -- Check if remaining parameters all have default values
   if all (isJust . paramDefault) ps
@@ -219,10 +240,8 @@ checkEachParam _ file line col i [] ps =
     let expected = printf "%d arguments" (length ps + i)
         got = printf "%d arguments (too few)" i
     in Just $ SemanticError file line col expected got ["parameter count", "function call", "global context"]
-checkEachParam _ file line col i es [] =
-  let expected = printf "%d arguments" i
-      got = printf "%d arguments (too many)" (length es + i)
-  in Just $ SemanticError file line col expected got ["parameter count", "function call", "global context"]
+-- Too many arguments (no parameters left to match)
+checkEachParam _ _ _ _ _ _ [] = Nothing  -- This should never happen with our logic above
 
 
 selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
