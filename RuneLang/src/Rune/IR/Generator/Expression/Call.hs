@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE LambdaCase #-}
 
 #if defined(TESTING_EXPORT)
 module Rune.IR.Generator.Expression.Call
