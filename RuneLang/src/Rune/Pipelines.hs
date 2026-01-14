@@ -41,7 +41,7 @@ import Control.Monad ((>=>), when, unless)
 
 import Data.Bifunctor (first)
 import Data.Functor ((<&>))
-import Data.List (partition, isSuffixOf)
+import Data.List (partition)
 import Data.Maybe (catMaybes)
 
 import System.Exit (ExitCode(ExitFailure, ExitSuccess), exitWith)
@@ -58,6 +58,7 @@ import Rune.IR.Printer (prettyPrintIR)
 import Rune.IR.Optimizer (runIROptimizer)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
+import Rune.Preprocess (preprocessUseStatements)
 import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
 import Rune.Semantics.Type (FuncStack)
@@ -185,48 +186,7 @@ processWithPreprocessing fp content = do
     Left err -> pure $ Left err
     Right expandedContent -> pure $ pipeline (fp, expandedContent)
 
--- | Preprocess 'use' statements by expanding them inline
-preprocessUseStatements :: FilePath -> String -> IO (Either String String)
--- preprocessUseStatements basePath content = do
-preprocessUseStatements _ content = do
-  -- Preprocessing with duplicate prevention: track included files and skip duplicates
-  processLines (lines content) [] []
-  where
-    processLines :: [String] -> [String] -> [String] -> IO (Either String String)
-    processLines [] acc _ = pure $ Right $ unlines (reverse acc)
-    processLines (line:rest) acc includedFiles = 
-      case parseUseLine (strip line) of
-        Just fileName -> 
-          if fileName `elem` includedFiles
-            then processLines rest acc includedFiles  -- Skip duplicate, don't include the use line
-            else do
-              result <- safeRead fileName
-              case result of
-                Left err -> pure $ Left $ "Failed to read " ++ fileName ++ ": " ++ err
-                Right fileContent -> processLines rest (reverse (lines fileContent) ++ acc) (fileName : includedFiles)
-        Nothing -> processLines rest (line : acc) includedFiles
-    
-    parseUseLine :: String -> Maybe String
-    parseUseLine line
-      | "use " `isPrefixOf` line && ";" `isSuffixOf` line =
-          let withoutUse = drop 4 line
-              withoutSemicolon = take (length withoutUse - 1) withoutUse
-          in Just (strip withoutSemicolon)
-      | otherwise = Nothing
-    
-    strip :: String -> String
-    strip = dropWhile isSpace . dropWhileEnd isSpace
-    
-    isPrefixOf :: Eq a => [a] -> [a] -> Bool
-    isPrefixOf [] _ = True
-    isPrefixOf _ [] = False
-    isPrefixOf (x:xs) (y:ys) = x == y && isPrefixOf xs ys
-    
-    dropWhileEnd :: (a -> Bool) -> [a] -> [a]
-    dropWhileEnd p = foldr (\x xs -> if p x && null xs then [] else x:xs) []
-    
-    isSpace :: Char -> Bool
-    isSpace c = c `elem` " \t\n\r"
+
 
 runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
 runPipelineAction inFile = (runPipeline inFile >>=) . either logError
