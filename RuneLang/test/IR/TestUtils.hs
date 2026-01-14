@@ -33,7 +33,8 @@ emptyState = GenState
     gsCalledFuncs = Set.empty,
     gsStringMap = Map.empty,
     gsFloatMap = Map.empty,
-    gsFuncStack = HM.empty
+    gsFuncStack = HM.empty,
+    gsVariadicPacks = Map.empty
   }
 
 runGen :: IRGen a -> Either String a
