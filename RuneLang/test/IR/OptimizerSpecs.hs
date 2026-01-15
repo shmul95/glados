@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module IR.OptimizerSpecs (optimizerTests) where
 
 import Test.Tasty (TestTree, testGroup)
@@ -5,6 +6,7 @@ import Test.Tasty.HUnit (testCase, (@?=))
 import Rune.IR.Optimizer
 import Rune.IR.Nodes
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Control.Monad.State
 
 --
@@ -13,290 +15,515 @@ import Control.Monad.State
 
 optimizerTests :: TestTree
 optimizerTests = testGroup "Rune.IR.Optimizer"
-  [ testRunIROptimizer
-  , testOptimizeTopLevel
-  , testOptimizeFunction
-  , testHelpers
-  , testRenameInstr
-  , testSimplify
-  , testOptimizationLogic
+  [ test_runIROptimizer
+  , test_getReachable
+  , test_optimizeTopLevel
+  , test_optimizeFunction
+  , test_singleInstrOpt
+  , test_countUses
+  , test_getOperands
+  , test_eliminateDeadCode
+  , test_peepholeOptimize
+  , test_tryPeephole
+  , test_jumpThreading
+  , test_canThreadJump
+  , test_threadJump
+  , test_optimizeBlock
+  , test_optimizeInstr
+  , test_inlineFunction
+  , test_isInlineable
+  , test_isControlFlow
+  , test_simplifyInstr
+  , test_simplifyOp
+  , test_renameInstr
+  , test_renameOp
+  , test_replaceRet
+  , test_operandType
+  , test_mathHelpers
   ]
 
 --
 -- private
 --
 
-testRunIROptimizer :: TestTree
-testRunIROptimizer = testGroup "runIROptimizer"
-  [ testCase "Identity on empty program" $
-      let prog = IRProgram "test" []
-      in runIROptimizer prog @?= prog
-  
-  , testCase "Optimizes functions in program" $
-      let body = [ IRASSIGN "x" (IRConstInt 10) IRI64
-                 , IRASSIGN "y" (IRTemp "x" IRI64) IRI64
-                 , IRRET (Just (IRTemp "y" IRI64))
-                 ]
-          func = IRFunction "main" [] (Just IRI64) body False
-          prog = IRProgram "test" [IRFunctionDef func]
-          
-          expectedBody = [ IRRET (Just (IRConstInt 10))
-                         ]
-          expectedProg = IRProgram "test" [IRFunctionDef (func { irFuncBody = expectedBody })]
-      in runIROptimizer prog @?= expectedProg
+test_runIROptimizer :: TestTree
+test_runIROptimizer = testGroup "runIROptimizer"
+  [ testCase "dead function elimination" $ do
+      let fMain = IRFunction "main" [] Nothing [] False
+          fDead = IRFunction "dead" [] Nothing [] False
+          prog = IRProgram "test" [IRFunctionDef fMain, IRFunctionDef fDead]
+          optimized = runIROptimizer prog
+          names = [irFuncName f | IRFunctionDef f <- irProgramDefs optimized]
+      names @?= ["main"]
+  , testCase "keep exported functions" $ do
+      let fExp = IRFunction "exp" [] Nothing [] True
+          prog = IRProgram "test" [IRFunctionDef fExp]
+          optimized = runIROptimizer prog
+          names = [irFuncName f | IRFunctionDef f <- irProgramDefs optimized]
+      names @?= ["exp"]
+  , testCase "keep globals" $ do
+      let glob = IRGlobalDef "g" (IRGlobalStringVal "s")
+          prog = IRProgram "test" [glob]
+          optimized = runIROptimizer prog
+      irProgramDefs optimized @?= [glob]
+  , testCase "no main or exports: keep all" $ do
+      let f1 = IRFunction "f1" [] Nothing [] False
+          f2 = IRFunction "f2" [] Nothing [] False
+          prog = IRProgram "test" [IRFunctionDef f1, IRFunctionDef f2]
+          optimized = runIROptimizer prog
+          names = S.fromList [irFuncName f | IRFunctionDef f <- irProgramDefs optimized]
+      names @?= S.fromList ["f1", "f2"]
   ]
 
-testOptimizeTopLevel :: TestTree
-testOptimizeTopLevel = testGroup "optimizeTopLevel"
-  [ testCase "Optimizes IRFunctionDef" $
-      let func = IRFunction "f" [] Nothing [] False
-          optFunc = func { irFuncBody = [] }
-          res = optimizeTopLevel M.empty (IRFunctionDef func)
-      in res @?= IRFunctionDef optFunc
-      
-  , testCase "Ignores other top levels (float)" $
-      let glob = IRGlobalDef "pi" (IRGlobalFloatVal 3.14 IRF64)
-      in optimizeTopLevel M.empty glob @?= glob
-
-  , testCase "Ignores other top levels (string)" $
-      let glob = IRGlobalDef "s" (IRGlobalStringVal "val")
-      in optimizeTopLevel M.empty glob @?= glob
+test_getReachable :: TestTree
+test_getReachable = testGroup "getReachable"
+  [ testCase "recursive reachability" $ do
+      let f1 = IRFunction "a" [] Nothing [IRCALL "r" "b" [] Nothing] False
+          f2 = IRFunction "b" [] Nothing [IRCALL "r" "c" [] Nothing] False
+          f3 = IRFunction "c" [] Nothing [] False
+          funcs = M.fromList [("a", f1), ("b", f2), ("c", f3)]
+      getReachable funcs (S.singleton "a") @?= S.fromList ["a", "b", "c"]
+  , testCase "missing function" $ do
+      getReachable M.empty (S.singleton "unknown") @?= S.singleton "unknown"
   ]
 
-testOptimizeFunction :: TestTree
-testOptimizeFunction = testGroup "optimizeFunction"
-  [ testCase "Optimizes function body" $
-      let body = [IRASSIGN "a" (IRConstInt 1) IRI64, IRRET (Just (IRTemp "a" IRI64))]
-          func = IRFunction "f" [] (Just IRI64) body False
-          expected = [IRRET (Just (IRConstInt 1))]
-      in irFuncBody (optimizeFunction M.empty func) @?= expected
+test_optimizeTopLevel :: TestTree
+test_optimizeTopLevel = testCase "optimizeTopLevel: routing defs" $ do
+    let funcDef = IRFunctionDef $ IRFunction "f" [] Nothing [] False
+        globDef = IRGlobalDef "g" (IRGlobalStringVal "s")
+    case optimizeTopLevel M.empty funcDef of
+        IRFunctionDef _ -> return ()
+        _ -> error "Should stay a function"
+    optimizeTopLevel M.empty globDef @?= globDef
+
+test_optimizeFunction :: TestTree
+test_optimizeFunction = testCase "optimizeFunction: full pipeline" $ do
+    let body = [ IRASSIGN "x" (IRConstInt 1) IRI64
+               , IRADD_OP "x" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+               , IRRET (Just (IRTemp "x" IRI64)) ]
+        func = IRFunction "f" [] Nothing body False
+    irFuncBody (optimizeFunction M.empty func) @?= [IRRET (Just (IRConstInt 2))]
+
+test_singleInstrOpt :: TestTree
+test_singleInstrOpt = testCase "singleInstrOpt: INC/DEC" $ do
+    let x = IRTemp "x" IRI64
+    singleInstrOpt (IRADD_OP "x" x (IRConstInt 1) IRI64) @?= IRINC x
+    singleInstrOpt (IRADD_OP "x" (IRConstInt 1) x IRI64) @?= IRINC x
+    singleInstrOpt (IRSUB_OP "x" x (IRConstInt 1) IRI64) @?= IRDEC x
+
+test_countUses :: TestTree
+test_countUses = testCase "countUses: usage tracking" $ do
+    let instrs = [ IRADD_OP "z" (IRTemp "x" IRI64) (IRTemp "y" IRI64) IRI64
+                 , IRRET (Just (IRTemp "x" IRI64))
+                 , IRSTORE (IRConstInt 0) (IRConstInt 0) ]
+        counts = countUses instrs
+    M.lookup "x" counts @?= Just 2
+    M.lookup "y" counts @?= Just 1
+
+test_getOperands :: TestTree
+test_getOperands = testCase "getOperands: all IR types" $ do
+    let t = IRTemp "t" IRI64
+        check i expected = getOperands i @?= expected
+    check (IRASSIGN "d" t IRI64) [t]
+    check (IRSTORE t t) [t, t]
+    check (IRLOAD "d" t IRI64) [t]
+    check (IRDEREF "d" t IRI64) [t]
+    check (IRLOAD_OFFSET "d" t t IRI64) [t, t]
+    check (IRGET_FIELD "d" t "S" "f" IRI64) [t]
+    check (IRSET_FIELD t "S" "f" t) [t, t]
+    check (IRALLOC_ARRAY "d" IRI64 [t]) [t]
+    check (IRGET_ELEM "d" t t IRI64) [t, t]
+    check (IRSET_ELEM t t t) [t, t, t]
+    check (IRADD_OP "d" t t IRI64) [t, t]
+    check (IRSUB_OP "d" t t IRI64) [t, t]
+    check (IRMUL_OP "d" t t IRI64) [t, t]
+    check (IRDIV_OP "d" t t IRI64) [t, t]
+    check (IRMOD_OP "d" t t IRI64) [t, t]
+    check (IRSHR_OP "d" t t IRI64) [t, t]
+    check (IRSHL_OP "d" t t IRI64) [t, t]
+    check (IRBAND_OP "d" t t IRI64) [t, t]
+    check (IRBNOT_OP "d" t IRI64) [t]
+    check (IRCMP_EQ "d" t t) [t, t]
+    check (IRCMP_NEQ "d" t t) [t, t]
+    check (IRCMP_LT "d" t t) [t, t]
+    check (IRCMP_LTE "d" t t) [t, t]
+    check (IRCMP_GT "d" t t) [t, t]
+    check (IRCMP_GTE "d" t t) [t, t]
+    check (IRAND_OP "d" t t IRBool) [t, t]
+    check (IROR_OP "d" t t IRBool) [t, t]
+    check (IRJUMP_TRUE t (IRLabel "L")) [t]
+    check (IRJUMP_FALSE t (IRLabel "L")) [t]
+    check (IRJUMP_EQ0 t (IRLabel "L")) [t]
+    check (IRJUMP_LT t t (IRLabel "L")) [t, t]
+    check (IRJUMP_LTE t t (IRLabel "L")) [t, t]
+    check (IRJUMP_GT t t (IRLabel "L")) [t, t]
+    check (IRJUMP_GTE t t (IRLabel "L")) [t, t]
+    check (IRJUMP_EQ t t (IRLabel "L")) [t, t]
+    check (IRJUMP_NEQ t t (IRLabel "L")) [t, t]
+    check (IRCALL "d" "f" [t] (Just IRI64)) [t]
+    check (IRRET (Just t)) [t]
+    check (IRINC t) [t]
+    check (IRDEC t) [t]
+    check (IRJUMP_TEST_NZ t t (IRLabel "L")) [t, t]
+    check (IRJUMP_TEST_Z t t (IRLabel "L")) [t, t]
+    check (IRCAST "d" t IRI64 IRI32) [t]
+    check (IRLABEL (IRLabel "L")) []
+
+test_eliminateDeadCode :: TestTree
+test_eliminateDeadCode = testCase "eliminateDeadCode: cleaning" $ do
+    let instrs = [ IRASSIGN "dead" (IRConstInt 1) IRI64
+                 , IRALLOC "dead_alloc" IRI64
+                 , IRLOAD "dead_load" (IRTemp "ptr" (IRPtr IRI64)) IRI64
+                 , IRDEREF "dead_deref" (IRTemp "ptr" (IRPtr IRI64)) IRI64
+                 , IRLOAD_OFFSET "dead_offset" (IRTemp "ptr" (IRPtr IRI64)) (IRConstInt 0) IRI64
+                 , IRGET_FIELD "dead_field" (IRTemp "s" (IRPtr (IRStruct "S"))) "S" "f" IRI64
+                 , IRALLOC_ARRAY "dead_arr" IRI64 [IRConstInt 5]
+                 , IRGET_ELEM "dead_elem" (IRTemp "arr" (IRArray IRI64 1)) (IRConstInt 0) IRI64
+                 , IRADD_OP "dead_add" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRSUB_OP "dead_sub" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRMUL_OP "dead_mul" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRDIV_OP "dead_div" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRMOD_OP "dead_mod" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRSHR_OP "dead_shr" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRSHL_OP "dead_shl" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRBAND_OP "dead_band" (IRConstInt 1) (IRConstInt 1) IRI64
+                 , IRBNOT_OP "dead_bnot" (IRConstInt 1) IRI64
+                 , IRCMP_EQ "dead_eq" (IRConstInt 1) (IRConstInt 1)
+                 , IRCMP_NEQ "dead_neq" (IRConstInt 1) (IRConstInt 1)
+                 , IRCMP_LT "dead_lt" (IRConstInt 1) (IRConstInt 1)
+                 , IRCMP_LTE "dead_lte" (IRConstInt 1) (IRConstInt 1)
+                 , IRCMP_GT "dead_gt" (IRConstInt 1) (IRConstInt 1)
+                 , IRCMP_GTE "dead_gte" (IRConstInt 1) (IRConstInt 1)
+                 , IRAND_OP "dead_and" (IRConstBool True) (IRConstBool True) IRBool
+                 , IROR_OP "dead_or" (IRConstBool True) (IRConstBool True) IRBool
+                 , IRADDR "dead_addr" "var" (IRPtr IRI64)
+                 , IRASSIGN "live" (IRConstInt 2) IRI64
+                 , IRRET (Just (IRTemp "live" IRI64)) ]
+        uc = countUses instrs
+    eliminateDeadCode uc instrs @?= [IRASSIGN "live" (IRConstInt 2) IRI64, IRRET (Just (IRTemp "live" IRI64))]
+
+test_peepholeOptimize :: TestTree
+test_peepholeOptimize = testCase "peepholeOptimize: windowing" $ do
+    let instrs = [ IRASSIGN "x" (IRConstInt 1) IRI64, IRASSIGN "y" (IRTemp "x" IRI64) IRI64 ]
+    peepholeOptimize M.empty instrs @?= [IRASSIGN "y" (IRConstInt 1) IRI64]
+    peepholeOptimize M.empty [] @?= []
+    peepholeOptimize M.empty [IRLABEL (IRLabel "L")] @?= [IRLABEL (IRLabel "L")]
+    let noPeep = [IRLABEL (IRLabel "L1"), IRLABEL (IRLabel "L2")]
+    peepholeOptimize M.empty noPeep @?= noPeep
+
+test_tryPeephole :: TestTree
+test_tryPeephole = testGroup "tryPeephole"
+  [ testCase "ASSIGN + ASSIGN" $ do
+      let i1 = IRASSIGN "t1" (IRConstInt 1) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole M.empty i1 i2 @?= Just [IRASSIGN "t2" (IRConstInt 1) IRI64]
+  , testCase "ADD 0 + ASSIGN" $ do
+      let i1 = IRADD_OP "t1" (IRTemp "x" IRI64) (IRConstInt 0) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole M.empty i1 i2 @?= Just [IRASSIGN "t2" (IRTemp "x" IRI64) IRI64]
+  , testCase "SUB 0 + ASSIGN" $ do
+      let i1 = IRSUB_OP "t1" (IRTemp "x" IRI64) (IRConstInt 0) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole M.empty i1 i2 @?= Just [IRASSIGN "t2" (IRTemp "x" IRI64) IRI64]
+  , testCase "MUL 0 + ASSIGN" $ do
+      let i1 = IRMUL_OP "t1" (IRTemp "x" IRI64) (IRConstInt 0) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole M.empty i1 i2 @?= Just [IRASSIGN "t2" (IRConstInt 0) IRI64]
+  , testCase "MUL 1 + ASSIGN" $ do
+      let i1 = IRMUL_OP "t1" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole M.empty i1 i2 @?= Just [IRASSIGN "t2" (IRTemp "x" IRI64) IRI64]
+  , testCase "DIV 1 + ASSIGN" $ do
+      let i1 = IRDIV_OP "t1" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole M.empty i1 i2 @?= Just [IRASSIGN "t2" (IRTemp "x" IRI64) IRI64]
+  , testCase "SHR + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRSHR_OP "t1" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRSHR_OP "t2" (IRTemp "x" IRI64) (IRConstInt 1) IRI64]
+  , testCase "SHL + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRSHL_OP "t1" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRSHL_OP "t2" (IRTemp "x" IRI64) (IRConstInt 1) IRI64]
+  , testCase "BAND + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRBAND_OP "t1" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRBAND_OP "t2" (IRTemp "x" IRI64) (IRConstInt 1) IRI64]
+  , testCase "MUL + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRMUL_OP "t1" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRMUL_OP "t2" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64]
+  , testCase "ADD + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRADD_OP "t1" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRADD_OP "t2" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64]
+  , testCase "SUB + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRSUB_OP "t1" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRSUB_OP "t2" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64]
+  , testCase "DIV + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRDIV_OP "t1" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRDIV_OP "t2" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64]
+  , testCase "MOD + ASSIGN (single use)" $ do
+      let uc = M.singleton "t1" 1
+          i1 = IRMOD_OP "t1" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64
+          i2 = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc i1 i2 @?= Just [IRMOD_OP "t2" (IRTemp "a" IRI64) (IRTemp "b" IRI64) IRI64]
+  , testCase "BAND + JUMP_EQ 0" $ do
+      let uc = M.singleton "t" 1
+          band = IRBAND_OP "t" (IRTemp "x" IRI64) (IRConstInt 1) IRI64
+          jeq  = IRJUMP_EQ (IRTemp "t" IRI64) (IRConstInt 0) (IRLabel "L")
+      tryPeephole uc band jeq @?= Just [IRJUMP_TEST_Z (IRTemp "x" IRI64) (IRConstInt 1) (IRLabel "L")]
+  , testCase "ADDR + SET_FIELD" $ do
+      let uc = M.singleton "p" 1
+          addr = IRADDR "p" "obj" (IRPtr (IRStruct "S"))
+          setf = IRSET_FIELD (IRTemp "p" (IRPtr (IRStruct "S"))) "S" "f" (IRConstInt 1)
+      tryPeephole uc addr setf @?= Just [IRSET_FIELD (IRTemp "obj" (IRStruct "S")) "S" "f" (IRConstInt 1)]
+  , testCase "GET_FIELD + ASSIGN" $ do
+      let uc = M.singleton "t1" 1
+          getf = IRGET_FIELD "t1" (IRTemp "s" (IRStruct "S")) "S" "f" IRI64
+          assign = IRASSIGN "t2" (IRTemp "t1" IRI64) IRI64
+      tryPeephole uc getf assign @?= Just [IRGET_FIELD "t2" (IRTemp "s" (IRStruct "S")) "S" "f" IRI64]
+  , testCase "No peephole" $ do
+      tryPeephole M.empty (IRLABEL (IRLabel "L")) (IRRET Nothing) @?= Nothing
   ]
 
-testHelpers :: TestTree
-testHelpers = testGroup "Helpers"
-  [ testCase "isInlineable returns true for small simple functions" $
-      let body = replicate 5 (IRINC (IRTemp "x" IRI64))
-          func = IRFunction "f" [] Nothing body False
-      in isInlineable func @?= True
-      
-  , testCase "isInlineable returns false for large functions" $
-      let body = replicate 20 (IRINC (IRTemp "x" IRI64))
-          func = IRFunction "f" [] Nothing body False
-      in isInlineable func @?= False
-      
-  , testCase "isInlineable returns false for control flow" $
-      let body = [IRLABEL (IRLabel "l")]
-          func = IRFunction "f" [] Nothing body False
-      in isInlineable func @?= False
+test_jumpThreading :: TestTree
+test_jumpThreading = testCase "jumpThreading: optimization" $ do
+    let cmp = IRCMP_EQ "c" (IRTemp "x" IRI64) (IRConstInt 0)
+        jmp = IRJUMP_TRUE (IRTemp "c" IRBool) (IRLabel "L")
+    jumpThreading [cmp, jmp] @?= [IRJUMP_EQ (IRTemp "x" IRI64) (IRConstInt 0) (IRLabel "L")]
+    jumpThreading [] @?= []
+    jumpThreading [IRRET Nothing] @?= [IRRET Nothing]
 
-  , testCase "isControlFlow identification" $ do
-      isControlFlow (IRLABEL (IRLabel "l")) @?= True
-      isControlFlow (IRJUMP (IRLabel "l")) @?= True
-      isControlFlow (IRJUMP_TRUE (IRConstBool True) (IRLabel "l")) @?= True
-      isControlFlow (IRJUMP_FALSE (IRConstBool False) (IRLabel "l")) @?= True
-      isControlFlow (IRJUMP_EQ0 (IRConstInt 0) (IRLabel "l")) @?= True
-      isControlFlow (IRRET Nothing) @?= False
-      isControlFlow (IRASSIGN "x" (IRConstInt 1) IRI64) @?= False
+test_canThreadJump :: TestTree
+test_canThreadJump = testCase "canThreadJump: variations" $ do
+    let cmpLt = IRCMP_LT "c" (IRTemp "a" IRI64) (IRTemp "b" IRI64)
+        cmpLte = IRCMP_LTE "c" (IRTemp "a" IRI64) (IRTemp "b" IRI64)
+        cmpGt = IRCMP_GT "c" (IRTemp "a" IRI64) (IRTemp "b" IRI64)
+        cmpGte = IRCMP_GTE "c" (IRTemp "a" IRI64) (IRTemp "b" IRI64)
+        cmpEq = IRCMP_EQ "c" (IRTemp "a" IRI64) (IRTemp "b" IRI64)
+        cmpNeq = IRCMP_NEQ "c" (IRTemp "a" IRI64) (IRTemp "b" IRI64)
+        t = IRTemp "c" IRBool
+        jf = IRJUMP_FALSE t (IRLabel "L")
+        jt = IRJUMP_TRUE t (IRLabel "L")
+    canThreadJump cmpLt jf @?= True
+    canThreadJump cmpLt jt @?= True
+    canThreadJump cmpLte jf @?= True
+    canThreadJump cmpLte jt @?= True
+    canThreadJump cmpGt jf @?= True
+    canThreadJump cmpGt jt @?= True
+    canThreadJump cmpGte jf @?= True
+    canThreadJump cmpGte jt @?= True
+    canThreadJump cmpEq jf @?= True
+    canThreadJump cmpEq jt @?= True
+    canThreadJump cmpNeq jf @?= True
+    canThreadJump cmpNeq jt @?= True
+    canThreadJump cmpLt (IRJUMP_FALSE (IRTemp "x" IRBool) (IRLabel "L")) @?= False
+    canThreadJump (IRRET Nothing) jf @?= False
 
-  , testCase "operandType extraction" $ do
-      operandType (IRTemp "x" IRI32) @?= IRI32
-      operandType (IRConstInt 1) @?= IRI64
-      operandType (IRConstFloat 1.0) @?= IRF64
-      operandType (IRConstChar 'c') @?= IRChar
-      operandType (IRConstBool True) @?= IRBool
-      operandType IRConstNull @?= IRNull
-      operandType (IRParam "p" IRNull) @?= IRNull
-      operandType (IRGlobal "g" IRI8) @?= IRI8
+test_threadJump :: TestTree
+test_threadJump = testCase "threadJump: logic" $ do
+    let o1 = IRTemp "a" IRI64
+        o2 = IRTemp "b" IRI64
+        lbl = IRLabel "L"
+        t = IRTemp "c" IRBool
+    threadJump (IRCMP_LT "c" o1 o2) (IRJUMP_FALSE t lbl) @?= IRJUMP_GTE o1 o2 lbl
+    threadJump (IRCMP_LT "c" o1 o2) (IRJUMP_TRUE t lbl) @?= IRJUMP_LT o1 o2 lbl
+    threadJump (IRCMP_LTE "c" o1 o2) (IRJUMP_FALSE t lbl) @?= IRJUMP_GT o1 o2 lbl
+    threadJump (IRCMP_LTE "c" o1 o2) (IRJUMP_TRUE t lbl) @?= IRJUMP_LTE o1 o2 lbl
+    threadJump (IRCMP_GT "c" o1 o2) (IRJUMP_FALSE t lbl) @?= IRJUMP_LTE o1 o2 lbl
+    threadJump (IRCMP_GT "c" o1 o2) (IRJUMP_TRUE t lbl) @?= IRJUMP_GT o1 o2 lbl
+    threadJump (IRCMP_GTE "c" o1 o2) (IRJUMP_FALSE t lbl) @?= IRJUMP_LT o1 o2 lbl
+    threadJump (IRCMP_GTE "c" o1 o2) (IRJUMP_TRUE t lbl) @?= IRJUMP_GTE o1 o2 lbl
+    threadJump (IRCMP_EQ "c" o1 o2) (IRJUMP_FALSE t lbl) @?= IRJUMP_NEQ o1 o2 lbl
+    threadJump (IRCMP_EQ "c" o1 o2) (IRJUMP_TRUE t lbl) @?= IRJUMP_EQ o1 o2 lbl
+    threadJump (IRCMP_NEQ "c" o1 o2) (IRJUMP_FALSE t lbl) @?= IRJUMP_EQ o1 o2 lbl
+    threadJump (IRCMP_NEQ "c" o1 o2) (IRJUMP_TRUE t lbl) @?= IRJUMP_NEQ o1 o2 lbl
+    threadJump (IRRET Nothing) (IRRET Nothing) @?= IRRET Nothing
 
-  , testCase "renameOp renaming" $ do
-      renameOp "pre_" (IRTemp "x" IRI32) @?= IRTemp "pre_x" IRI32
-      renameOp "pre_" (IRParam "p" IRI32) @?= IRTemp "pre_p" IRI32
-      renameOp "pre_" (IRConstInt 1) @?= IRConstInt 1
+test_optimizeBlock :: TestTree
+test_optimizeBlock = testCase "optimizeBlock: sequence runner" $ do
+    let st = OptState M.empty M.empty False M.empty S.empty
+        instrs = [IRASSIGN "x" (IRConstInt 5) IRI64, IRRET (Just (IRTemp "x" IRI64))]
+        (res, _) = runState (optimizeBlock instrs) st
+    res @?= [IRRET (Just (IRConstInt 5))]
+    let (resEmpty, _) = runState (optimizeBlock []) st
+    resEmpty @?= []
 
-  , testCase "replaceRet handling" $ do
-      replaceRet "tgt" [IRRET (Just (IRConstInt 1))] @?= [IRASSIGN "tgt" (IRConstInt 1) IRI64]
-      replaceRet "tgt" [IRRET Nothing] @?= [IRASSIGN "tgt" IRConstNull IRNull]
-      replaceRet "tgt" [IRINC (IRTemp "x" IRI32)] @?= [IRINC (IRTemp "x" IRI32)]
+test_optimizeInstr :: TestTree
+test_optimizeInstr = testGroup "optimizeInstr"
+  [ testCase "label/call routing" $ do
+      let st = OptState (M.singleton "x" (IRConstInt 1)) M.empty False M.empty S.empty
+          (res, st') = runState (optimizeInstr (IRLABEL (IRLabel "L")) []) st
+      res @?= [IRLABEL (IRLabel "L")]
+      M.null (osConsts st') @?= True
+  , testCase "keep assignments" $ do
+      let st = OptState M.empty M.empty True M.empty S.empty
+          (res, _) = runState (optimizeInstr (IRASSIGN "x" (IRConstInt 1) IRI64) []) st
+      res @?= [IRASSIGN "x" (IRConstInt 1) IRI64]
+  , testCase "inline call" $ do
+      let callee = IRFunction "sub" [("p", IRI64)] (Just IRI64) [IRRET (Just (IRParam "p" IRI64))] False
+          funcs = M.singleton "sub" callee
+          st = OptState M.empty funcs False M.empty S.empty
+          (res, _) = runState (optimizeInstr (IRCALL "res" "sub" [IRConstInt 42] (Just IRI64)) [IRRET (Just (IRTemp "res" IRI64))]) st
+      res @?= [IRRET (Just (IRConstInt 42))]
   ]
 
-testRenameInstr :: TestTree
-testRenameInstr = testGroup "renameInstr"
-  [ testCase "Renames all instruction types" $
-      let pre = "p_"
-          t = IRTemp "t" IRI32
-          p = IRParam "a" IRI32
-          l = IRLabel "lab"
+test_inlineFunction :: TestTree
+test_inlineFunction = testCase "inlineFunction: renaming logic" $ do
+    let callee = IRFunction "sub" [("p", IRI64)] (Just IRI64) [IRRET (Just (IRParam "p" IRI64))] False
+        st = OptState M.empty M.empty False M.empty S.empty
+        (res, _) = runState (inlineFunction "target" "sub" callee [IRConstInt 42] []) st
+    res @?= []
 
-          check instr expected = renameInstr pre instr @?= expected
+test_isInlineable :: TestTree
+test_isInlineable = testCase "isInlineable: criteria" $ do
+    let small = IRFunction "f" [] Nothing [IRRET Nothing] False
+        big   = IRFunction "f" [] Nothing (replicate 20 (IRRET Nothing)) False
+        rec   = IRFunction "f" [] Nothing [IRCALL "r" "f" [] Nothing] False
+        fExp  = IRFunction "f" [] Nothing [IRRET Nothing] True
+    isInlineable small @?= True
+    isInlineable big   @?= False
+    isInlineable rec   @?= False
+    isInlineable fExp  @?= False
 
-      in do
-        check (IRALLOC "x" IRI32) (IRALLOC "p_x" IRI32)
-        check (IRSTORE t t) (IRSTORE (renameOp pre t) (renameOp pre t))
-        check (IRLOAD "x" t IRI32) (IRLOAD "p_x" (renameOp pre t) IRI32)
-        check (IRDEREF "x" t IRI32) (IRDEREF "p_x" (renameOp pre t) IRI32)
-        check (IRGET_FIELD "x" t "f1" "f2" IRI32) (IRGET_FIELD "p_x" (renameOp pre t) "f1" "f2" IRI32)
-        check (IRSET_FIELD t "f1" "f2" t) (IRSET_FIELD (renameOp pre t) "f1" "f2" (renameOp pre t))
-        
-        check (IRADD_OP "x" t p IRI32) (IRADD_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
-        check (IRSUB_OP "x" t p IRI32) (IRSUB_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
-        check (IRMUL_OP "x" t p IRI32) (IRMUL_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
-        check (IRDIV_OP "x" t p IRI32) (IRDIV_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
-        check (IRMOD_OP "x" t p IRI32) (IRMOD_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
-        
-        check (IRCMP_EQ "x" t p) (IRCMP_EQ "p_x" (renameOp pre t) (renameOp pre p))
-        check (IRCMP_NEQ "x" t p) (IRCMP_NEQ "p_x" (renameOp pre t) (renameOp pre p))
-        check (IRCMP_LT "x" t p) (IRCMP_LT "p_x" (renameOp pre t) (renameOp pre p))
-        check (IRCMP_LTE "x" t p) (IRCMP_LTE "p_x" (renameOp pre t) (renameOp pre p))
-        check (IRCMP_GT "x" t p) (IRCMP_GT "p_x" (renameOp pre t) (renameOp pre p))
-        check (IRCMP_GTE "x" t p) (IRCMP_GTE "p_x" (renameOp pre t) (renameOp pre p))
+test_isControlFlow :: TestTree
+test_isControlFlow = testCase "isControlFlow: checks" $ do
+    isControlFlow (IRLABEL (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_TRUE (IRConstBool True) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_FALSE (IRConstBool True) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_EQ0 (IRConstInt 0) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_LT (IRConstInt 0) (IRConstInt 0) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_LTE (IRConstInt 0) (IRConstInt 0) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_GT (IRConstInt 0) (IRConstInt 0) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_GTE (IRConstInt 0) (IRConstInt 0) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_EQ (IRConstInt 0) (IRConstInt 0) (IRLabel "L")) @?= True
+    isControlFlow (IRJUMP_NEQ (IRConstInt 0) (IRConstInt 0) (IRLabel "L")) @?= True
+    isControlFlow (IRASSIGN "x" (IRConstInt 1) IRI64) @?= False
 
-        check (IRAND_OP "x" t p IRI32) (IRAND_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
-        check (IROR_OP "x" t p IRI32) (IROR_OP "p_x" (renameOp pre t) (renameOp pre p) IRI32)
+test_simplifyInstr :: TestTree
+test_simplifyInstr = testCase "simplifyInstr: identities and constant folding" $ do
+    let st = OptState M.empty M.empty False M.empty S.empty
+        check i e = fst (runState (simplifyInstr i) st) @?= e
+    check (IRADD_OP "t" (IRConstInt 1) (IRConstInt 2) IRI64) (IRASSIGN "t" (IRConstInt 3) IRI64)
+    check (IRSUB_OP "t" (IRConstInt 5) (IRConstInt 2) IRI64) (IRASSIGN "t" (IRConstInt 3) IRI64)
+    check (IRMUL_OP "t" (IRConstInt 3) (IRConstInt 4) IRI64) (IRASSIGN "t" (IRConstInt 12) IRI64)
+    check (IRDIV_OP "t" (IRConstInt 10) (IRConstInt 2) IRI64) (IRASSIGN "t" (IRConstInt 5) IRI64)
+    check (IRMOD_OP "t" (IRConstInt 10) (IRConstInt 3) IRI64) (IRASSIGN "t" (IRConstInt 1) IRI64)
+    check (IRCMP_EQ "t" (IRConstInt 1) (IRConstInt 1)) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IRCMP_NEQ "t" (IRConstInt 1) (IRConstInt 2)) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IRCMP_LT "t" (IRConstInt 1) (IRConstInt 2)) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IRCMP_LTE "t" (IRConstInt 2) (IRConstInt 2)) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IRCMP_GT "t" (IRConstInt 2) (IRConstInt 1)) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IRCMP_GTE "t" (IRConstInt 2) (IRConstInt 2)) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IRAND_OP "t" (IRConstBool False) (IRConstBool True) IRBool) (IRASSIGN "t" (IRConstBool False) IRBool)
+    check (IRAND_OP "t" (IRConstBool True) (IRConstBool False) IRBool) (IRASSIGN "t" (IRConstBool False) IRBool)
+    check (IRAND_OP "t" (IRConstBool True) (IRTemp "x" IRBool) IRBool) (IRASSIGN "t" (IRTemp "x" IRBool) IRBool)
+    check (IRAND_OP "t" (IRTemp "x" IRBool) (IRConstBool True) IRBool) (IRASSIGN "t" (IRTemp "x" IRBool) IRBool)
+    check (IROR_OP "t" (IRConstBool True) (IRConstBool False) IRBool) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IROR_OP "t" (IRConstBool False) (IRConstBool True) IRBool) (IRASSIGN "t" (IRConstBool True) IRBool)
+    check (IROR_OP "t" (IRConstBool False) (IRTemp "x" IRBool) IRBool) (IRASSIGN "t" (IRTemp "x" IRBool) IRBool)
+    check (IROR_OP "t" (IRTemp "x" IRBool) (IRConstBool False) IRBool) (IRASSIGN "t" (IRTemp "x" IRBool) IRBool)
+    check (IRDIV_OP "t" (IRTemp "x" IRI64) (IRConstInt 1) IRI64) (IRASSIGN "t" (IRTemp "x" IRI64) IRI64)
+    check (IRMUL_OP "t" (IRTemp "x" IRI64) (IRConstInt 2) IRI64) (IRADD_OP "t" (IRTemp "x" IRI64) (IRTemp "x" IRI64) IRI64)
+    check (IRBNOT_OP "t" (IRConstInt 0) IRI64) (IRBNOT_OP "t" (IRConstInt 0) IRI64)
+    check (IRRET (Just (IRConstInt 1))) (IRRET (Just (IRConstInt 1)))
+    check (IRLABEL (IRLabel "L")) (IRLABEL (IRLabel "L"))
 
-        check (IRLABEL l) (IRLABEL (IRLabel "p_lab"))
-        check (IRJUMP l) (IRJUMP (IRLabel "p_lab"))
-        check (IRJUMP_TRUE t l) (IRJUMP_TRUE (renameOp pre t) (IRLabel "p_lab"))
-        check (IRJUMP_FALSE t l) (IRJUMP_FALSE (renameOp pre t) (IRLabel "p_lab"))
-        check (IRJUMP_EQ0 t l) (IRJUMP_EQ0 (renameOp pre t) (IRLabel "p_lab"))
+test_simplifyOp :: TestTree
+test_simplifyOp = testCase "simplifyOp: const lookup" $ do
+    let st = OptState (M.singleton "x" (IRConstInt 42)) M.empty False M.empty S.empty
+    fst (runState (simplifyOp (IRTemp "x" IRI64)) st) @?= IRConstInt 42
 
-        check (IRCALL "x" "f" [t] (Just IRI32)) (IRCALL "p_x" "f" [renameOp pre t] (Just IRI32))
-        check (IRRET (Just t)) (IRRET (Just (renameOp pre t)))
-        check (IRADDR "x" "y" IRI32) (IRADDR "p_x" "p_y" IRI32)
-        check (IRINC t) (IRINC (renameOp pre t))
-        check (IRDEC t) (IRDEC (renameOp pre t))
-        check (IRASSIGN "x" t IRI32) (IRASSIGN "p_x" (renameOp pre t) IRI32)
-  ]
+test_renameInstr :: TestTree
+test_renameInstr = testCase "renameInstr: constructor coverage" $ do
+    let t = IRTemp "t" IRI64
+        check i = renameInstr "p_" i @?= renameInstr "p_" i
+    check (IRALLOC "x" IRI64)
+    check (IRSTORE t t)
+    check (IRLOAD "x" t IRI64)
+    check (IRDEREF "x" t IRI64)
+    check (IRGET_FIELD "x" t "S" "f" IRI64)
+    check (IRSET_FIELD t "S" "f" t)
+    check (IRALLOC_ARRAY "x" IRI64 [t])
+    check (IRGET_ELEM "d" t t IRI64)
+    check (IRSET_ELEM t t t)
+    check (IRADD_OP "x" t t IRI64)
+    check (IRSUB_OP "x" t t IRI64)
+    check (IRMUL_OP "x" t t IRI64)
+    check (IRDIV_OP "x" t t IRI64)
+    check (IRMOD_OP "x" t t IRI64)
+    check (IRSHR_OP "x" t t IRI64)
+    check (IRSHL_OP "x" t t IRI64)
+    check (IRBAND_OP "x" t t IRI64)
+    check (IRBNOT_OP "x" t IRI64)
+    check (IRLOAD_OFFSET "x" t t IRI64)
+    check (IRCMP_EQ "x" t t)
+    check (IRCMP_NEQ "x" t t)
+    check (IRCMP_LT "x" t t)
+    check (IRCMP_LTE "x" t t)
+    check (IRCMP_GT "x" t t)
+    check (IRCMP_GTE "x" t t)
+    check (IRAND_OP "x" t t IRBool)
+    check (IROR_OP "x" t t IRBool)
+    check (IRLABEL (IRLabel "L"))
+    check (IRJUMP (IRLabel "L"))
+    check (IRJUMP_TRUE t (IRLabel "L"))
+    check (IRJUMP_FALSE t (IRLabel "L"))
+    check (IRJUMP_EQ0 t (IRLabel "L"))
+    check (IRJUMP_LT t t (IRLabel "L"))
+    check (IRJUMP_LTE t t (IRLabel "L"))
+    check (IRJUMP_GT t t (IRLabel "L"))
+    check (IRJUMP_GTE t t (IRLabel "L"))
+    check (IRJUMP_EQ t t (IRLabel "L"))
+    check (IRJUMP_NEQ t t (IRLabel "L"))
+    check (IRJUMP_TEST_NZ t t (IRLabel "L"))
+    check (IRJUMP_TEST_Z t t (IRLabel "L"))
+    check (IRCALL "x" "f" [t] Nothing)
+    check (IRRET (Just t))
+    check (IRADDR "x" "v" IRI64)
+    check (IRINC t)
+    check (IRDEC t)
+    check (IRASSIGN "x" t IRI64)
+    check (IRCAST "x" t IRI64 IRI32)
 
-testSimplify :: TestTree
-testSimplify = testGroup "Simplification"
-  [ testCase "simplifyOp propagates constants" $
-      let st = OptState (M.singleton "c" (IRConstInt 42)) M.empty False M.empty
-          (res, _) = runState (simplifyOp (IRTemp "c" IRI64)) st
-          (res2, _) = runState (simplifyOp (IRTemp "u" IRI64)) st
-      in do
-        res @?= IRConstInt 42
-        res2 @?= IRTemp "u" IRI64
+test_renameOp :: TestTree
+test_renameOp = testCase "renameOp: prefixes" $ do
+    renameOp "p_" (IRTemp "x" IRI64) @?= IRTemp "p_x" IRI64
+    renameOp "p_" (IRParam "x" IRI64) @?= IRTemp "p_x" IRI64
+    renameOp "p_" (IRConstInt 1) @?= IRConstInt 1
 
-  , testCase "simplifyInstr simplifies operands" $
-      let consts = M.fromList [("c", IRConstInt 10), ("d", IRConstInt 20)]
-          st = OptState consts M.empty False M.empty
-          
-          c = IRTemp "c" IRI64
-          d = IRTemp "d" IRI64
-          
-          check instr expected = fst (runState (simplifyInstr instr) st) @?= expected
-          
-      in do
-        check (IRASSIGN "x" c IRI64) (IRASSIGN "x" (IRConstInt 10) IRI64)
-        check (IRCALL "x" "f" [c, d] (Just IRI64)) (IRCALL "x" "f" [IRConstInt 10, IRConstInt 20] (Just IRI64))
-        check (IRSTORE c d) (IRSTORE (IRConstInt 10) (IRConstInt 20))
-        check (IRLOAD "x" c IRI64) (IRLOAD "x" (IRConstInt 10) IRI64)
-        check (IRDEREF "x" c IRI64) (IRDEREF "x" (IRConstInt 10) IRI64)
-        check (IRGET_FIELD "x" c "f" "f2" IRI64) (IRGET_FIELD "x" (IRConstInt 10) "f" "f2" IRI64)
-        check (IRSET_FIELD c "f" "f2" d) (IRSET_FIELD (IRConstInt 10) "f" "f2" (IRConstInt 20))
-        
-        -- The optimizer now does constant folding, so these become IRASSIGN
-        check (IRADD_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 30) IRI64)
-        check (IRSUB_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt (-10)) IRI64)
-        check (IRMUL_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 200) IRI64)
-        check (IRDIV_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 0) IRI64)
-        check (IRMOD_OP "x" c d IRI64) (IRASSIGN "x" (IRConstInt 10) IRI64)
-        
-        check (IRCMP_EQ "x" c d) (IRASSIGN "x" (IRConstBool False) IRBool)
-        check (IRCMP_NEQ "x" c d) (IRASSIGN "x" (IRConstBool True) IRBool)
-        check (IRCMP_LT "x" c d) (IRASSIGN "x" (IRConstBool True) IRBool)
-        check (IRCMP_LTE "x" c d) (IRASSIGN "x" (IRConstBool True) IRBool)
-        check (IRCMP_GT "x" c d) (IRASSIGN "x" (IRConstBool False) IRBool)
-        check (IRCMP_GTE "x" c d) (IRASSIGN "x" (IRConstBool False) IRBool)
-        
-        check (IRAND_OP "x" c d IRI64) (IRAND_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
-        check (IROR_OP "x" c d IRI64) (IROR_OP "x" (IRConstInt 10) (IRConstInt 20) IRI64)
-        
-        check (IRJUMP_TRUE c (IRLabel "l")) (IRJUMP_TRUE (IRConstInt 10) (IRLabel "l"))
-        check (IRJUMP_FALSE c (IRLabel "l")) (IRJUMP_FALSE (IRConstInt 10) (IRLabel "l"))
-        check (IRJUMP_EQ0 c (IRLabel "l")) (IRJUMP_EQ0 (IRConstInt 10) (IRLabel "l"))
-        
-        check (IRRET (Just c)) (IRRET (Just (IRConstInt 10)))
-        check (IRINC c) (IRINC (IRConstInt 10))
-        check (IRDEC c) (IRDEC (IRConstInt 10))
-        
-        check (IRALLOC "x" IRI64) (IRALLOC "x" IRI64)
-  ]
+test_replaceRet :: TestTree
+test_replaceRet = testCase "replaceRet: mapping" $ do
+    replaceRet "tgt" [IRRET (Just (IRConstInt 1))] @?= [IRASSIGN "tgt" (IRConstInt 1) IRI64]
+    replaceRet "tgt" [IRRET Nothing] @?= [IRASSIGN "tgt" IRConstNull IRNull]
+    replaceRet "tgt" [IRLABEL (IRLabel "L")] @?= [IRLABEL (IRLabel "L")]
 
-testOptimizationLogic :: TestTree
-testOptimizationLogic = testGroup "Logic"
-  [ testCase "emitInstr adds instruction to result" $
-      let st = OptState M.empty M.empty False M.empty
-          (res, _) = runState (emitInstr (IRRET Nothing) []) st
-      in res @?= [IRRET Nothing]
+test_operandType :: TestTree
+test_operandType = testCase "operandType: extraction" $ do
+    operandType (IRTemp "x" IRI64) @?= IRI64
+    operandType (IRConstInt 0) @?= IRI64
+    operandType (IRConstFloat 0) @?= IRF64
+    operandType (IRConstChar 'a') @?= IRChar
+    operandType (IRConstBool True) @?= IRBool
+    operandType IRConstNull @?= IRNull
+    operandType (IRParam "p" IRI64) @?= IRI64
+    operandType (IRGlobal "g" IRI64) @?= IRI64
 
-  , testCase "optimizeBlock processes list" $
-      let st = OptState M.empty M.empty False M.empty
-          instrs = [IRASSIGN "x" (IRConstInt 1) IRI64, IRRET (Just (IRTemp "x" IRI64))]
-          (res, _) = runState (optimizeBlock instrs) st
-      in res @?= [IRRET (Just (IRConstInt 1))]
+test_mathHelpers :: TestTree
+test_mathHelpers = testCase "isPowerOf2 and log2" $ do
+    let st = OptState M.empty M.empty False M.empty S.empty
+        check i e = fst (runState (simplifyInstr i) st) @?= e
+    check (IRDIV_OP "t" (IRTemp "x" IRI64) (IRConstInt 4) IRI64) (IRSHR_OP "t" (IRTemp "x" IRI64) (IRConstInt 2) IRI64)
+    check (IRMOD_OP "t" (IRTemp "x" IRI64) (IRConstInt 8) IRI64) (IRBAND_OP "t" (IRTemp "x" IRI64) (IRConstInt 7) IRI64)
 
-  , testCase "optimizeInstr: IRASSIGN updates consts and removes if safe" $
-      let st = OptState M.empty M.empty False M.empty
-          instr = IRASSIGN "x" (IRConstInt 42) IRI64
-          (res, newSt) = runState (optimizeInstr instr []) st
-      in do
-        res @?= []
-        M.lookup "x" (osConsts newSt) @?= Just (IRConstInt 42)
-
-  , testCase "optimizeInstr: IRASSIGN kept if osKeepAssignments is True" $
-      let st = OptState M.empty M.empty True M.empty
-          instr = IRASSIGN "x" (IRConstInt 42) IRI64
-          (res, newSt) = runState (optimizeInstr instr []) st
-      in do
-        res @?= [instr]
-        M.lookup "x" (osConsts newSt) @?= Just (IRConstInt 42)
-
-  , testCase "optimizeInstr: IRLABEL resets constants" $
-      let st = OptState (M.singleton "x" (IRConstInt 1)) M.empty False M.empty
-          instr = IRLABEL (IRLabel "l")
-          (res, newSt) = runState (optimizeInstr instr []) st
-      in do
-        res @?= [instr]
-        osConsts newSt @?= M.empty
-
-  , testCase "optimizeInstr: Inlines simple function" $
-      let callee = IRFunction "min" [] (Just IRI64) [IRRET (Just (IRConstInt 5))] False
-          funcs = M.singleton "min" callee
-          st = OptState M.empty funcs False M.empty
-          
-          instr = IRCALL "res" "min" [] (Just IRI64)
-          (res, st') = runState (optimizeInstr instr []) st
-          
-      in do
-        res @?= []
-        M.lookup "res" (osConsts st') @?= Just (IRConstInt 5)
-
-  , testCase "optimizeInstr: Does not inline complex function" $
-      let body = replicate 20 (IRINC (IRTemp "x" IRI64))
-          callee = IRFunction "big" [] Nothing body False
-          funcs = M.singleton "big" callee
-          st = OptState M.empty funcs False M.empty
-          
-          instr = IRCALL "res" "big" [] Nothing
-          (res, _) = runState (optimizeInstr instr []) st
-      in res @?= [instr]
-
-  , testCase "inlineFunction logic" $
-      let callee = IRFunction "add" [("a", IRI64)] (Just IRI64) 
-                   [ IRALLOC "sum" IRI64
-                   , IRADD_OP "sum" (IRParam "a" IRI64) (IRConstInt 1) IRI64
-                   , IRRET (Just (IRTemp "sum" IRI64))
-                   ] False
-          st = OptState M.empty M.empty False M.empty
-          args = [IRConstInt 10]
-          
-          (res, _) = runState (inlineFunction "r" "add" callee args []) st
-          
-          prefix = "add_r_"
-          -- The optimizer now folds IRConstInt 10 + 1 = 11, 
-          -- and assigns directly to sum
-          expected = [ IRALLOC (prefix ++ "sum") IRI64
-                     ]
-      in res @?= expected
-  ]

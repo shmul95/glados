@@ -13,7 +13,9 @@ module Rune.IR.Generator.Expression.Unary
     genUnaryPrefixDec,
     genUnaryPostfixInc,
     genUnaryPostfixDec,
-    genUnaryPropagate
+    genUnaryPropagate,
+    genUnaryDeref,
+    genUnaryReference
   )
 where
 #else
@@ -60,6 +62,8 @@ genUnaryExpr PrefixDec = genUnaryPrefixDec
 genUnaryExpr PostfixInc = genUnaryPostfixInc
 genUnaryExpr PostfixDec = genUnaryPostfixDec
 genUnaryExpr PropagateError = genUnaryPropagate
+genUnaryExpr Deref = genUnaryDeref
+genUnaryExpr Reference = genUnaryReference
 
 genUnaryNegate :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
 genUnaryNegate instrs operand typ = do
@@ -109,3 +113,23 @@ genUnaryPropagate instrs operand typ = do
         ]
 
   return (instrs ++ propagation, operand, typ)
+
+genUnaryDeref :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
+genUnaryDeref instrs operand (IRPtr innerType) = do
+  t <- newTemp "t" innerType
+  let i = IRDEREF t operand innerType
+  return (instrs ++ [i], IRTemp t innerType, innerType)
+genUnaryDeref _ _ typ = 
+  error $ "Cannot dereference non-pointer type: " ++ show typ
+
+genUnaryReference :: [IRInstruction] -> IROperand -> IRType -> IRGen ([IRInstruction], IROperand, IRType)
+genUnaryReference instrs (IRTemp name _) typ = do
+  t <- newTemp "t" (IRPtr typ)
+  let i = IRADDR t name (IRPtr typ)
+  return (instrs ++ [i], IRTemp t (IRPtr typ), IRPtr typ)
+genUnaryReference instrs (IRParam name _) typ = do
+  t <- newTemp "t" (IRPtr typ)
+  let i = IRADDR t name (IRPtr typ)
+  return (instrs ++ [i], IRTemp t (IRPtr typ), IRPtr typ)
+genUnaryReference _ operand typ = 
+  error $ "Cannot take address of non-lvalue: " ++ show operand ++ " of type " ++ show typ

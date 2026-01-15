@@ -7,6 +7,8 @@ somewhere
     
     def assert(condition: bool, message: string) -> bool;
     def assert_eq(a: string, b: string, message: string) -> bool;
+
+    def error(s: string) -> null;
 }
 
 /**
@@ -38,7 +40,7 @@ struct Vec
         }
     }
 
-    override def new(initial_capacity: u64) ~> Vec
+    def new(initial_capacity: u64) ~> Vec
     {
         if initial_capacity == 0 {
             new()

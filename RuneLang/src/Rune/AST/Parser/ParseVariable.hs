@@ -4,7 +4,7 @@ module Rune.AST.Parser.ParseVariable
 where
 
 import Control.Applicative (optional, (<|>))
-import Rune.AST.Nodes (BinaryOp (..), Expression (..), Statement (..), getExprPos)
+import Rune.AST.Nodes (BinaryOp (..), Expression (..), Statement (..), UnaryOp (..), getExprPos)
 import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (between, chainPostfix, check, choice, expect, failParse, getCurrentPos, match, peek, try, withContext)
@@ -57,7 +57,13 @@ lookAheadIsVarDecl = Parser $ \s ->
 --
 
 parseLValue :: Parser Expression
-parseLValue = parseAccessOrVar
+parseLValue = choice
+  [ do
+      pos <- getCurrentPos
+      _ <- expect T.OpMul
+      ExprUnary pos Deref <$> parseLValue,
+    parseAccessOrVar
+  ]
 
 parseAccessOrVar :: Parser Expression
 parseAccessOrVar = chainPostfix parseBase op

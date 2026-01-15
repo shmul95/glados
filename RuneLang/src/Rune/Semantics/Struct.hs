@@ -66,12 +66,7 @@ getStructPos (DefStruct {}) = SourcePos "<unknown>" 0 0
 getStructPos _ = SourcePos "<unknown>" 0 0
 
 checkMethods :: String -> SourcePos -> [TopLevelDef] -> Either String [TopLevelDef]
-checkMethods sName pos methods = do
-  let defFuncNames = [n | DefFunction n _ _ _ _ <- methods]
-      funcDuplicates = defFuncNames List.\\ List.nub defFuncNames
-  case funcDuplicates of
-    (dup:_) -> Left $ mkError pos (printf "method '%s' in struct '%s' to be unique" dup sName) "duplicate method"
-    [] -> Right methods
+checkMethods _ _ = Right
 
 checkFields :: String -> SourcePos -> StructStack -> [Field] -> Either String [Field]
 checkFields sName pos structs fields = do

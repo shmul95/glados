@@ -13,13 +13,13 @@ data TokenKind
   | KwElse
   | KwFor
   | KwTo
-  | KwOverride
   | KwIn
   | KwLoop
   | KwStop
   | KwNext
   | KwSomewhere
   | KwExport
+  | KwExtern
   | KwAs
   | KwSizeof
   -- | primitive types
@@ -84,6 +84,7 @@ data TokenKind
   | Semicolon -- ;
   | Colon -- :
   | Dot -- .
+  | Elipsis -- ...
   | LBracket -- [
   | RBracket -- ]
   | EOF

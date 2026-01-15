@@ -35,7 +35,7 @@ generateIR (Program name defs) fs =
   let (result, finalState) = runState (runExceptT (mapM genTopLevel defs)) (initialState fs)
    in case result of
         Left err -> Left err
-        Right irDefs -> 
+        Right irDefs ->
           let -- INFO: gather all generated definitions (globals & functions)
               generatedDefs = reverse (gsGlobals finalState) ++ concat irDefs
 
@@ -71,7 +71,8 @@ initialState fs =
       gsCalledFuncs = Set.empty,
       gsStringMap = empty,
       gsFloatMap = empty,
-      gsFuncStack = fs
+      gsFuncStack = fs,
+      gsVariadicPacks = empty
     }
 
 getDefinedFuncName :: IRTopLevel -> [String]

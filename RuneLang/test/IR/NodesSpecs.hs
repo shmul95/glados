@@ -57,8 +57,8 @@ testIRTypes =
   testGroup
     "IRType"
     [ testCase "All IRType constructors" $
-        let types = [IRI8, IRI16, IRI32, IRI64, IRU8, IRU16, IRU32, IRU64, IRChar, IRF32, IRF64, IRBool, IRNull, IRPtr IRI32, IRStruct "Vec2f"]
-            expected = [IRI8, IRI16, IRI32, IRI64, IRU8, IRU16, IRU32, IRU64, IRChar, IRF32, IRF64, IRBool, IRNull, IRPtr IRI32, IRStruct "Vec2f"]
+        let types = [IRI8, IRI16, IRI32, IRI64, IRU8, IRU16, IRU32, IRU64, IRChar, IRF32, IRF64, IRBool, IRNull, IRPtr IRI32, IRRef IRI32, IRStruct "Vec2f", IRArray IRI32 10, IRVariadic IRI32]
+            expected = [IRI8, IRI16, IRI32, IRI64, IRU8, IRU16, IRU32, IRU64, IRChar, IRF32, IRF64, IRBool, IRNull, IRPtr IRI32, IRRef IRI32, IRStruct "Vec2f", IRArray IRI32 10, IRVariadic IRI32]
          in types @?= expected,
       testCase "Deriving Show/Eq" $ show IRI32 @?= "IRI32"
     ]
@@ -125,7 +125,8 @@ testGenState =
                   gsCalledFuncs = Set.empty,
                   gsStringMap = empty,
                   gsFloatMap = empty,
-                  gsFuncStack = mempty
+                  gsFuncStack = mempty,
+                  gsVariadicPacks = empty
                 }
             dummyOp :: IRGen Int
             dummyOp = return 10
@@ -156,7 +157,8 @@ testGenState =
                   gsCalledFuncs = Set.empty,
                   gsStringMap = empty,
                   gsFloatMap = empty,
-                  gsFuncStack = mempty
+                  gsFuncStack = mempty,
+                  gsVariadicPacks = empty
                 }
             state2 =
               GenState
@@ -172,7 +174,8 @@ testGenState =
                   gsCalledFuncs = Set.empty,
                   gsStringMap = empty,
                   gsFloatMap = empty,
-                  gsFuncStack = mempty
+                  gsFuncStack = mempty,
+                  gsVariadicPacks = empty
                 }
          in state1 @?= state2
     ]
@@ -213,6 +216,20 @@ testIRInstruction =
       testCase "IRINC" $ IRINC op_temp @?= IRINC op_temp,
       testCase "IRDEC" $ IRDEC op_temp @?= IRDEC op_temp,
       testCase "IRASSIGN" $ IRASSIGN "t17" op_const_int IRI32 @?= IRASSIGN "t17" op_const_int IRI32,
+      testCase "IRLOAD_OFFSET" $ IRLOAD_OFFSET "t" op_temp op_temp IRI32 @?= IRLOAD_OFFSET "t" op_temp op_temp IRI32,
+      testCase "IRSHR_OP" $ IRSHR_OP "t" op_temp op_temp IRI32 @?= IRSHR_OP "t" op_temp op_temp IRI32,
+      testCase "IRSHL_OP" $ IRSHL_OP "t" op_temp op_temp IRI32 @?= IRSHL_OP "t" op_temp op_temp IRI32,
+      testCase "IRBAND_OP" $ IRBAND_OP "t" op_temp op_temp IRI32 @?= IRBAND_OP "t" op_temp op_temp IRI32,
+      testCase "IRBNOT_OP" $ IRBNOT_OP "t" op_temp IRI32 @?= IRBNOT_OP "t" op_temp IRI32,
+      testCase "IRJUMP_LT" $ IRJUMP_LT op_temp op_temp lbl @?= IRJUMP_LT op_temp op_temp lbl,
+      testCase "IRJUMP_LTE" $ IRJUMP_LTE op_temp op_temp lbl @?= IRJUMP_LTE op_temp op_temp lbl,
+      testCase "IRJUMP_GT" $ IRJUMP_GT op_temp op_temp lbl @?= IRJUMP_GT op_temp op_temp lbl,
+      testCase "IRJUMP_GTE" $ IRJUMP_GTE op_temp op_temp lbl @?= IRJUMP_GTE op_temp op_temp lbl,
+      testCase "IRJUMP_EQ" $ IRJUMP_EQ op_temp op_temp lbl @?= IRJUMP_EQ op_temp op_temp lbl,
+      testCase "IRJUMP_NEQ" $ IRJUMP_NEQ op_temp op_temp lbl @?= IRJUMP_NEQ op_temp op_temp lbl,
+      testCase "IRJUMP_TEST_NZ" $ IRJUMP_TEST_NZ op_temp op_temp lbl @?= IRJUMP_TEST_NZ op_temp op_temp lbl,
+      testCase "IRJUMP_TEST_Z" $ IRJUMP_TEST_Z op_temp op_temp lbl @?= IRJUMP_TEST_Z op_temp op_temp lbl,
+      testCase "IRCAST" $ IRCAST "t" op_temp IRI32 IRF32 @?= IRCAST "t" op_temp IRI32 IRF32,
       testCase "Deriving Show/Eq" $ show (IRALLOC "x" IRI32) @?= "IRALLOC \"x\" IRI32"
     ]
 

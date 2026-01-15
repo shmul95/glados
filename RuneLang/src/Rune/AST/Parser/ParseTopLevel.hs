@@ -9,7 +9,6 @@ module Rune.AST.Parser.ParseTopLevel
     parseStruct,
     parseStructBody,
     parseStructItem,
-    parseOverride,
     parseParams,
     parseParameter,
     parseSelfParam,
@@ -28,10 +27,10 @@ module Rune.AST.Parser.ParseTopLevel
 where
 
 import Control.Applicative ((<|>))
-import Control.Monad (when)
 import Data.Either (partitionEithers)
 import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..))
 import Rune.AST.Parser.ParseBlock (parseBlock)
+import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
 import Rune.AST.ParserHelper (advance, between, check, expect, expectIdent, failParse, peek, sepBy, try, withContext)
 import Rune.AST.Types (Parser (..))
@@ -61,9 +60,8 @@ parseTopLevelDef = do
     T.KwExport -> parseExportedDef
     T.KwDef -> parseFunction False
     T.KwStruct -> parseStruct
-    T.KwOverride -> parseOverride False
     T.KwSomewhere -> parseSomewhere
-    _ -> failParse "Expected top-level definition (def, struct, override, export, somewhere)"
+    _ -> failParse "Expected top-level definition (def, struct, export, somewhere)"
 
 --
 -- functions
@@ -75,8 +73,7 @@ parseExportedDef = do
   t <- peek
   case T.tokenKind t of
     T.KwDef -> parseFunction True
-    T.KwOverride -> parseOverride True
-    _ -> failParse "Expected 'def' or 'override' after 'export'"
+    _ -> failParse "Expected 'def' after 'export'"
 
 parseFunction :: Bool -> Parser TopLevelDef
 parseFunction isExport = do
@@ -117,22 +114,8 @@ parseStructItem = do
   t<- peek
   case T.tokenKind t of
     T.KwDef -> Right <$> parseFunction False
-    T.KwOverride -> Right <$> parseOverride False
     T.Identifier _ -> Left <$> parseField <* expect T.Semicolon
     _ -> failParse "Expected struct field or method"
-
---
--- overrides
---
-
-parseOverride :: Bool -> Parser TopLevelDef
-parseOverride isExport = do
-  _ <- expect T.KwOverride *> expect T.KwDef
-  name <- parseIdentifier
-  params <- withContext ("parameters of override '" ++ name ++ "'") parseParams
-  retType <- withContext ("return type of override '" ++ name ++ "'") parseReturnType
-  body <- withContext ("body of override '" ++ name ++ "'") parseBlock
-  pure $ DefOverride name params retType body isExport
 
 --
 -- parameters
@@ -146,7 +129,7 @@ parseParameter = parseSelfParam <|> parseTypedParam
 
 parseSelfParam :: Parser Parameter
 parseSelfParam =
-  Parameter "self" TypeAny <$ expectIdent "self"
+  Parameter "self" TypeAny Nothing <$ expectIdent "self"
 
 --
 -- typed parameters
@@ -154,10 +137,20 @@ parseSelfParam =
 
 parseTypedParam :: Parser Parameter
 parseTypedParam =
-  Parameter
-    <$> parseIdentifier
-    <*> (expect T.Colon *> parseType)
-    <|> failParse "Expected typed parameter (name: type)"
+  parseTypedParamWithType <|> parseTypedParamWithDefault
+  where
+    -- Try to parse: name: type [= value]
+    parseTypedParamWithType = do
+      name <- parseIdentifier
+      _ <- expect T.Colon
+      pType <- parseType
+      pDefault <- try (Just <$> (expect T.OpAssign *> parseExpression)) <|> pure Nothing
+      pure $ Parameter name pType pDefault
+    -- Try to parse: name = value (no type annotation)
+    parseTypedParamWithDefault = do
+      name <- parseIdentifier
+      _ <- expect T.OpAssign
+      Parameter name TypeAny . Just <$> parseExpression
 
 --
 -- return type
@@ -195,15 +188,14 @@ parseFunctionSignatures = do
 
 parseFunctionSignature :: Parser FunctionSignature
 parseFunctionSignature = do
-  isOverride <- check T.KwOverride
-  when isOverride advance
+  isExtern <- (True <$ expect T.KwExtern) <|> pure False
   _ <- expect T.KwDef
   name <- parseIdentifier
   paramTypes <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamTypeInSignature (expect T.Comma))
   retType <- parseReturnType
   _ <- expect T.Semicolon
-  pure $ FunctionSignature name paramTypes retType isOverride
+  pure $ FunctionSignature name paramTypes retType isExtern
 
 parseParamTypeInSignature :: Parser Type
-parseParamTypeInSignature = 
+parseParamTypeInSignature =
   (paramType <$> try parseTypedParam) <|> parseType

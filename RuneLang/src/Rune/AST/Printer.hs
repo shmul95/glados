@@ -7,7 +7,6 @@ module Rune.AST.Printer
     visitTopLevel,
     visitFunction,
     visitStruct,
-    visitOverride,
     visitStatement,
     visitVarDecl,
     visitAssignment,
@@ -35,7 +34,7 @@ where
 module Rune.AST.Printer (prettyPrint) where
 #endif
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.State.Strict (State, execState, get, modify)
 import Rune.AST.Nodes
 
@@ -74,7 +73,6 @@ visitProgram (Program name defs) = do
 visitTopLevel :: TopLevelDef -> Printer ()
 visitTopLevel d@DefFunction {} = visitFunction d
 visitTopLevel d@DefStruct {} = visitStruct d
-visitTopLevel d@DefOverride {} = visitOverride d
 visitTopLevel d@DefSomewhere {} = visitSomewhere d
 
 visitFunction :: TopLevelDef -> Printer ()
@@ -99,17 +97,6 @@ visitStruct (DefStruct name fields methods) = do
     emitField (Field n t) = newLine >> emit (n <> ": " <> showType t)
 visitStruct _ = return ()
 
-visitOverride :: TopLevelDef -> Printer ()
-visitOverride (DefOverride name params retType body isExport) = do
-  emit $ (if isExport then "export " else "") <> "DefOverride " <> name
-  indent
-  emitBlock "Parameters:" (mapM_ emitParam params)
-  newLine
-  emit $ "ReturnType: " <> showType retType
-  emitBlock "Body:" (visitBody body)
-  dedent
-visitOverride _ = return ()
-
 visitSomewhere :: TopLevelDef -> Printer ()
 visitSomewhere (DefSomewhere sigs) = do
   emit "DefSomewhere"
@@ -117,9 +104,10 @@ visitSomewhere (DefSomewhere sigs) = do
   emitBlock "Signatures:" (mapM_ emitSig sigs)
   dedent
   where
-    emitSig (FunctionSignature name paramTypes retType isOverride) = do
+    emitSig (FunctionSignature name paramTypes retType isExtern) = do
       newLine
-      emit $ (if isOverride then "override " else "") <> name <> "("
+      when isExtern $ emit "extern "
+      emit $ name <> "("
       emit $ unwords (map showType paramTypes)
       emit $ ") -> " <> showType retType
 visitSomewhere _ = return ()
@@ -314,7 +302,12 @@ dedent :: Printer ()
 dedent = modify (\s -> s {psIndent = psIndent s - 1})
 
 emitParam :: Parameter -> Printer ()
-emitParam p = newLine >> emit (paramName p <> ": " <> showType (paramType p))
+emitParam p = do
+  newLine
+  emit (paramName p <> ": " <> showType (paramType p))
+  case paramDefault p of
+    Just defaultExpr -> emit (" = " <> show defaultExpr)
+    Nothing -> pure ()
 
 showType :: Type -> String
 showType TypeI8 = "i8"
@@ -335,6 +328,8 @@ showType TypeNull = "null"
 showType (TypeCustom s) = s
 showType (TypeArray t) = "[" <> showType t <> "]"
 showType (TypePtr t) = "*" <> showType t
+showType (TypeRef t) = "&" <> showType t
+showType (TypeVariadic t) = "..." <> showType t
 
 showBinaryOp :: BinaryOp -> String
 showBinaryOp Add = "+"
@@ -361,3 +356,5 @@ showUnaryOp PrefixInc = "++(prefix)"
 showUnaryOp PrefixDec = "--(prefix)"
 showUnaryOp PostfixInc = "(postfix)++"
 showUnaryOp PostfixDec = "(postfix)--"
+showUnaryOp Deref = "*"
+showUnaryOp Reference = "&"

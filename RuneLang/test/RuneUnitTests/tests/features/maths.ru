@@ -1,7 +1,4 @@
-somewhere
-{
-    def assert(condition: bool, message: string) -> null;
-}
+somewhere { def assert(condition: bool, message: string) -> bool; }
 
 /**
 * public
@@ -23,7 +20,7 @@ export def test_maths() -> null
 * private
 */
 
-def maths(a: any, b: any, results: any[]) -> null
+def maths(a: any, b: any, results: []any) -> null
 {
     assert(a + b == results[0], "Maths: addition");
     assert(a - b == results[1], "Maths: subtraction");

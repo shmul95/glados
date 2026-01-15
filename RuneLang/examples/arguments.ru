@@ -4,7 +4,7 @@ def showln(value: any) -> null
     show('\n');
 }
 
-def main(argc: i32, argv: string[], env: string[]) -> i32
+def main(argc: i32, argv: []string, env: []string) -> i32
 {
     if argc < 2 {
         84

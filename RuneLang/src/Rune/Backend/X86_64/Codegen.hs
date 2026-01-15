@@ -1,26 +1,37 @@
 {-# LANGUAGE CPP #-}
 
-#if defined(TESTING_EXPORT)
 module Rune.Backend.X86_64.Codegen
   ( emitAssembly,
     emitAssemblyLib,
+#if defined(TESTING_EXPORT)
     emitExterns,
     emitRoDataSection,
     emitDataSection,
     emitTextSection,
     emitTextSectionLib,
+    emitTextSectionGen,
     emitFunction,
     emitFunctionLib,
+    emitFunctionGen,
     emitFunctionPrologue,
+    emitFunctionPrologueGen,
     emitFunctionEpilogue,
     emitParameters,
     emitInstruction,
+    emitInstructionGen,
     emitAssign,
+    emitStructCopy,
+    emitAssignSimple,
     emitCall,
+    emitCallGen,
     setupCallArgs,
     saveCallResult,
+    saveStructResult,
     emitRet,
+    emitStructRet,
+    emitStore,
     emitDeref,
+    emitLoadOffset,
     emitAllocArray,
     emitAllocArrayOnStack,
     emitGetElem,
@@ -32,21 +43,24 @@ module Rune.Backend.X86_64.Codegen
     emitDirectCmpJump,
     emitIntCmpJump,
     emitFloatCmpJump,
+    emitTestJump,
     emitRmWarning,
     collectStaticArrays,
     isStaticOperand,
     getDataDirective,
     showStaticOperand,
-    commaSep
-  )
-where
-#else
-module Rune.Backend.X86_64.Codegen
-  ( emitAssembly,
-    emitAssemblyLib,
-  )
-where
+    emitCast,
+    isIntegerType,
+    isPointerType,
+    isSignedInt,
+    emitIntToFloat,
+    emitFloatToInt,
+    emitFloatToFloat,
+    emitIntToInt,
+    commaSep,
 #endif
+  )
+where
 
 import Data.Map.Strict (Map)
 import Data.Maybe (fromMaybe)
@@ -248,6 +262,7 @@ emitInstructionGen _ _ sm _ _ (IRJUMP_TEST_NZ o1 o2 (IRLabel lbl)) = emitTestJum
 emitInstructionGen _ _ sm _ _ (IRJUMP_TEST_Z o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jz" lbl
 emitInstructionGen mbExterns structs sm _ _ (IRCALL dest funcName args mbType) = emitCallGen mbExterns structs sm dest funcName args mbType
 emitInstructionGen _ structs sm endLbl _ (IRRET mbOp) = emitRet structs sm endLbl mbOp
+emitInstructionGen _ _ sm _ _ (IRSTORE ptr value) = emitStore sm ptr value
 emitInstructionGen _ _ sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
 emitInstructionGen _ _ sm _ _ (IRLOAD_OFFSET dest ptr offset typ) = emitLoadOffset sm dest ptr offset typ
 emitInstructionGen _ structs sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray structs sm fn dest elemType values
@@ -365,35 +380,13 @@ emitCall = emitCallGen Nothing
 emitCallGen :: Maybe [Extern] -> StructMap -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCallGen mbExterns structs sm dest funcName args mbType =
   let argSetup    = setupCallArgs sm args
-      firstFloatType =
-        foldr
-          (\op acc -> case (acc, getOperandType op) of
-                        (Nothing, Just t) | isFloatType t -> Just t
-                        _                                 -> acc)
-          Nothing
-          args
-      printfFixup = printfFixupHelp firstFloatType x86_64FloatArgsRegisters
       usePlt      = case mbExterns of
                       Just externs -> funcName `elem` externs
                       Nothing      -> False
       callTarget  = if usePlt then funcName <> " wrt ..plt" else funcName
       callInstr   = [emit 1 $ "call " <> callTarget]
       retSave     = saveCallResult structs sm dest mbType
-   in argSetup <> printfFixup <> callInstr <> retSave
-  where
-    printfFixupHelp (Just IRF32) (floatReg:_)
-      | funcName `elem` ["printf", "dprintf"] =
-        [ emit 1 $ "cvtss2sd " <> floatReg <> ", " <> floatReg
-        , emit 1   "mov eax, 1"
-        ]
-    printfFixupHelp (Just IRF64) (_:_) 
-      | funcName `elem` ["printf", "dprintf"] =
-        [ emit 1 "mov eax, 1" ]
-    printfFixupHelp Nothing _
-      | funcName `elem` ["printf", "dprintf"] = [emit 1 "xor eax, eax"]
-    printfFixupHelp _ _
-      | funcName `elem` ["printf", "dprintf"] = []
-    printfFixupHelp _ _ = []
+   in argSetup <> callInstr <> retSave
 
 setupCallArgs :: Map String Int -> [IROperand] -> [String]
 setupCallArgs sm args =
@@ -497,6 +490,20 @@ emitDeref sm dest ptr typ =
   , storeReg sm dest "rax" typ
   ]
 
+-- | Store a value through a pointer
+-- IRSTORE ptr value means *ptr = value
+emitStore :: Map String Int -> IROperand -> IROperand -> [String]
+emitStore sm ptr value =
+  case getOperandType value of
+    Just valueType ->
+      let sizeSpec = getSizeSpecifier valueType
+          reg = getRegisterName "rbx" valueType
+       in loadReg sm "rax" ptr  -- load pointer address into rax
+       <> loadReg sm "rbx" value  -- load value into rbx
+       <> [ emit 1 $ "mov " <> sizeSpec <> " [rax], " <> reg  -- store value at pointer address
+          ]
+    Nothing -> []
+
 -- | Load a value of given type from pointer + byte offset
 -- ptr[offset] where we load sizeof(typ) bytes
 emitLoadOffset :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
@@ -593,8 +600,13 @@ emitIncDecHelper structs sm name t asmOp =
 --  2- source is a local variable: lea its address
 emitAddr :: Map String Int -> String -> String -> IRType -> [String]
 emitAddr sm dest source t
-  | take 4 source == "str_" = [emit 1 $ "mov rax, " <> source, storeReg sm dest "rax" t]
+  | Map.member source sm = [emit 1 $ "lea rax, " <> stackAddr sm source, storeReg sm dest "rax" t]
+  | isGlobalName source = [emit 1 $ "lea rax, [rel " <> source <> "]", storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "lea rax, " <> stackAddr sm source, storeReg sm dest "rax" t]
+  where
+    -- Check if this is a global variable name (has prefix like str_, f32_, i32_, etc.)
+    isGlobalName name = any (\prefix -> take (length prefix) name == prefix) globalPrefixes
+    globalPrefixes = ["str_", "f32_", "f64_", "i8_", "i16_", "i32_", "i64_", "u8_", "u16_", "u32_", "u64_", "bool_", "char_"]
 
 -- | emit conditional jump based on test (zero/not-zero)
 emitConditionalJump :: Map String Int -> IROperand -> String -> String -> [String]

@@ -7,14 +7,14 @@ module Rune.Semantics.Type
   ) where
 
 import Data.HashMap.Strict (HashMap)
-import Rune.AST.Nodes (Type, TopLevelDef)
+import Rune.AST.Nodes (Parameter, Type, TopLevelDef)
 
 --
 -- public
 --
 
 type VarStack = HashMap String Type
-type FuncStack = HashMap String (Type, [Type])
+type FuncStack = HashMap String (Type, [Parameter])
 type StructStack = HashMap String TopLevelDef
 type Stack = (FuncStack, VarStack, StructStack)
 

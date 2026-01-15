@@ -6,10 +6,11 @@ module Rune.Semantics.Func
   , findDefs
   , transformStructMethods
   , mangleFuncName
+  , inferParamType
   )
 where
 #else
-module Rune.Semantics.Func (findFunc) where
+module Rune.Semantics.Func (findFunc, inferParamType) where
 #endif
 
 import Control.Monad (foldM)
@@ -27,12 +28,7 @@ import Rune.Semantics.Helper (fixSelfType)
 --
 
 findFunc :: Program -> Either String FuncStack
-findFunc (Program _ defs) = do
-  let builtins = HM.fromList
-        [ ("show" , (TypeNull, [TypeAny]))
-        , ("error", (TypeNull, [TypeAny]))
-        ]
-  foldM findDefs builtins defs
+findFunc (Program _ defs) = foldM findDefs HM.empty defs
 
 --
 -- private
@@ -40,39 +36,52 @@ findFunc (Program _ defs) = do
 
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
--- | find normal function definitions - keep original name, no mangling
 findDefs s (DefFunction name params rType _ _) =
-    let paramTypes = map paramType params
-        sig = (rType, paramTypes)
-    in if HM.member name s
-       then Left $ printf "FuncAlreadyExist: %s was already defined, use override" name
-       else Right $ HM.insert name sig s
+    case HM.lookup finalName s of
+        Nothing       -> Right $ HM.insert finalName sig s
+        Just existing -> handleConflict existing
+  where
+    sig         = (rType, params)
+    pTypes      = map paramType params
+    mangledName = mangleFuncName name rType pTypes
+    finalName   = if name == "main" then name else mangledName
 
--- | find override function definitions - mangle the name
-findDefs s (DefOverride name params rType _ _) =
-    let paramTypes = map paramType params
-        sig = (rType, paramTypes)
-        mangledName = mangleFuncName name rType paramTypes
-        msg = "\n\tWrongOverrideDef: %s is declared as override without any base function"
-    in case HM.lookup name s of
-      Just _ -> Right $ HM.insert mangledName sig s
-      Nothing -> Left $ printf msg name
+    handleConflict (exRet, exArgs)
+        | exRet == rType && exArgs == params = Left errSameSig
+        | otherwise                          = Left errMangled
 
--- | find function signatures defined somewhere else
+    errSameSig = printf "FuncAlreadyExist: %s was already defined with same signature" name
+    errMangled = printf "FuncAlreadyExist: %s (mangled: %s) was already defined" name finalName
+
 findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
-    addSig fs (FunctionSignature name paramTypes rType _isOverride) =
-      let sig = (rType, paramTypes)
-      in Right $ HM.insertWith (\_ old -> old) name sig fs
+    addSig fs (FunctionSignature name pTypes rType isExtern) =
+        Right $ HM.insert finalName sig fs
+      where
+        sig       = (rType, params)
+        params    = map (\t -> Parameter "" t Nothing) pTypes
+        finalName = if isExtern then name else mangleFuncName name rType pTypes
 
--- | find struct method definitions
-findDefs s (DefStruct name _ methods) =
-    let defFuncNames = [methodName | DefFunction methodName _ _ _ _ <- methods]
-        funcDuplicates = defFuncNames List.\\ List.nub defFuncNames
-        msg = "DuplicateMethodInStruct: Duplicate method '%s' in struct '%s' (use override for additional signatures)"
-    in case funcDuplicates of
-      (dup:_) -> Left $ printf msg dup name
-      [] -> foldM findDefs s (transformStructMethods name methods)
+findDefs s (DefStruct name _ methods) = foldM findDefs s $ transformStructMethods name methods
+
+-- | Infer parameter type from default value if type is TypeAny
+inferParamType :: Parameter -> Parameter
+inferParamType (Parameter name TypeAny (Just defaultExpr)) =
+  Parameter name (inferTypeFromExpr defaultExpr) (Just defaultExpr)
+inferParamType param = param
+
+-- | Infer type from a literal expression
+inferTypeFromExpr :: Expression -> Type
+inferTypeFromExpr (ExprLitInt _ _) = TypeI32
+inferTypeFromExpr (ExprLitFloat _ _) = TypeF32
+inferTypeFromExpr (ExprLitString _ _) = TypeString
+inferTypeFromExpr (ExprLitChar _ _) = TypeChar
+inferTypeFromExpr (ExprLitBool _ _) = TypeBool
+inferTypeFromExpr (ExprLitNull _) = TypeNull
+inferTypeFromExpr (ExprLitArray _ []) = TypeArray TypeAny
+inferTypeFromExpr (ExprLitArray _ (e:_)) = TypeArray (inferTypeFromExpr e)
+inferTypeFromExpr (ExprStructInit _ sName _) = TypeCustom sName
+inferTypeFromExpr _ = TypeAny  -- For complex expressions, keep TypeAny
 
 -- | check if a method is static (doesn't need self)
 -- TODO: add maybe more static method such as static keyword idk
@@ -85,12 +94,10 @@ transformStructMethods sName = map transform
   where
     transform (DefFunction methodName params rType body isExport) =
       let baseName = sName ++ "_" ++ methodName
+          -- paramsInferred = map inferParamType params
+          -- params' = if isStaticMethod methodName then paramsInferred else fixSelfType sName paramsInferred
           params' = if isStaticMethod methodName then params else fixSelfType sName params
       in DefFunction baseName params' rType body isExport
-    transform (DefOverride methodName params rType body isExport) =
-      let baseName = sName ++ "_" ++ methodName
-          params' = if isStaticMethod methodName then params else fixSelfType sName params
-      in DefOverride baseName params' rType body isExport
     transform other = other
 
 mangleFuncName :: String -> Type -> [Type] -> String

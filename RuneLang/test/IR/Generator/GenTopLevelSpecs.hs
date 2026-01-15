@@ -23,7 +23,6 @@ genTopLevelTests :: TestTree
 genTopLevelTests = testGroup "Rune.IR.Generator.GenTopLevel"
   [ testGenTopLevel
   , testGenFunction
-  , testGenOverride
   , testGenStruct
   , testGenStructMethod
   , testGenParam
@@ -44,13 +43,6 @@ testGenTopLevel = testGroup "genTopLevel"
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> irFuncName func @?= "test"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Routes DefOverride to genOverride" $
-      let def = DefOverride "Point_show" [Parameter "self" (TypeCustom "Point")] TypeNull [] False
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "Point_show"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Routes DefStruct to genStruct" $
@@ -75,7 +67,7 @@ testGenFunction = testGroup "genFunction"
         _ -> assertBool "Expected IRFunctionDef" False
 
   , testCase "Generates function with params" $
-      let def = DefFunction "add" [Parameter "a" TypeI32, Parameter "b" TypeI32] TypeI32 [] False
+      let def = DefFunction "add" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing] TypeI32 [] False
           result = runGenUnsafe (genTopLevel def)
       in case result of
         [IRFunctionDef func] -> do
@@ -92,23 +84,6 @@ testGenFunction = testGroup "genFunction"
         _ -> assertBool "Expected IRFunctionDef" False
   ]
 
-testGenOverride :: TestTree
-testGenOverride = testGroup "genOverride"
-  [ testCase "genOverride with params" $
-      let def = DefOverride "print" [Parameter "x" TypeI32] TypeNull [] False
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "print"
-        _ -> assertBool "Expected IRFunctionDef" False
-
-  , testCase "Handles empty params" $
-      let def = DefOverride "test" [] TypeNull [] False
-          result = runGenUnsafe (genTopLevel def)
-      in case result of
-        [IRFunctionDef func] -> irFuncName func @?= "test"
-        _ -> assertBool "Expected IRFunctionDef" False
-  ]
-
 testGenStruct :: TestTree
 testGenStruct = testGroup "genStruct"
   [ testCase "Generates struct with fields" $
@@ -122,7 +97,7 @@ testGenStruct = testGroup "genStruct"
 
   , testCase "Generates struct with methods" $
       let def = DefStruct "Vec2" [Field "x" TypeF32] 
-                [DefFunction "Vec2_magnitude" [Parameter "self" (TypeCustom "Vec2")] TypeF32 [] False]
+                [DefFunction "Vec2_magnitude" [Parameter "self" (TypeCustom "Vec2") Nothing] TypeF32 [] False]
           result = runGenUnsafe (genTopLevel def)
       in do
         length result @?= 2
@@ -143,7 +118,7 @@ testGenStruct = testGroup "genStruct"
 testGenStructMethod :: TestTree
 testGenStructMethod = testGroup "genStructMethod"
   [ testCase "Handle generation for method name" $
-      let method = DefFunction "Point_calc" [Parameter "self" (TypeCustom "Point")] TypeI32 [] False
+      let method = DefFunction "Point_calc" [Parameter "self" (TypeCustom "Point") Nothing] TypeI32 [] False
           result = runGenUnsafe (genStructMethod "Point" method)
       in case result of
         [IRFunctionDef func] -> irFuncName func @?= "Point_calc"
@@ -157,19 +132,19 @@ testGenStructMethod = testGroup "genStructMethod"
 testGenParam :: TestTree
 testGenParam = testGroup "genParam"
   [ testCase "Generates param with i32 type" $
-      let param = Parameter "x" TypeI32
+      let param = Parameter "x" TypeI32 Nothing
       in case evalState (runExceptT (genParam param)) emptyState of
         Left err -> assertFailure $ "Unexpected error: " ++ err
         Right result -> result @?= ("p_x", IRI32)
 
   , testCase "Converts struct type to pointer" $
-      let param = Parameter "point" (TypeCustom "Point")
+      let param = Parameter "point" (TypeCustom "Point") Nothing
       in case evalState (runExceptT (genParam param)) emptyState of
         Left err -> assertFailure $ "Unexpected error: " ++ err
         Right result -> result @?= ("p_point", IRPtr (IRStruct "Point"))
 
   , testCase "Handles primitive types" $
-      let param = Parameter "flag" TypeBool
+      let param = Parameter "flag" TypeBool Nothing
       in case evalState (runExceptT (genParam param)) emptyState of
         Left err -> assertFailure $ "Unexpected error: " ++ err
         Right result -> result @?= ("p_flag", IRBool)

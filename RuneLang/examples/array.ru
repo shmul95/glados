@@ -1,4 +1,4 @@
-def show_array(array: any[]) -> null
+def show_array(array: []any) -> null
 {
     comma = true;
 
@@ -15,7 +15,7 @@ def show_array(array: any[]) -> null
 
 def array_string() -> null
 {
-    arr: string[] = ["malloc", "sizeof", "char", "etoile"];
+    arr: []string = ["malloc", "sizeof", "char", "etoile"];
 
     arr[2] = "rune";
     show_array(arr);
@@ -23,14 +23,14 @@ def array_string() -> null
 
 def array_char() -> null
 {
-    arr: char[] = ['R', 'u', 'n', 'e'];
+    arr: []char = ['R', 'u', 'n', 'e'];
 
     show_array(arr);
 }
 
-def array_i32() -> i32[]
+def array_i32() -> []i32
 {
-    arr: i32[] = [1, 2, 3, 4, 5];
+    arr: []i32 = [1, 2, 3, 4, 5];
 
     arr[1] = 10;
     arr
@@ -38,7 +38,7 @@ def array_i32() -> i32[]
 
 def array_of_array() -> null
 {
-    kurwa: i32[][] = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    kurwa: [][]i32 = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
 
     for bobr in kurwa {
         show_array(bobr);

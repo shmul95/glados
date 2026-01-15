@@ -11,7 +11,6 @@ module Rune.Semantics.Generic (instantiate) where
 #endif
 
 import Rune.AST.Nodes
-import Rune.Semantics.Helper (mangleName)
 
 --
 -- public
@@ -19,15 +18,8 @@ import Rune.Semantics.Helper (mangleName)
 
 instantiate :: TopLevelDef -> [Type] -> Type -> TopLevelDef
 instantiate (DefFunction name params _ body isExport) argTypes retType =
-    let 
-        mangled = mangleName name retType argTypes
-        newParams = zipWith replaceParam params argTypes
-    in DefFunction mangled newParams retType body isExport
-instantiate (DefOverride name params _ body isExport) argTypes retType =
-    let 
-        mangled = mangleName name retType argTypes
-        newParams = zipWith replaceParam params argTypes
-    in DefOverride mangled newParams retType body isExport
+    let newParams = zipWith replaceParam params argTypes
+    in DefFunction name newParams retType body isExport
 instantiate def _ _ = def
 
 --
@@ -35,7 +27,7 @@ instantiate def _ _ = def
 --
 
 replaceParam :: Parameter -> Type -> Parameter
-replaceParam (Parameter n pType) argType = Parameter n (replaceAny pType argType)
+replaceParam (Parameter n pType pDefault) argType = Parameter n (replaceAny pType argType) pDefault
 
 replaceAny :: Type -> Type -> Type
 replaceAny TypeAny t = t

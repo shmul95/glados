@@ -49,6 +49,8 @@ data Type
   | TypeCustom String
   | TypeArray Type
   | TypePtr Type
+  | TypeRef Type
+  | TypeVariadic Type
   deriving (Eq, Ord)
 
 instance Show Type where
@@ -70,6 +72,8 @@ instance Show Type where
   show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
   show (TypePtr t)    = "ptr_" <> show t
+  show (TypeRef t)    = "ref_" <> show t
+  show (TypeVariadic t) = "..." <> show t
 
 data BinaryOp
   = Add
@@ -97,6 +101,8 @@ data UnaryOp
   | PrefixDec -- --x
   | PostfixInc -- x++
   | PostfixDec -- x--
+  | Deref -- *x
+  | Reference -- &x
   deriving (Show, Eq)
 
 data Program = Program
@@ -135,18 +141,6 @@ data TopLevelDef
         structFields :: [Field],
         structMethods :: [TopLevelDef]
       }
-  | -- | method override definition
-    -- override def show(value: Vec2f) -> null
-    -- {
-    --    ...
-    -- }
-    DefOverride
-      { overrideName :: String,
-        overrideParams :: [Parameter],
-        overrideReturnType :: Type,
-        overrideBody :: Block,
-        overrideIsExport :: Bool
-      }
   | -- | somewhere block (forward declarations)
     -- somewhere
     -- {
@@ -166,8 +160,12 @@ data TopLevelDef
 type Block = [Statement]
 
 -- | function parameter
--- (x: i32, y: f64)
-data Parameter = Parameter {paramName :: String, paramType :: Type}
+-- (x: i32, y: f64) or (msg = "shmeul")
+data Parameter = Parameter
+  { paramName :: String,
+    paramType :: Type,
+    paramDefault :: Maybe Expression
+  }
   deriving (Show, Eq)
 
 -- | struct field
@@ -183,7 +181,7 @@ data FunctionSignature = FunctionSignature
   { sigName :: String,
     sigParams :: [Type],
     sigReturnType :: Type,
-    sigIsOverride :: Bool
+    sigIsExtern :: Bool
   }
   deriving (Show, Eq)
 

@@ -23,6 +23,7 @@ delimiterMap =
     (Comma, ","),
     (Semicolon, ";"),
     (Colon, ":"),
+    (Elipsis, "..."),
     (Dot, "."),
     (LBracket, "["),
     (RBracket, "]")

@@ -15,6 +15,7 @@ import Rune.IR.Nodes
 import Rune.AST.Nodes
 import IR.TestUtils (emptyState, runGenUnsafe, runGen)
 import qualified Data.Map.Strict as Map
+import qualified Data.HashMap.Strict as HM
 import Data.List (isPrefixOf)
 
 --
@@ -30,6 +31,12 @@ genExpressionTests = testGroup "Rune.IR.Generator.GenExpression"
 --
 -- private
 --
+
+stateWithBuiltins :: GenState
+stateWithBuiltins = emptyState { gsFuncStack = HM.fromList [
+    ("show", (TypeNull, [Parameter "x" TypeAny Nothing])),
+    ("error", (TypeNull, [Parameter "msg" TypeString Nothing])) 
+  ] }
 
 testGenExpression :: TestTree
 testGenExpression = testGroup "genExpression"
@@ -86,12 +93,12 @@ testGenExpression = testGroup "genExpression"
 
   , testCase "Generates show call" $
       -- Just ensure it doesn't crash and returns some instruction
-      case runGen (genExpression (ExprCall dummyPos (ExprVar dummyPos "show") [ExprLitInt dummyPos 1])) of
+      case evalState (runExceptT (genExpression (ExprCall dummyPos (ExprVar dummyPos "show") [ExprLitInt dummyPos 1]))) stateWithBuiltins of
         Right _ -> return ()
         Left err -> assertBool ("Show call failed: " ++ err) False
 
   , testCase "Generates error call" $
-      case runGen (genExpression (ExprCall dummyPos (ExprVar dummyPos "error") [ExprLitString dummyPos "msg"])) of
+      case evalState (runExceptT (genExpression (ExprCall dummyPos (ExprVar dummyPos "error") [ExprLitString dummyPos "msg"]))) stateWithBuiltins of
         Right (_, _, typ) -> typ @?= IRNull
         Left err -> assertBool ("Error call failed: " ++ err) False
 
