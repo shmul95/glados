@@ -414,12 +414,7 @@ simplifyInstr (IRALLOC_ARRAY t ty elems) = IRALLOC_ARRAY t ty <$> mapM simplifyO
 simplifyInstr (IRGET_ELEM t arr idx ty) = IRGET_ELEM t <$> simplifyOp arr <*> simplifyOp idx <*> pure ty
 simplifyInstr (IRSET_ELEM arr idx val) = IRSET_ELEM <$> simplifyOp arr <*> simplifyOp idx <*> simplifyOp val
 simplifyInstr (IRBNOT_OP t o ty) = IRBNOT_OP t <$> simplifyOp o <*> pure ty
-simplifyInstr (IRADDR dest src ty) = do
-  op <- simplifyOp (IRTemp src ty)
-  case op of
-    IRTemp newSrc _ -> pure $ IRADDR dest newSrc ty
-    IRParam newSrc _ -> pure $ IRADDR dest newSrc ty
-    _ -> pure $ IRADDR dest src ty
+simplifyInstr (IRADDR dest src ty) = pure $ IRADDR dest src ty
 
 simplifyInstr (IRADD_OP t o1 o2 ty) = do
   o1' <- simplifyOp o1
