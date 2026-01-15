@@ -64,7 +64,7 @@ genStructInit genExpr name providedFields = do
   -- generate default initialization for missing fields
   let providedNames = providedFieldNames providedFields
       missing = missingFields allFields providedNames
-  defaultInstrs <- concat <$> mapM (genDefaultField name resName structType) missing
+  defaultInstrs <- concat <$> mapM (genDefaultField genExpr name resName structType) missing
 
   return (allocInstr : fieldInstrs ++ defaultInstrs, IRTemp resName structType, structType)
 
@@ -75,23 +75,26 @@ genStructInit genExpr name providedFields = do
     providedFieldNames :: [(String, Expression)] -> [String]
     providedFieldNames = map fst
 
-    missingFields :: [(String, IRType)] -> [String] -> [(String, IRType)]
-    missingFields allFs provided = filter (\(fName, _) -> fName `notElem` provided) allFs
+    missingFields :: [(String, IRType, Maybe Expression)] -> [String] -> [(String, IRType, Maybe Expression)]
+    missingFields allFs provided = filter (\(fName, _, _) -> fName `notElem` provided) allFs
 
 -- | generate default value initialization for a struct field
-genDefaultField :: String -> String -> IRType -> (String, IRType) -> IRGen [IRInstruction]
-genDefaultField sName resName sType (fName, fType) = do
+genDefaultField :: GenExprCallback -> String -> String -> IRType -> (String, IRType, Maybe Expression) -> IRGen [IRInstruction]
+genDefaultField genExpr sName resName sType (fName, fType, mdefault) = do
   ptrName <- newTemp "p_init" (IRPtr sType)
-  let addrInstr    = addrInstrOf ptrName
-      defaultVal   = getDefaultValue fType
-      setInstr     = setInstrOf ptrName defaultVal
-  pure [addrInstr, setInstr]
-  where
-    addrInstrOf :: String -> IRInstruction
-    addrInstrOf ptr = IRADDR ptr resName (IRPtr sType)
-
-    setInstrOf :: String -> IROperand -> IRInstruction
-    setInstrOf ptr = IRSET_FIELD (IRTemp ptr (IRPtr sType)) sName fName
+  case mdefault of
+    Just expr -> do
+      -- Generate code for the default expression
+      (exprInstrs, exprOp, _) <- genExpr expr
+      let addrInstr = IRADDR ptrName resName (IRPtr sType)
+          setInstr = IRSET_FIELD (IRTemp ptrName (IRPtr sType)) sName fName exprOp
+      pure $ exprInstrs ++ [addrInstr, setInstr]
+    Nothing -> do
+      -- Use generic default value
+      let addrInstr    = IRADDR ptrName resName (IRPtr sType)
+          defaultVal   = getDefaultValue fType
+          setInstr     = IRSET_FIELD (IRTemp ptrName (IRPtr sType)) sName fName defaultVal
+      pure [addrInstr, setInstr]
 
 
 --
@@ -110,9 +113,9 @@ lookupFieldType sName fName = do
   structs <- gets gsStructs
   case Map.lookup sName structs of
     Just fields ->
-      case lookup fName fields of
-        Just typ -> return typ
-        Nothing -> throwError $ "Struct '" ++ sName ++ "' has no field named '" ++ fName ++ "'"
+      case [ typ | (fname, typ, _) <- fields, fname == fName ] of
+        (typ:_) -> return typ
+        [] -> throwError $ "Struct '" ++ sName ++ "' has no field named '" ++ fName ++ "'"
     Nothing -> throwError $ "Struct '" ++ sName ++ "' is not defined"
 
 genInitField :: GenExprCallback -> String -> String -> IRType -> (String, Expression) -> IRGen [IRInstruction]

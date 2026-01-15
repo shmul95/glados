@@ -22,7 +22,6 @@ where
 
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe)
 
 import Rune.Backend.Helpers (emit)
 import Rune.Backend.X86_64.LoadStore (loadReg, loadRegWithExt, stackAddr, storeReg)
@@ -30,11 +29,12 @@ import Rune.Backend.X86_64.Registers (getRegisterName, getSizeSpecifier)
 import Rune.Backend.X86_64.Compare (loadFloatOperand, isFloatType)
 import Rune.IR.Nodes (IROperand (..), IRType (..))
 import Rune.IR.IRHelpers (sizeOfIRType)
+import Rune.AST.Nodes (Expression)
 
 import Lib (alignTo, alignSize)
 
--- | Type alias for struct field definitions: (fieldName, fieldType)
-type StructDef = [(String, IRType)]
+-- | Type alias for struct field definitions: (fieldName, fieldType, defaultValue)
+type StructDef = [(String, IRType, Maybe Expression)]
 
 -- | Type alias for struct definitions map
 type StructMap = Map String StructDef
@@ -52,7 +52,7 @@ getFieldOffset structMap structName fieldName =
   where
     findFieldOffset :: StructDef -> Int -> Int
     findFieldOffset [] _ = error $ "Field '" <> fieldName <> "' not found in struct '" <> structName <> "'"
-    findFieldOffset ((name, typ):rest) offset
+    findFieldOffset ((name, typ, _):rest) offset
       | name == fieldName = alignedOffset
       | otherwise = findFieldOffset rest (alignedOffset + size)
       where
@@ -118,7 +118,9 @@ getFieldType :: StructMap -> String -> String -> IRType
 getFieldType structMap structName fieldName =
   case Map.lookup structName structMap of
     Nothing -> IRI64 -- should never happens
-    Just fields -> fromMaybe IRI64 $ lookup fieldName fields
+    Just fields -> case [ t | (fname, t, _) <- fields, fname == fieldName ] of
+      (t:_) -> t
+      [] -> IRI64
 
 -- | Emit assembly for setting an integer/pointer field.
 emitSetFieldInt :: Map String Int -> IROperand -> Int -> IROperand -> IRType -> [String]

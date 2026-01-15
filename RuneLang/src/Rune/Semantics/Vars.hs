@@ -417,7 +417,14 @@ verifExprWithContext _ _ (ExprCall {}) =
 
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
-  pure $ ExprStructInit pos name fields'
+  ss <- gets stStructs
+  case HM.lookup name ss of
+    Just (DefStruct _ sFields _) -> do
+      let providedFieldNames = map fst fields'
+          missingFields = [(fieldName f, fieldDefault f) | f <- sFields, not (fieldIsStatic f), fieldName f `notElem` providedFieldNames]
+          defaultFields = [(fname, expr) | (fname, Just expr) <- missingFields]
+      pure $ ExprStructInit pos name (fields' ++ defaultFields)
+    _ -> pure $ ExprStructInit pos name fields'
 
 verifExprWithContext hint vs (ExprIndex pos target idx) = do
   target' <- verifExprWithContext hint vs target

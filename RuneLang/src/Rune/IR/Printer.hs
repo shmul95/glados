@@ -47,7 +47,7 @@ printTopLevel (IRGlobalDef name (IRGlobalFloatVal value typ)) =
 printTopLevel (IRFunctionDef func) =
   printFunction func
 printTopLevel (IRStructDef name fields) =
-  "STRUCT " ++ name ++ " { " ++ intercalate ", " (map (\(n, t) -> n ++ ": " ++ printType t) fields) ++ " }"
+  "STRUCT " ++ name ++ " { " ++ intercalate ", " (map (\(n, t, _) -> n ++ ": " ++ printType t) fields) ++ " }"
 
 printFunction :: IRFunction -> String
 printFunction (IRFunction name params _ body _) =

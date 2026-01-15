@@ -74,7 +74,7 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- STRUCT Vec2f { x: f32, y: f32 }
 genStruct :: TopLevelDef -> IRGen [IRTopLevel]
 genStruct (DefStruct name fields methods) = do
-  let irFields = map (\(Field n t _ _ _) -> (n, astTypeToIRType t)) fields
+  let irFields = map (\(Field n t _ _ d) -> (n, astTypeToIRType t, d)) [f | f <- fields, not (fieldIsStatic f)]
   modify $ \s -> s {gsStructs = insert name irFields (gsStructs s)}
   methodDefs <- concat <$> mapM (genStructMethod name) methods
   pure $ IRStructDef name irFields : methodDefs

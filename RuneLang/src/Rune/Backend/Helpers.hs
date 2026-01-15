@@ -31,6 +31,7 @@ import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, Global, Struct)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
+import Rune.AST.Nodes (Expression)
 import Lib (isPrintable, alignTo, alignSize)
 import Data.Char (ord)
 
@@ -52,7 +53,9 @@ calculateStackMap :: StructMap -> Function -> (Map.Map String Int, Int)
 calculateStackMap structMap func =
   let varsMap = collectIRVars func
       varsList = Map.toList varsMap
-      (totalUsedSize, offsetsMap) = foldl' (accumulateOffset structMap) (0, Map.empty) varsList
+      -- Convert local variables to struct field format (with dummy Maybe Expression)
+      varsListWithDefaults = [(n, t, Nothing) | (n, t) <- varsList]
+      (totalUsedSize, offsetsMap) = foldl' (accumulateOffset structMap) (0, Map.empty) varsListWithDefaults
       totalSize = alignTo 16 totalUsedSize
       rbpOffsetsMap = Map.map (makeRbpOffset totalUsedSize) offsetsMap
    in (rbpOffsetsMap, totalSize)
@@ -117,8 +120,8 @@ collectVars acc (IRINC _) = acc
 collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
 
-accumulateOffset :: StructMap -> (Int, Map.Map String Int) -> (String, IRType) -> (Int, Map.Map String Int)
-accumulateOffset structMap (currentOffset, accMap) (name, irType) =
+accumulateOffset :: StructMap -> (Int, Map.Map String Int) -> (String, IRType, Maybe Expression) -> (Int, Map.Map String Int)
+accumulateOffset structMap (currentOffset, accMap) (name, irType, _) =
   let size = sizeOfIRType structMap irType
       align = alignSize size
       alignedOffset = alignTo align currentOffset
