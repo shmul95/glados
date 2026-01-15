@@ -87,16 +87,10 @@ isRightFunction :: (String, [Type]) -> String -> (Type, [Type]) -> Bool
 isRightFunction (fname, argTypes) name (ret, _) =
   name == mangleName fname ret argTypes
 
-isStructMethod :: String -> Bool
-isStructMethod = elem '_'
-
 isCompatibleMangling :: String -> String -> Type -> [Type] -> [Type] -> Bool
 isCompatibleMangling baseName fname ret paramTypes argTypes =
-  let prefix = show ret <> "_" <> baseName
-      nameOk =
-           fname == baseName
-        || fname == prefix
-        || take (length prefix) fname == prefix
+  let mangledName = mangleName baseName ret paramTypes
+      nameOk = fname == baseName || fname == mangledName
       argsOk =
            length paramTypes == length argTypes
         && all (uncurry isTypeCompatible) (zip paramTypes argTypes)
@@ -180,13 +174,11 @@ checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
             fs
 
       compatible =
-        if isStructMethod fname
-        then HM.toList $
-             HM.filterWithKey
-               (\k (ret, ps) ->
-                 isCompatibleMangling fname k ret (map paramType ps) argTypes)
-               fs
-        else []
+        HM.toList $
+          HM.filterWithKey
+            (\k (ret, ps) ->
+              isCompatibleMangling fname k ret (map paramType ps) argTypes)
+            fs
 
       candidates =
         case (exact, compatible, HM.lookup fname fs) of
