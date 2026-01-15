@@ -73,3 +73,7 @@ packages:
 
 # system-ghc: true
 # install-ghc: false
+
+nix:
+  enable: true
+  packages: [nasm, gcc, binutils]
