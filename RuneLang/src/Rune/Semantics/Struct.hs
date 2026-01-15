@@ -20,6 +20,7 @@ import Control.Monad (foldM)
 import Rune.AST.Nodes
 import Rune.Semantics.Type (StructStack)
 import Rune.Semantics.Helper (SemanticError(..), formatSemanticError)
+import Rune.Semantics.Func (inferTypeFromExpr)
 
 import qualified Data.HashMap.Strict as HM
 import qualified Data.List as List
@@ -77,7 +78,18 @@ checkFields sName pos structs fields = do
     [] -> mapM (validateFieldType sName pos structs) fields
 
 validateFieldType :: String -> SourcePos -> StructStack -> Field -> Either String Field
-validateFieldType sName pos structs field = validateType $ fieldType field
+validateFieldType sName pos structs field = do
+  checkedType <- validateType $ fieldType field
+  case fieldDefault field of
+    Nothing -> Right checkedType
+    Just expr -> do
+      let exprType = inferTypeFromExpr expr
+          fType = fieldType field
+      if exprType == fType || exprType == TypeAny || fType == TypeAny
+        then Right checkedType
+        else Left $ mkError pos
+          (printf "field '%s' default value to have type '%s'" (fieldName field) (show fType))
+          (printf "default value has type '%s'" (show exprType))
   where
 
     validateType :: Type -> Either String Field

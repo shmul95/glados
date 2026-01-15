@@ -7,10 +7,16 @@ module Rune.Semantics.Func
   , transformStructMethods
   , mangleFuncName
   , inferParamType
+  , inferTypeFromExpr
   )
 where
 #else
-module Rune.Semantics.Func (findFunc, inferParamType) where
+module Rune.Semantics.Func
+  ( findFunc
+  , inferParamType
+  , inferTypeFromExpr
+  )
+where
 #endif
 
 import Control.Monad (foldM)
