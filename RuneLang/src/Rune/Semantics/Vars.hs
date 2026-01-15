@@ -93,6 +93,9 @@ verifVars (Program n defs) = do
 --
 -- private
 --
+mkErrorReturn :: SourcePos -> String -> String -> String
+mkErrorReturn (SourcePos file line col) expected got =
+  formatSemanticError $ SemanticError file line col expected got ["function body", "control flow"]
 
 isGeneric :: TopLevelDef -> Bool
 isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
@@ -172,12 +175,14 @@ verifScope vs (StmtExpr pos e : stmts) = do
 
 verifScope vs (StmtReturn pos (Just e) : stmts) = do
   e'      <- verifExpr vs e
-  stmts'  <- verifScope vs stmts
-  pure $ StmtReturn pos (Just e') : stmts'
+  if not (null stmts)
+    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
+    else pure [StmtReturn pos (Just e')]
 
-verifScope vs (StmtReturn pos Nothing : stmts) = do
-  stmts'  <- verifScope vs stmts
-  pure $ StmtReturn pos (Just (ExprLitNull pos)) : stmts'
+verifScope _ (StmtReturn pos Nothing : stmts) = do
+  if not (null stmts)
+    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
+    else pure [StmtReturn pos (Just (ExprLitNull pos))]
 
 verifScope vs (StmtIf pos cond a (Just b) : stmts) = do
   cond'   <- verifExpr vs cond
