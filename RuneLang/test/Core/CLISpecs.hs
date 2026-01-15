@@ -30,17 +30,22 @@ cliTests =
 usageString :: String
 usageString =
   unlines
-    [ "Usage: rune <command> [file] [options]",
-      "",
-      "Commands:",
-      "  help           Show this help message",
-      "  build [file]   Compile the given source file",
-      "  run   [file]   Show the IR of the given source file",
-      "",
-      "Options:",
-      "  -o, --output <file>   Specify the output file for compilation",
-      "  -c                    Compile to object file",
-      "  -S                    Compile to assembly code"
+    [ "Usage: rune <command> [file] [options]"
+    , ""
+    , "Commands:"
+    , "  help           Show this help message"
+    , "  build [file]   Compile the given source file (.ru, .rune, .asm)"
+    , "  run   [file]   Show the IR of the given source file (.ru, .rune)"
+    , ""
+    , "Options:"
+    , "  -o, --output <file>   Specify the output file for compilation"
+    , "  -c                    Compile to object file"
+    , "  -S                    Compile to assembly code"
+    , "  -shared               Build a shared library (.so)"
+    , "  -static-lib           Build a static library (.a)"
+    , "  -L<path>              Add library search path"
+    , "  -l<name>              Link with library"
+    , "  -I<path>              Add include search path for 'use' statements"
     ]
 
 cleanOutput :: String -> String
