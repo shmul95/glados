@@ -18,7 +18,7 @@ module Rune.IR.Generator.GenStatement
 where
 #endif
 
-import Rune.AST.Nodes (Expression(..), Statement (..), Type(..))
+import Rune.AST.Nodes (Expression(..), Statement (..), Type(..), UnaryOp(..))
 import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.Generator.Statement.ControlFlow (genIfElse, genIfNoElse, genNext, genStop)
 import Rune.IR.Generator.Statement.Loops (genForEach, genForTo, genLoop)
@@ -85,6 +85,10 @@ genVarType Nothing inferred = inferred
 genAssignment :: Expression -> Expression -> IRGen [IRInstruction]
 genAssignment (ExprIndex _ target idx) rvalue = genIndexAssign genExpression target idx rvalue
 genAssignment (ExprAccess _ target field) rvalue = genAccessAssign genExpression target field rvalue
+genAssignment (ExprUnary _ Deref ptrExpr) rvalue = do
+  (pInstrs, pOp, _) <- genExpression ptrExpr
+  (rInstrs, rOp, _) <- genExpression rvalue
+  pure $ pInstrs <> rInstrs <> [IRSTORE pOp rOp]
 genAssignment lvalue rvalue = do
   (lInstrs, lOp, _) <- genExpression lvalue
   (rInstrs, rOp, rType) <- genExpression rvalue
