@@ -42,7 +42,7 @@ tokenKindDerivingTests =
   testGroup
     "TokenKind Deriving (Show, Eq, Ord)"
     [ testTokenKindGroup "Keywords"
-        [ KwDef, KwReturn, KwStruct, KwIf, KwElse, KwFor, KwTo, KwIn, KwLoop, KwStop, KwNext, KwSomewhere, KwExport, KwSizeof, KwAs ]
+        [ KwDef, KwReturn, KwStruct, KwIf, KwElse, KwFor, KwTo, KwIn, KwLoop, KwStop, KwNext, KwSomewhere, KwExport, KwExtern, KwSizeof, KwAs ]
     , testTokenKindGroup "Primitives"
         [ TypeI8, TypeI16, TypeI32, TypeI64, TypeF32, TypeF64, TypeBool, TypeU8, TypeU16, TypeU32, TypeU64, TypeChar, TypeString, TypeAny, TypeNull ]
     , testTokenKindGroup "Literals"
@@ -50,9 +50,9 @@ tokenKindDerivingTests =
     , testTokenKindGroup "Identifiers"
         [ Identifier "a", Identifier "b" ]
     , testTokenKindGroup "Operators"
-        [ OpPlus, OpMinus, OpMul, OpDiv, OpMod, OpAssign, OpAddAssign, OpSubAssign, OpMulAssign, OpDivAssign, OpModAssign, OpInc, OpDec, OpEq, OpNeq, OpLt, OpLte, OpGt, OpGte, OpAnd, OpOr, OpNot, OpErrorProp, OpArrow, OpSquigArrow ]
+        [ OpPlus, OpMinus, OpMul, OpDiv, OpMod, OpAssign, OpAddAssign, OpSubAssign, OpMulAssign, OpDivAssign, OpModAssign, OpInc, OpDec, OpEq, OpNeq, OpLt, OpLte, OpGt, OpGte, OpAnd, OpOr, OpBitAnd, OpNot, OpBitNot, OpErrorProp, OpArrow, OpSquigArrow ]
     , testTokenKindGroup "Delimiters & EOF"
-        [ LParen, RParen, LBrace, RBrace, Comma, Semicolon, Colon, Dot, RBracket, LBracket, EOF ]
+        [ LParen, RParen, LBrace, RBrace, Comma, Semicolon, Colon, Dot, Elipsis, RBracket, LBracket, EOF ]
     ]
 
 test_field_accessors :: TestTree

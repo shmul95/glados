@@ -49,6 +49,8 @@ data Type
   | TypeCustom String
   | TypeArray Type
   | TypePtr Type
+  | TypeRef Type
+  | TypeVariadic Type
   deriving (Eq, Ord)
 
 instance Show Type where
@@ -70,6 +72,8 @@ instance Show Type where
   show (TypeArray t)  = "arr" <> show t
   show (TypeCustom s) = s
   show (TypePtr t)    = "ptr_" <> show t
+  show (TypeRef t)    = "ref_" <> show t
+  show (TypeVariadic t) = "..." <> show t
 
 data BinaryOp
   = Add
@@ -174,7 +178,8 @@ data Field = Field {fieldName :: String, fieldType :: Type}
 data FunctionSignature = FunctionSignature
   { sigName :: String,
     sigParams :: [Type],
-    sigReturnType :: Type
+    sigReturnType :: Type,
+    sigIsExtern :: Bool
   }
   deriving (Show, Eq)
 

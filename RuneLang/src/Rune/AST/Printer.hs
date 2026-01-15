@@ -34,7 +34,7 @@ where
 module Rune.AST.Printer (prettyPrint) where
 #endif
 
-import Control.Monad (void)
+import Control.Monad (void, when)
 import Control.Monad.State.Strict (State, execState, get, modify)
 import Rune.AST.Nodes
 
@@ -104,8 +104,9 @@ visitSomewhere (DefSomewhere sigs) = do
   emitBlock "Signatures:" (mapM_ emitSig sigs)
   dedent
   where
-    emitSig (FunctionSignature name paramTypes retType) = do
+    emitSig (FunctionSignature name paramTypes retType isExtern) = do
       newLine
+      when isExtern $ emit "extern "
       emit $ name <> "("
       emit $ unwords (map showType paramTypes)
       emit $ ") -> " <> showType retType
@@ -327,6 +328,8 @@ showType TypeNull = "null"
 showType (TypeCustom s) = s
 showType (TypeArray t) = "[" <> showType t <> "]"
 showType (TypePtr t) = "*" <> showType t
+showType (TypeRef t) = "&" <> showType t
+showType (TypeVariadic t) = "..." <> showType t
 
 showBinaryOp :: BinaryOp -> String
 showBinaryOp Add = "+"

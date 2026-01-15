@@ -5,6 +5,11 @@ module Rune.IR.Generator.Statement.Loops
   )
 where
 
+import Control.Monad (forM)
+import Control.Monad.State (gets)
+import Data.Maybe (fromMaybe)
+import qualified Data.Map.Strict as Map
+
 import Rune.AST.Nodes (Expression, Statement, Type)
 import Rune.IR.IRHelpers
   ( makeLabel,
@@ -14,9 +19,11 @@ import Rune.IR.IRHelpers
     pushLoopContext,
     registerVar,
     astTypeToIRType,
+    getOperandType,
   )
 import Rune.IR.Nodes
   ( IRGen,
+    GenState (..),
     IRInstruction (..),
     IROperand (..),
     IRType (..),
@@ -98,11 +105,17 @@ genForTo genExpr genBlock var varType start end body = do
         [IRLABEL endLbl]
       ]
 
---
 --  for item in iterable {
 --      do_something(item);
 --  }
 --
+-- Variadic Case (Compile-time unroll):
+--      item = arg0;
+--      CALL do_something(item)
+--      item = arg1;
+--      CALL do_something(item)
+--
+-- Standard Case (Runtime loop):
 -- .L.loop_header<n>:
 --      item = *p_ptr;
 -- .L.loop_check<n>:
@@ -113,46 +126,77 @@ genForTo genExpr genBlock var varType start end body = do
 --      JUMP .L.loop_header<n>
 -- .L.loop_end<n>:
 --
+
 genForEach :: GenExprCallback -> GenBlockCallback -> String -> Expression -> [Statement] -> IRGen [IRInstruction]
 genForEach genExpr genBlock var iterable body = do
-  idx <- nextLabelIndex
-  let headerLbl = makeLabel "loop_header" idx
-      checkLbl = makeLabel "loop_check" idx
-      bodyLbl = makeLabel "body" idx
-      endLbl = makeLabel "loop_end" idx
-
   (iterInstrs, iterOp, iterType) <- genExpr iterable
   
-  -- deduce element type from iterator type
-  --   strings: IRPtr IRChar -> element is IRChar
-  --   arrays:  IRPtr (IRArray elemType _) -> element is elemType
-  let elemType = case iterType of
-                   IRPtr IRChar -> IRChar
-                   IRPtr (IRArray t _) -> t
-                   _ -> IRChar
-      ptrType = IRPtr elemType
-  
-  ptrTemp <- newTemp "p_ptr" ptrType
-  registerVar var (IRTemp var elemType) elemType
+  case iterType of
 
-  pushLoopContext headerLbl endLbl
-  bodyInstrs <- genBlock body
-  popLoopContext
+    --
+    -- variadic arguments unrolling
+    -- matches C++ "Fold Expression" behavior by repeating the body for each argument
+    --
+    IRVariadic elemType -> do
+      -- retrieve the list of actual operands from the variadic pack
+      pack <- getVariadicPack iterOp
+      
+      -- generate the loop body N times at compile-time (Zero runtime overhead)
+      unrolledInstrs <- forM pack $ \argOp -> do
+        -- dynamically bind the loop variable to the current variadic argument
+        let argType = fromMaybe elemType (getOperandType argOp)
+        registerVar var argOp argType
+        
+        -- generate instructions for the body block
+        genBlock body
 
-  pure $
-    mconcat
-      [ iterInstrs,
-        [IRASSIGN ptrTemp iterOp ptrType],
-        [IRLABEL headerLbl],
-        [IRDEREF var (IRTemp ptrTemp ptrType) elemType],
-        [IRLABEL checkLbl],
-        [IRJUMP_EQ0 (IRTemp var elemType) endLbl],
-        [IRLABEL bodyLbl],
-        bodyInstrs,
-        [IRINC (IRTemp ptrTemp ptrType)],
-        [IRJUMP headerLbl],
-        [IRLABEL endLbl]
-      ]
+      return (iterInstrs ++ concat unrolledInstrs)
+
+    --
+    -- runtime iteration for strings and arrays
+    --
+    _ -> do
+      idx <- nextLabelIndex
+      let headerLbl = makeLabel "loop_header" idx
+          checkLbl  = makeLabel "loop_check" idx
+          bodyLbl   = makeLabel "body" idx
+          endLbl    = makeLabel "loop_end" idx
+
+      let elemType = case iterType of
+                       IRPtr IRChar -> IRChar
+                       IRPtr (IRArray t _) -> t
+                       _ -> IRChar
+          ptrType = IRPtr elemType
+      
+      ptrTemp <- newTemp "p_ptr" ptrType
+      registerVar var (IRTemp var elemType) elemType
+
+      pushLoopContext headerLbl endLbl
+      bodyInstrs <- genBlock body
+      popLoopContext
+
+      pure $
+        mconcat
+          [ iterInstrs,
+            [IRASSIGN ptrTemp iterOp ptrType],
+            [IRLABEL headerLbl],
+            [IRDEREF var (IRTemp ptrTemp ptrType) elemType],
+            [IRLABEL checkLbl],
+            [IRJUMP_EQ0 (IRTemp var elemType) endLbl],
+            [IRLABEL bodyLbl],
+            bodyInstrs,
+            [IRINC (IRTemp ptrTemp ptrType)],
+            [IRJUMP headerLbl],
+            [IRLABEL endLbl]
+          ]
+
+  where
+    getVariadicPack :: IROperand -> IRGen [IROperand]
+    getVariadicPack (IRParam name (IRVariadic _)) = do
+      -- lookup the operands list associated with this variadic parameter in the state
+      packs <- gets gsVariadicPacks
+      return $ fromMaybe [] $ Map.lookup name packs
+    getVariadicPack _ = return []
 
 --
 -- k: i32 = 0;

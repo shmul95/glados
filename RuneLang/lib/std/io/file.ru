@@ -1,12 +1,15 @@
 somewhere
 {
-    def open(path: string, flags: i32) -> i32;
-    def read(fd: i32, buf: *any, count: u64) -> i64;
-    def close(fd: i32) -> i32;
-    def lseek(fd: i32, offset: i64, whence: i32) -> i64;
+    extern def open(path: string, flags: i32) -> i32;
+    extern def read(fd: i32, buf: *any, count: u64) -> i64;
+    extern def close(fd: i32) -> i32;
+    extern def lseek(fd: i32, offset: i64, whence: i32) -> i64;
 
     def allocate(size: u64) ~> *any;
     def liberate(ptr: *any) -> bool;
+
+    def error(v: string) -> i32;
+    def error(v: char) -> i32;
 }
 
 /**

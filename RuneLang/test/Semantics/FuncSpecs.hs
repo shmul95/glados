@@ -40,18 +40,16 @@ findFuncTests = testGroup "findFunc"
          HM.lookup "dup" stack @?= Just (TypeI32, [Parameter "value" TypeI32 Nothing])
          HM.lookup "bool_dup_bool" stack @?= Just (TypeBool, [Parameter "value" TypeBool Nothing]),
     testCase "struct methods are also collected" $
-      findFunc structMethodProgram @?= (Right $ HM.fromList [("show",(TypeNull,[Parameter "value" TypeAny Nothing])),("error",(TypeNull,[Parameter "msg" TypeAny Nothing])),("Vec_len",(TypeI32,[Parameter "self" (TypeCustom "Vec") Nothing]))]),
+      findFunc structMethodProgram @?= (Right $ HM.fromList [("Vec_len",(TypeI32,[Parameter "self" (TypeCustom "Vec") Nothing]))]),
     testCase "creates overrides for different signatures" $
       case findFunc duplicateFunctionProgram of
         Right stack -> do
           HM.member "foo" stack @? "Base function should exist"
           HM.member "f32_foo_f32" stack @? "Override should exist"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
-    testCase "accepts function definition with array of any type" $
+    testCase "accepts function definition with array of any type (RELOADED)" $
       let stack = either error id (findFunc arrayOverrideProgram)
-       in do
-         HM.lookup "show" stack @?= Just (TypeNull, [Parameter "value" TypeAny Nothing])
-         HM.lookup "null_show_arrany" stack @?= Just (TypeNull, [Parameter "arr" (TypeArray TypeAny) Nothing])
+       in HM.lookup "show" stack @?= Just (TypeNull, [Parameter {paramName = "arr", paramType = TypeArray TypeAny, paramDefault = Nothing}])
   ]
 
 --
@@ -92,7 +90,7 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected override 'null_show_i32' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "processes DefSomewhere with non-override signature" $
-      case findDefs HM.empty (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull]) of
+      case findDefs HM.empty (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull False]) of
         Right stack -> do
           case HM.lookup "print" stack of
             Just (TypeNull, params) -> do
@@ -103,7 +101,7 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected function 'print' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "processes DefSomewhere with override signature" $
-      case findDefs (HM.singleton "print" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull]) of
+      case findDefs (HM.singleton "print" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull False]) of
         Right stack -> do
           case HM.lookup "print" stack of
             Just (TypeNull, params) -> length params @?= 1

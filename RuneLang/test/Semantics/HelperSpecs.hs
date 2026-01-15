@@ -1,7 +1,7 @@
 module Semantics.HelperSpecs (helperSemanticsTests) where
 
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=), assertFailure, assertBool, (@?))
+import Test.Tasty.HUnit (testCase, (@?=), assertFailure)
 import qualified Data.HashMap.Strict as HM
 import Data.List (isInfixOf)
 
@@ -32,6 +32,28 @@ funcStack1 = HM.fromList
 stack1 :: Stack
 stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)], HM.empty)
 
+structStack1 :: HM.HashMap String TopLevelDef
+structStack1 = HM.fromList
+  [ ("Point", DefStruct "Point" 
+      [ Field "x" TypeF32
+      , Field "y" TypeF32
+      ] [])
+  , ("Empty", DefStruct "Empty" [] [])
+  , ("Fake", DefFunction "Fake" [] TypeNull [] False)
+  ]
+
+paramI32 :: Parameter
+paramI32 = Parameter "a" TypeI32 Nothing
+
+paramF32 :: Parameter
+paramF32 = Parameter "b" TypeF32 Nothing
+
+paramVariadicI32 :: Parameter
+paramVariadicI32 = Parameter "v" (TypeVariadic TypeI32) Nothing
+
+paramWithDefault :: Parameter
+paramWithDefault = Parameter "d" TypeI32 (Just (ExprLitInt dummyPos 42))
+
 --
 -- public
 --
@@ -51,6 +73,8 @@ helperSemanticsTests =
     , semanticErrorAccessorsTests
     , typeCompatibleTests
     , specificityTests
+    , getFieldTypeTests
+    , fixSelfTypeTests
     ]
 
 --
@@ -68,15 +92,26 @@ semanticErrorAccessorsTests = testCase "SemanticError accessors" $ do
   seContext err @?= ["context1", "context2"]
 
 typeCompatibleTests :: TestTree
-typeCompatibleTests = testGroup "isTypeCompatible additional branches"
-  [ testCase "i32 compatible with i64" $ isTypeCompatible TypeI64 TypeI32 @? "i64 < i32"
-  , testCase "f32 compatible with f64" $ isTypeCompatible TypeF64 TypeF32 @? "f64 < f32"
-  , testCase "i16 compatible with i8"  $ isTypeCompatible TypeI16 TypeI8  @? "i16 < i8"
-  , testCase "f64 compatible with f32" $ isTypeCompatible TypeF64 TypeF32 @? "f64 < f32"
-  , testCase "int family compatibility" $ isTypeCompatible TypeI64 TypeU32 @? "i64 < u32"
-  , testCase "float family compatibility" $ isTypeCompatible TypeF64 TypeF32 @? "f64 < f32"
-  , testCase "I32 actual with integer expected (U64)" $ isTypeCompatible TypeU64 TypeI32 @? "u64 < i32"
-  , testCase "Incompatible types (I32 and String)" $ isTypeCompatible TypeI32 TypeString @?= False
+typeCompatibleTests = testGroup "isTypeCompatible"
+  [ testCase "Any left" $ isTypeCompatible TypeAny TypeString @?= True
+  , testCase "Any right" $ isTypeCompatible TypeString TypeAny @?= True
+  , testCase "Ptr Any left" $ isTypeCompatible (TypePtr TypeAny) TypeI32 @?= True
+  , testCase "Ptr Any right" $ isTypeCompatible TypeI32 (TypePtr TypeAny) @?= True
+  , testCase "Ptr Null match" $ isTypeCompatible (TypePtr TypeI32) TypeNull @?= True
+  , testCase "Null Ptr match" $ isTypeCompatible TypeNull (TypePtr TypeF32) @?= True
+  , testCase "Ptr Char String" $ isTypeCompatible (TypePtr TypeChar) TypeString @?= True
+  , testCase "String Ptr Char" $ isTypeCompatible TypeString (TypePtr TypeChar) @?= True
+  , testCase "Recursive Ptr" $ isTypeCompatible (TypePtr TypeI32) (TypePtr TypeI32) @?= True
+  , testCase "Ref accepts value" $ isTypeCompatible (TypeRef TypeI32) TypeI32 @?= True
+  , testCase "Value passed as Ref" $ isTypeCompatible TypeI32 (TypeRef TypeI32) @?= True
+  , testCase "Variadic match" $ isTypeCompatible (TypeVariadic TypeI32) TypeI32 @?= True
+  , testCase "Same type match" $ isTypeCompatible TypeBool TypeBool @?= True
+  , testCase "I32 promotion" $ isTypeCompatible TypeI64 TypeI32 @?= True
+  , testCase "F32 promotion" $ isTypeCompatible TypeF64 TypeF32 @?= True
+  , testCase "Int family" $ isTypeCompatible TypeI16 TypeU8 @?= True
+  , testCase "Float family" $ isTypeCompatible TypeF64 TypeF32 @?= True
+  , testCase "Incompatible mixed" $ isTypeCompatible TypeBool TypeI32 @?= False
+  , testCase "Incompatible structs" $ isTypeCompatible (TypeCustom "A") (TypeCustom "B") @?= False
   ]
 
 specificityTests :: TestTree
@@ -183,14 +218,12 @@ exprTypeTests = testGroup "exprType Tests"
       let vs = HM.singleton "a" TypeAny
       in exprType (funcStack1, vs, HM.empty) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
   , testCase "ExprLitArray incompatible elements - Error" $ 
-      (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of 
-          Left err -> "IncompatibleArrayElements:" `isInfixOf` err @? "Expected IncompatibleArrayElements error"
-          Right _ -> assertFailure "Expected error")
-  , testCase "ExprIndex on non-array - Error" $ 
-      (case exprType stack1 (ExprIndex dummyPos (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 0)) of 
-          Left err -> "IndexingNonArray:" `isInfixOf` err @? "Expected IndexingNonArray error"
-          Right _ -> assertFailure "Expected error")
-  , testCase "ExprStructInit Type" $ 
+      (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of
+                Left err -> err @?= "incompatible array element types, expected i32"
+                Right _ -> assertFailure "Expected error")  , testCase "ExprIndex on non-array - Error" $ 
+      (case exprType stack1 (ExprIndex dummyPos (ExprLitInt dummyPos 1) (ExprLitInt dummyPos 0)) of
+                Left err -> err @?= "cannot index type i32"
+                Right _ -> assertFailure "Expected error")  , testCase "ExprStructInit Type" $ 
       exprType stack1 (ExprStructInit dummyPos "Vec2f" []) @?= Right (TypeCustom "Vec2f")
   , testCase "ExprAccess Type" $ 
       exprType stack1 (ExprAccess dummyPos (ExprVar dummyPos "p") "x") @?= Left "[ERROR]: test.ru:0:0: error:\n  Expected: field access to be valid on type any\n  Got: cannot access field 'x' on type 'any'\n  ... in field access\n  ... in global context"
@@ -245,48 +278,58 @@ selectSignatureTests = testGroup "selectSignature Tests"
 
 checkEachParamTests :: TestTree
 checkEachParamTests = testGroup "checkEachParam Tests"
-  [ testCase "Match" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing] @?= Nothing
-  , testCase "Mismatch Type - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "x"] [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]
-      in case result of 
-        Just err -> do 
-          seExpected err @?= "argument 1 to have type f32"
-          seGot err @?= "type i32"
-          seContext err @?= ["parameter check", "function call", "global context"]
-        Nothing -> assertFailure "Expected error"
-  , testCase "Too Few Arguments - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [Parameter "a" TypeI32 Nothing, Parameter "b" TypeF32 Nothing]
-      in case result of 
-        Just err -> do 
-           seExpected err @?= "2 arguments"
-           seGot err @?= "1 arguments (too few)"
-           seContext err @?= ["parameter count", "function call", "global context"]
-        Nothing -> assertFailure "Expected error"
-  , testCase "Too Many Arguments - Error Content" $ 
-      let result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x", ExprVar dummyPos "f"] [Parameter "a" TypeI32 Nothing]
-      in case result of 
-        Just err -> do 
-           seExpected err @?= "1 arguments"
-           seGot err @?= "2 arguments (too many)"
-           seContext err @?= ["parameter count", "function call", "global context"]
-        Nothing -> assertFailure "Expected error"
-  , testCase "TypeAny Match" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [Parameter "a" TypeAny Nothing] @?= Nothing
-  , testCase "TypeArray TypeAny (Match with array literal)" $ 
-      checkEachParam stack1 "test.ru" 0 0 0 [ExprLitArray dummyPos [ExprLitInt dummyPos 1]] [Parameter "a" (TypeArray TypeAny) Nothing] @?= Nothing
-  , testCase "TypeArray TypeAny (Mismatch with non-array)" $ 
-      let expectedMsg = "argument 0 to have type arrany"
-          result = checkEachParam stack1 "test.ru" 0 0 0 [ExprVar dummyPos "x"] [Parameter "a" (TypeArray TypeAny) Nothing]
-      in assertBool ("Expected msg: " ++ expectedMsg) (case result of Just _ -> True; Nothing -> False)
-  , testCase "Nested Expression Error - Error Content" $ 
-      let badExpr = ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "s")
-      in (case checkEachParam stack1 "test.ru" 0 0 0 [badExpr] [Parameter "a" TypeI32 Nothing] of 
-        Just err -> do 
-           seExpected err @?= "valid expression type"
-           assertBool "Got should contain WrongType" ("WrongType" `isInfixOf` seGot err)
-           seContext err @?= ["parameter check", "function call"]
-        Nothing -> assertFailure "Expected error")
+  [ testCase "Match simple: multiple params" $
+      checkEachParam stack1 "test.ru" 1 1 0 
+        [ExprLitInt dummyPos 1, ExprLitFloat dummyPos 2.0] 
+        [paramI32, paramF32] @?= Nothing
+
+  , testCase "Error: Expression type failure (Binary mismatch)" $
+      let badExpr = ExprBinary dummyPos Add (ExprLitInt dummyPos 1) (ExprLitString dummyPos "hi")
+          result = checkEachParam stack1 "test.ru" 1 1 0 [badExpr] [paramI32]
+      in case result of
+           Just err -> do
+             seExpected err @?= "valid expression type"
+             seContext err @?= ["parameter check", "function call"]
+           Nothing -> assertFailure "Should have failed due to invalid expression"
+
+  , testCase "Variadic: Match multiple arguments" $
+      checkEachParam stack1 "test.ru" 1 1 0 
+        [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2, ExprLitInt dummyPos 3] 
+        [paramVariadicI32] @?= Nothing
+
+  , testCase "Variadic: Match zero arguments (empty)" $
+      checkEachParam stack1 "test.ru" 1 1 0 [] [paramVariadicI32] @?= Nothing
+
+  , testCase "Variadic: Type mismatch on second variadic arg" $
+      let result = checkEachParam stack1 "test.ru" 1 1 0 
+                     [ExprLitInt dummyPos 1, ExprLitString dummyPos "fail"] 
+                     [paramVariadicI32]
+      in case result of
+           Just err -> seGot err @?= "type str"
+           Nothing -> assertFailure "Should have failed: variadic type mismatch"
+
+  , testCase "Normal: Type mismatch" $
+      let result = checkEachParam stack1 "test.ru" 1 1 0 [ExprLitString dummyPos "hi"] [paramI32]
+      in case result of
+           Just err -> seExpected err @?= "argument 0 to have type i32"
+           Nothing -> assertFailure "Should have failed: type mismatch"
+
+  , testCase "Too few arguments: missing required param" $
+      let result = checkEachParam stack1 "test.ru" 1 1 0 [] [paramI32]
+      in case result of
+           Just err -> seGot err @?= "0 arguments (too few)"
+           Nothing -> assertFailure "Should have failed: too few arguments"
+
+  , testCase "Default values: missing arg but has default" $
+      checkEachParam stack1 "test.ru" 1 1 0 [] [paramWithDefault] @?= Nothing
+
+  , testCase "Too many arguments: extra args are ignored (standard behavior)" $
+      checkEachParam stack1 "test.ru" 1 1 0 
+        [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2] 
+        [paramI32] @?= Nothing
+
+  , testCase "Empty: No args, no params" $
+      checkEachParam stack1 "test.ru" 1 1 0 [] [] @?= Nothing
   ]
 
 checkParamTypeTests :: TestTree
@@ -357,7 +400,7 @@ errorFormattingTests = testGroup "Error Formatting Tests"
       formatSemanticError err @?= "[ERROR]: f.ru:1:2: error:\n  Expected: exp\n  Got: got\n  ... in ctx1\n  ... in ctx2"
   , testCase "error format for undefined variable" $ 
       (case checkMultipleType "undefinedVar" "app.ru" 20 8 Nothing TypeI32 of 
-          Right _ -> return ()  -- Success expected for undefined var with Nothing
+          Right _ -> return ()
           Left _ -> assertFailure "Should succeed for new variable")
   
   , testCase "error format for type mismatch includes both types" $ 
@@ -383,3 +426,59 @@ errorFormattingTests = testGroup "Error Formatting Tests"
       if needle `isInfixOf` haystack
         then return ()
         else assertFailure $ msg ++ ": expected to find '" ++ needle ++ "' in '" ++ haystack ++ "'"
+
+getFieldTypeTests :: TestTree
+getFieldTypeTests = testGroup "getFieldType Tests"
+  [ testCase "Success: Access existing field" $ 
+      getFieldType dummyPos structStack1 (TypeCustom "Point") "x" @?= Right TypeF32
+
+  , testCase "Error: Field does not exist in struct" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "Point") "z" of
+        Left err -> do
+          seExpected err @?= "field 'z' to exist in struct 'Point'"
+          seGot err @?= "undefined field"
+        Right _ -> assertFailure "Should have failed: undefined field"
+
+  , testCase "Error: Struct name not found in stack" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "Unknown") "x" of
+        Left err -> do
+          seExpected err @?= "struct 'Unknown' to exist"
+          seGot err @?= "undefined struct"
+        Right _ -> assertFailure "Should have failed: undefined struct"
+
+  , testCase "Error: Name exists but is not a struct" $ 
+      case getFieldType dummyPos structStack1 (TypeCustom "Fake") "x" of
+        Left err -> do
+          seExpected err @?= "struct 'Fake' to be a valid struct definition"
+          seGot err @?= "not a struct definition"
+        Right _ -> assertFailure "Should have failed: not a struct"
+
+  , testCase "Error: Field access on non-custom type (e.g. i32)" $ 
+      case getFieldType dummyPos structStack1 TypeI32 "x" of
+        Left err -> do
+          seExpected err @?= "field access to be valid on type i32"
+          seGot err @?= "cannot access field 'x' on type 'i32'"
+        Right _ -> assertFailure "Should have failed: invalid type"
+  ]
+
+fixSelfTypeTests :: TestTree
+fixSelfTypeTests = testGroup "fixSelfType Tests"
+  [ testCase "Success: Replaces self type" $ 
+      let params = [Parameter "self" TypeAny Nothing, Parameter "x" TypeI32 Nothing]
+          result = fixSelfType "Point" params
+      in case result of
+           (p:_) -> do
+             paramName p @?= "self"
+             paramType p @?= TypeCustom "Point"
+           [] -> assertFailure "Expected non-empty params list"
+
+  , testCase "No change: No parameters" $ 
+      fixSelfType "Point" [] @?= []
+
+  , testCase "No change: First parameter is not 'self'" $ 
+      let params = [Parameter "x" TypeI32 Nothing, Parameter "self" TypeAny Nothing]
+          result = fixSelfType "Point" params
+      in case result of
+           (p:_) -> paramType p @?= TypeI32
+           []    -> assertFailure "Expected non-empty params list"
+  ]

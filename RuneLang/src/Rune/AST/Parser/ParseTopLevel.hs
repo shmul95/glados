@@ -188,12 +188,13 @@ parseFunctionSignatures = do
 
 parseFunctionSignature :: Parser FunctionSignature
 parseFunctionSignature = do
+  isExtern <- (True <$ expect T.KwExtern) <|> pure False
   _ <- expect T.KwDef
   name <- parseIdentifier
   paramTypes <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamTypeInSignature (expect T.Comma))
   retType <- parseReturnType
   _ <- expect T.Semicolon
-  pure $ FunctionSignature name paramTypes retType
+  pure $ FunctionSignature name paramTypes retType isExtern
 
 parseParamTypeInSignature :: Parser Type
 parseParamTypeInSignature =
