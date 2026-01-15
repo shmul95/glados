@@ -55,7 +55,8 @@ data OptState = OptState
   { osConsts :: ConstMap,
     osFuncs :: FuncMap,
     osKeepAssignments :: Bool,
-    osUseCounts :: UseCount
+    osUseCounts :: UseCount,
+    osAddrTaken :: S.Set String
   }
 
 type OptM = State OptState
@@ -109,7 +110,8 @@ optimizeFunction :: FuncMap -> IRFunction -> IRFunction
 optimizeFunction funcs f = f { irFuncBody = finalBody }
   where
     hasCF = any isControlFlow (irFuncBody f)
-    initialState = OptState M.empty funcs hasCF M.empty
+    addrTaken = getAddrTaken (irFuncBody f)
+    initialState = OptState M.empty funcs hasCF M.empty addrTaken
     (optimizedBody, _) = runState (optimizeBlock (irFuncBody f)) initialState
     useCounts = countUses optimizedBody
     withPeephole = peepholeOptimize useCounts optimizedBody
@@ -117,6 +119,12 @@ optimizeFunction funcs f = f { irFuncBody = finalBody }
     withJumpThread = jumpThreading withIncDec
     useCountsAfterPeep = countUses withJumpThread
     finalBody = eliminateDeadCode useCountsAfterPeep withJumpThread
+
+getAddrTaken :: [IRInstruction] -> S.Set String
+getAddrTaken = foldr collect S.empty
+  where
+    collect (IRADDR _ src _) s = S.insert src s
+    collect _ s = s
 
 -- Single instruction optimizations (e.g., x = x + 1 -> INC x)
 singleInstrOpt :: IRInstruction -> IRInstruction
@@ -182,6 +190,7 @@ getOperands (IRINC o) = [o]
 getOperands (IRDEC o) = [o]
 getOperands (IRJUMP_TEST_NZ o1 o2 _) = [o1, o2]
 getOperands (IRJUMP_TEST_Z o1 o2 _) = [o1, o2]
+getOperands (IRADDR _ source ty) = [IRTemp source ty]
 getOperands (IRCAST _ o _ _) = [o]
 getOperands _ = []
 
@@ -324,10 +333,20 @@ optimizeBlock (inst : rest) = do
 optimizeInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
 
 -- remember assignment for later; remove if safe
-optimizeInstr inst@(IRASSIGN target op _) rest =
+optimizeInstr inst@(IRASSIGN target op _) rest = do
   modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
-  >> gets osKeepAssignments
-  >>= \keep -> if keep then emitInstr inst rest else optimizeBlock rest
+  st <- get
+  let keep = osKeepAssignments st
+      addrTaken = S.member target (osAddrTaken st)
+      -- If address taken, keep assignment unless we can redirect the address to a valid lvalue
+      -- (like another variable/param). If op is constant, we must keep assignment.
+      canRedirect = case op of
+        IRTemp _ _ -> True
+        IRParam _ _ -> True
+        _ -> False
+      shouldKeep = keep || (addrTaken && not canRedirect)
+  
+  if shouldKeep then emitInstr inst rest else optimizeBlock rest
 
 -- reset remembered values at labels
 optimizeInstr inst@(IRLABEL _) rest =
@@ -395,6 +414,12 @@ simplifyInstr (IRALLOC_ARRAY t ty elems) = IRALLOC_ARRAY t ty <$> mapM simplifyO
 simplifyInstr (IRGET_ELEM t arr idx ty) = IRGET_ELEM t <$> simplifyOp arr <*> simplifyOp idx <*> pure ty
 simplifyInstr (IRSET_ELEM arr idx val) = IRSET_ELEM <$> simplifyOp arr <*> simplifyOp idx <*> simplifyOp val
 simplifyInstr (IRBNOT_OP t o ty) = IRBNOT_OP t <$> simplifyOp o <*> pure ty
+simplifyInstr (IRADDR dest src ty) = do
+  op <- simplifyOp (IRTemp src ty)
+  case op of
+    IRTemp newSrc _ -> pure $ IRADDR dest newSrc ty
+    IRParam newSrc _ -> pure $ IRADDR dest newSrc ty
+    _ -> pure $ IRADDR dest src ty
 
 simplifyInstr (IRADD_OP t o1 o2 ty) = do
   o1' <- simplifyOp o1
