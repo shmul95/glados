@@ -94,8 +94,17 @@ visitStruct (DefStruct name fields methods) = do
   emitBlock "Methods:" (mapM_ (\m -> newLine >> visitTopLevel m) methods)
   dedent
   where
-    emitField (Field n t v isStatic) = newLine >> emit (show v <> (if isStatic then " static " else " ") <> n <> ": " <> showType t)
+    emitField (Field n t v isStatic def) = do
+      newLine
+      emit (show v <> (if isStatic then " static " else " ") <> n <> ": " <> showType t)
+      visitStructFieldDefaultValue def
 visitStruct _ = return ()
+
+visitStructFieldDefaultValue :: Maybe Expression -> Printer ()
+visitStructFieldDefaultValue Nothing = return ()
+visitStructFieldDefaultValue (Just expr) = do
+  emit " = "
+  visitExpression expr
 
 visitSomewhere :: TopLevelDef -> Printer ()
 visitSomewhere (DefSomewhere sigs) = do

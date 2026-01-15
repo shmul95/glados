@@ -391,7 +391,7 @@ verifExprWithContext hint vs (ExprAccess pos (ExprVar vPos target) field) = do
   case HM.lookup target ss of
     Just _ -> do
       fields <- lookupStructFields ss target file line col
-      Field _ _ visibility isStatic <- findField fields field target file line col
+      Field _ _ visibility isStatic _ <- findField fields field target file line col
       unless isStatic $
         lift $ Left $ formatSemanticError $ SemanticError file line col
           (printf "static field access '%s.%s'" target field)
@@ -615,7 +615,7 @@ verifStructFieldAccess pos target' field targetType currentStruct ss file line c
   case targetType of
     TypeCustom sName -> do
       fields <- lookupStructFields ss sName file line col
-      Field _ _ visibility isStatic <- findField fields field sName file line col
+      Field _ _ visibility isStatic _ <- findField fields field sName file line col
       when isStatic $
         lift $ Left $ formatSemanticError $ SemanticError file line col
           (printf "instance field access on '%s'" field)

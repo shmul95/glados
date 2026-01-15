@@ -186,6 +186,7 @@ data Field = Field
   , fieldType       :: Type
   , fieldVisibility :: Visibility
   , fieldIsStatic   :: Bool
+  , fieldDefault    :: Maybe Expression
   }
   deriving (Show, Eq)
 

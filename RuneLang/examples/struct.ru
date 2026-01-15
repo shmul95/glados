@@ -1,9 +1,9 @@
 struct Vec2f
 {
-    private x: f32;
-    private y: f32;
+    private x: f32 = 0.0;
+    private y: f32 = 0.0;
 
-    public static count: i32;
+    public static count: i32 = 0;
 
     public def new() -> Vec2f
     {

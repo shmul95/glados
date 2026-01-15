@@ -245,9 +245,9 @@ getFieldType pos ss (TypeCustom sName) fldName =
   in case HM.lookup sName ss of
     Nothing -> Left $ mkError (printf "struct '%s' to exist" sName) "undefined struct"
     Just (DefStruct _ fields _) ->
-      case filter (\(Field fName _ _ _) -> fName == fldName) fields of
+      case filter (\(Field fName _ _ _ _) -> fName == fldName) fields of
         [] -> Left $ mkError (printf "field '%s' to exist in struct '%s'" fldName sName) "undefined field"
-        (Field _ t _ _:_) -> Right t
+        (Field _ t _ _ _:_) -> Right t
     Just _ -> Left $ mkError (printf "struct '%s' to be a valid struct definition" sName) "not a struct definition"
 
 getFieldType pos _ otherType fldName =

@@ -182,7 +182,8 @@ parseField visibility isStatic = do
   name <- parseIdentifier
   _ <- expect T.Colon
   typ <- parseType
-  pure $ Field name typ visibility isStatic
+  fDefault <- try (Just <$> (expect T.OpAssign *> parseExpression)) <|> pure Nothing
+  pure $ Field name typ visibility isStatic fDefault
 
 --
 -- visibility
