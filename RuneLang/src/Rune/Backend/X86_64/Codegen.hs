@@ -66,7 +66,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map.Strict as Map
 
 import Rune.Backend.Helpers
-import Rune.Backend.Types (Extern, Function, Global, Struct)
+import Rune.Backend.Types (Extern, Function, Global, Struct, Static)
 import Rune.Backend.X86_64.Compare hiding (stackAddr)
 import qualified Rune.Backend.X86_64.Compare as Cmp
 import Rune.Backend.X86_64.LoadStore
@@ -93,22 +93,22 @@ type StructMap = Map String Struct
 
 emitAssembly :: IRProgram -> String
 emitAssembly (IRProgram _ topLevels) =
-  let (externs, globals, functions, structMap) = collectTopLevels topLevels
+  let (externs, globals, functions, statics, structMap) = collectTopLevels topLevels
    in unlines $
         emitExterns externs
           <> emitRoDataSection globals
-          <> emitDataSection structMap functions
+          <> emitDataSection structMap functions statics
           <> emitTextSectionGen Nothing structMap functions
           <> emitRmWarning
 
 -- | Emit assembly for library code (PIC-compatible, uses PLT for external calls)
 emitAssemblyLib :: IRProgram -> String
 emitAssemblyLib (IRProgram _ topLevels) =
-  let (externs, globals, functions, structMap) = collectTopLevels topLevels
+  let (externs, globals, functions, statics, structMap) = collectTopLevels topLevels
    in unlines $
         emitExterns externs
           <> emitRoDataSection globals
-          <> emitDataSection structMap functions
+          <> emitDataSection structMap functions statics
           <> emitTextSectionGen (Just externs) structMap functions
           <> emitRmWarning
 
@@ -138,8 +138,8 @@ emitRoDataSection gs = "section .rodata" : map emitGlobal gs
     emitGlobal (name, IRGlobalFloatVal val IRF64) = name <> " dq " <> " " <> show val
     emitGlobal (name, IRGlobalFloatVal val _)     = name <> " dd " <> " " <> show val
 
-emitDataSection :: StructMap -> [Function] -> [String]
-emitDataSection structs fs =
+emitDataSection :: StructMap -> [Function] -> [Static] -> [String]
+emitDataSection structs fs _ =
   let arrays = collectStaticArrays fs
    in case arrays of
         [] -> []

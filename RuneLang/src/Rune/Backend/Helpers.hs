@@ -28,7 +28,7 @@ where
 
 import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
-import Rune.Backend.Types (Extern, Function, Global, Struct)
+import Rune.Backend.Types (Extern, Function, Global, Struct, Static)
 import Rune.IR.IRHelpers (sizeOfIRType)
 import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
 import Rune.AST.Nodes (Expression)
@@ -44,10 +44,10 @@ type StructMap = Map.Map String Struct
 emit :: Int -> String -> String
 emit lvl s = replicate (lvl * 4) ' ' ++ s
 
-collectTopLevels :: [IRTopLevel] -> ([Extern], [Global], [Function], StructMap)
+collectTopLevels :: [IRTopLevel] -> ([Extern], [Global], [Function], [Static], StructMap)
 collectTopLevels tls =
-  let (es, gs, fs, ss) = foldr collectTopLevel ([], [], [], Map.empty) tls
-   in (nub es, reverse gs, reverse fs, ss)
+  let (es, gs, fs, ss, sms) = foldr collectTopLevel ([], [], [], [], Map.empty) tls
+   in (nub es, reverse gs, reverse fs, reverse ss, sms)
 
 calculateStackMap :: StructMap -> Function -> (Map.Map String Int, Int)
 calculateStackMap structMap func =
@@ -67,12 +67,12 @@ escapeString = intercalate "," . encodeCharacter
 -- private
 --
 
-collectTopLevel :: IRTopLevel -> ([Extern], [Global], [Function], StructMap) -> ([Extern], [Global], [Function], StructMap)
-collectTopLevel (IRExtern name) (e, g, f, s) = (name : e, g, f, s)
-collectTopLevel (IRGlobalDef n v) (e, g, f, s) = (e, (n, v) : g, f, s)
-collectTopLevel (IRFunctionDef fn) (e, g, f, s) = (e, g, fn : f, s)
-collectTopLevel (IRStructDef name fields) (e, g, f, s) = (e, g, f, Map.insert name fields s)
-collectTopLevel _ acc = acc
+collectTopLevel :: IRTopLevel -> ([Extern], [Global], [Function], [Static], StructMap) -> ([Extern], [Global], [Function], [Static], StructMap)
+collectTopLevel (IRExtern name) (e, g, f, s, sm) = (name : e, g, f, s, sm)
+collectTopLevel (IRGlobalDef n v) (e, g, f, s, sm) = (e, (n, v) : g, f, s, sm)
+collectTopLevel (IRFunctionDef fn) (e, g, f, s, sm) = (e, g, fn : f, s, sm)
+collectTopLevel (IRStructDef name fields) (e, g, f, s, sm) = (e, g, f, s, Map.insert name fields sm)
+collectTopLevel (IRStaticVar name typ mbExpr) (e, g, f, s, sm) = (e, g, f, (name, typ, mbExpr) : s, sm)
 
 collectIRVars :: Function -> Map.Map String IRType
 collectIRVars (IRFunction _ params _ body _) = 

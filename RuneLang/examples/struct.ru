@@ -65,8 +65,6 @@ def show(prefix: string, v: Vec2f) -> null
 
 def main() -> null
 {
-    v2 = Vec2f.new(3.0, 4.0);
-
-    show(Vec2f.count);
-    show("v2: ", v2);
+    v1 = Vec2f.new(3.0, 4.0);
+    show("v1: ", v1);
 }

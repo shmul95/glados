@@ -4,13 +4,14 @@ module Rune.Backend.Types
     Function,
     Global,
     Struct,
+    Static,
     AsmState (..),
   )
 where
 
 import Control.Monad.State.Strict (State)
 import Data.Map.Strict (Map)
-import Rune.IR.Nodes (IRFunction, IRGlobalValue, IRType (..))
+import Rune.IR.Nodes (IRFunction, IRGlobalValue, IRType (..), IROperand)
 import Rune.AST.Nodes (Expression)
 
 --
@@ -24,6 +25,8 @@ type Extern = String
 type Function = IRFunction
 
 type Global = (String, IRGlobalValue)
+
+type Static = (String, IRType, Maybe IROperand)
 
 type Struct = [(String, IRType, Maybe Expression)]
 
