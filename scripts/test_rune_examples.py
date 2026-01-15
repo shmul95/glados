@@ -25,7 +25,7 @@ EXAMPLE_FILES = glob_files("RuneLang/test/RuneUnitTests", "ru")
 
 EXPECTED_STDOUT = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 EXPECTED_RETURN = 0
-EXPECTED_LINES = 219
+EXPECTED_LINES = 224
 
 GREEN = "\033[32m"
 RED = "\033[31m"
