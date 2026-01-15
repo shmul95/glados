@@ -15,6 +15,7 @@ import TestHelpers (dummyPos)
 import Control.Monad.State (evalState)
 import Control.Monad.Except (runExceptT)
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Map.Strict as Map
 import Data.List (isInfixOf)
 
 --
@@ -197,20 +198,20 @@ testPointerAndReferenceLogic :: TestTree
 testPointerAndReferenceLogic = testGroup "Pointer & Reference Edge Cases"
   [ testCase "prepareArg: handles IRPtr (IRStruct _)" $
       let
-          (instrs, op) = prepareArg ([], IRTemp "ptr" (IRPtr (IRStruct "S")), IRPtr (IRStruct "S"))
+          (instrs, op) = prepareArg Map.empty ([], IRTemp "ptr" (IRPtr (IRStruct "S")), IRPtr (IRStruct "S"))
       in do
         assertBool "Should emit ADDR for ptr" (any isAddr instrs)
         op @?= IRTemp "p_ptr" (IRPtr (IRPtr (IRStruct "S")))
 
   , testCase "prepareParamArg: handles IRGlobal as reference" $
-      let (instrs, op) = prepareParamArg (TypeRef TypeI32) [] (IRGlobal "glob" IRI32) IRI32
+      let (instrs, op) = prepareParamArg Map.empty (TypeRef TypeI32) [] (IRGlobal "glob" IRI32) IRI32
       in do
         assertBool "Correct Global ADDR" (any isAddr instrs)
         op @?= IRTemp "addr_glob" (IRPtr IRI32)
 
   , testCase "prepareParamArg: handles constants by materializing them" $
       let
-          (instrs, op) = prepareParamArg (TypeRef TypeI32) [] (IRConstInt 42) IRI32
+          (instrs, op) = prepareParamArg Map.empty (TypeRef TypeI32) [] (IRConstInt 42) IRI32
       in do
         assertBool "Materializes constant" (any isAssign instrs)
         assertBool "Takes address of temp" (any isAddr instrs)
