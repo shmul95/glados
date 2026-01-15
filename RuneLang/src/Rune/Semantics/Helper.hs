@@ -168,7 +168,7 @@ checkParamType
   -> String -> Int -> Int
   -> [Expression]
   -> Either SemanticError String
-checkParamType s@(fs, _, _, _) (fname, argTypes) file line col es =
+checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
   let mkError e g =
         SemanticError file line col e g ["function call", "global context"]
 
@@ -237,10 +237,10 @@ exprType s (ExprBinary _ op a b) = do
   tb <- exprType s b
   iHTBinary op ta tb
 
-exprType (_, vs, _, _) (ExprVar _ v) =
+exprType (_, vs, _) (ExprVar _ v) =
   Right $ fromMaybe TypeAny (HM.lookup v vs)
 
-exprType s@(fs, _, _, _) (ExprCall _ (ExprVar _ fn) args) = do
+exprType s@(fs, _, _) (ExprCall _ (ExprVar _ fn) args) = do
   argTypes <- mapM (exprType s) args
   Right $ fromMaybe TypeAny (selectSignature fs fn argTypes)
 
@@ -266,7 +266,7 @@ exprType s (ExprLitArray _ (e:es)) = do
   else Left $ printf "incompatible array element types, expected %s" (show t)
 
 exprType s (ExprAccess pos target field) = do
-  let ss = case s of (_, _, ss', _) -> ss'
+  let ss = case s of (_, _, ss') -> ss'
   case target of
     ExprVar _ sName | HM.member sName ss ->
       case getFieldType pos ss (TypeCustom sName) field of

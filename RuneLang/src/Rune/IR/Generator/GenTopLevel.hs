@@ -22,9 +22,10 @@ where
 
 import Control.Monad.State (modify)
 import Control.Monad.Except (throwError)
-import Data.Map (empty, insert)
-import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..), Visibility (..))
+import Data.Map (empty, insert, fromList, union)
+import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..), Visibility (..), Expression (..))
 import Rune.IR.Generator.GenStatement (genStatement)
+import Rune.IR.Generator.GenExpression (genExpression)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
 import Rune.IR.Nodes
   ( GenState (..),
@@ -70,15 +71,32 @@ genFunction (DefFunction name params retType body isExport _ _) = do
 genFunction x = throwError $ "genFunction called on non-function: received " ++ show x
 
 -- | generate IR for a struct definition and its methods
--- struct Vec2f { x: f32, y: f32 }
+-- | For static variables, it creates IRStaticVar definitions
 -- STRUCT Vec2f { x: f32, y: f32 }
 genStruct :: TopLevelDef -> IRGen [IRTopLevel]
 genStruct (DefStruct name fields methods) = do
   let irFields = map (\(Field n t _ _ d) -> (n, astTypeToIRType t, d)) [f | f <- fields, not (fieldIsStatic f)]
-  modify $ \s -> s {gsStructs = insert name irFields (gsStructs s)}
+      staticFields = [(n, t, d) | Field n t _ True d <- fields]
+
+  staticVars <- convertStaticToIRType name staticFields
+
+  modify $ \s -> s
+    { gsStructs = insert name irFields (gsStructs s)
+    , gsStaticVars = fromList [(name ++ "_" ++ n, astTypeToIRType t) | (n, t, _) <- staticFields] `union` gsStaticVars s
+    }
+
   methodDefs <- concat <$> mapM (genStructMethod name) methods
-  pure $ IRStructDef name irFields : methodDefs
+  pure $ IRStructDef name irFields : staticVars ++ methodDefs
 genStruct _ = pure []
+
+convertStaticToIRType :: String -> [(String, Type, Maybe Expression)] -> IRGen [IRTopLevel]
+convertStaticToIRType sName = mapM (\(n, t, mbExpr) -> do
+  mbOp <- case mbExpr of
+    Just expr -> do
+      (_, op, _) <- genExpression expr
+      pure $ Just op
+    Nothing -> pure Nothing
+  pure $ IRStaticVar (sName ++ "_" ++ n) (astTypeToIRType t) mbOp)
 
 -- | generate IR for a struct method
 genStructMethod :: String -> TopLevelDef -> IRGen [IRTopLevel]

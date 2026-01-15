@@ -53,9 +53,13 @@ genExpression (ExprSizeof _ val) = genSizeof val
 genVar :: String -> IRGen ([IRInstruction], IROperand, IRType)
 genVar name = do
   symTable <- gets gsSymTable
+  staticVars <- gets gsStaticVars
   case Map.lookup name symTable of
     Just (op, typ) -> return ([], op, typ)
-    Nothing -> throwError $ "genVar: variable not found in symbol table: " <> name
+    Nothing ->
+      case Map.lookup name staticVars of
+        Just typ -> return ([], IRGlobal name typ, typ)
+        Nothing -> throwError $ "genVar: variable not found in symbol table: " <> name
 
 genSizeof :: Either Type Expression -> IRGen ([IRInstruction], IROperand, IRType)
 genSizeof val = do

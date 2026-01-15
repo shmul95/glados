@@ -16,6 +16,6 @@ import Rune.AST.Nodes (Parameter, Type, TopLevelDef, Visibility)
 type VarStack = HashMap String Type
 type FuncStack = HashMap String ((Type, [Parameter]), Visibility, Bool) -- Bool indicates if it's a static or not (True for static, False otherwise)
 type StructStack = HashMap String TopLevelDef
-type Stack = (FuncStack, VarStack, StructStack, VarStack) -- (functions, local variables, structs, global variables)
+type Stack = (FuncStack, VarStack, StructStack)
 
 type Templates = HashMap String TopLevelDef

@@ -72,6 +72,7 @@ collectTopLevel (IRExtern name) (e, g, f, s) = (name : e, g, f, s)
 collectTopLevel (IRGlobalDef n v) (e, g, f, s) = (e, (n, v) : g, f, s)
 collectTopLevel (IRFunctionDef fn) (e, g, f, s) = (e, g, fn : f, s)
 collectTopLevel (IRStructDef name fields) (e, g, f, s) = (e, g, f, Map.insert name fields s)
+collectTopLevel _ acc = acc
 
 collectIRVars :: Function -> Map.Map String IRType
 collectIRVars (IRFunction _ params _ body _) = 

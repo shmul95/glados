@@ -39,7 +39,8 @@ data GenState = GenState
     gsStringMap :: Map String String,
     gsFloatMap :: Map (Double, IRType) String,
     gsFuncStack :: FuncStack,
-    gsVariadicPacks :: Map String [IROperand]
+    gsVariadicPacks :: Map String [IROperand],
+    gsStaticVars :: Map String IRType
   }
   deriving (Show, Eq)
 
@@ -181,6 +182,7 @@ data IRTopLevel
   | IRFunctionDef IRFunction
   | IRStructDef String [(String, IRType, Maybe Expression)]
   | IRExtern String
+  | IRStaticVar String IRType (Maybe IROperand)
   deriving (Show, Eq)
 
 data IRProgram = IRProgram

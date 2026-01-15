@@ -60,7 +60,7 @@ import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
 import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
-import Rune.Semantics.Type (FuncStack, VarStack)
+import Rune.Semantics.Type (FuncStack)
 
 import Lib (fixpoint)
 
@@ -161,22 +161,20 @@ compileAsmSources asmFiles isLib =
       safeRead asmFile >>= either handleError (compileAndReturn objFile forLib)
     
     handleError e = logError e >> pure Nothing
-    compileAndReturn obj forLib content =
+    compileAndReturn obj forLib content = 
       compileAsmToObject content obj forLib >> pure (Just obj)
 
 interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
 
 pipeline :: (FilePath, String) -> Either String IRProgram
-pipeline = parseLexer >=> parseAST >=> verifAndGenIR >=> optimizeIR
+pipeline = parseLexer >=> parseAST >=> verifAndGenIR -- >=> optimizeIR
 
 verifAndGenIR :: Program -> Either String IRProgram
-verifAndGenIR program = do
-  (prog, fs, vs) <- checkSemantics program
-  generateIR prog fs vs
+verifAndGenIR = checkSemantics >=> uncurry generateIR
 
 runPipeline :: FilePath -> IO (Either String IRProgram)
-runPipeline fp = performSanityChecks >>= either (pure . Left) 
+runPipeline fp = performSanityChecks >>= either (pure . Left)
   (const $ safeRead fp <&> (>>= pipeline . (fp,)))
 
 runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
@@ -270,7 +268,7 @@ runCommand cmd args errMsg = do
 optimizeIR :: IRProgram -> Either String IRProgram
 optimizeIR = Right . fixpoint runIROptimizer
 
-checkSemantics :: Program -> Either String (Program, FuncStack, VarStack)
+checkSemantics :: Program -> Either String (Program, FuncStack)
 checkSemantics = verifVars
 
 safeRead :: FilePath -> IO (Either String String)

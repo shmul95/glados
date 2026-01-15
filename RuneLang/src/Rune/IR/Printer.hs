@@ -48,6 +48,10 @@ printTopLevel (IRFunctionDef func) =
   printFunction func
 printTopLevel (IRStructDef name fields) =
   "STRUCT " ++ name ++ " { " ++ intercalate ", " (map (\(n, t, _) -> n ++ ": " ++ printType t) fields) ++ " }"
+printTopLevel (IRStaticVar name typ mbExpr) =
+  case mbExpr of
+    Just expr -> "STATIC " ++ name ++ ": " ++ printType typ ++ " = " ++ printOperand expr
+    Nothing   -> "STATIC " ++ name ++ ": " ++ printType typ
 
 printFunction :: IRFunction -> String
 printFunction (IRFunction name params _ body _) =
