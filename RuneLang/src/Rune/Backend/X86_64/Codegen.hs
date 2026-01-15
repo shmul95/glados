@@ -600,6 +600,7 @@ emitIncDecHelper structs sm name t asmOp =
 --  2- source is a local variable: lea its address
 emitAddr :: Map String Int -> String -> String -> IRType -> [String]
 emitAddr sm dest source t
+  | Map.member source sm = [emit 1 $ "lea rax, " <> stackAddr sm source, storeReg sm dest "rax" t]
   | isGlobalName source = [emit 1 $ "lea rax, [rel " <> source <> "]", storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "lea rax, " <> stackAddr sm source, storeReg sm dest "rax" t]
   where
