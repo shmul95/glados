@@ -1,4 +1,4 @@
-somewhere { def assert(condition: bool, message: string) -> null; }
+somewhere { def assert(condition: bool, message: string) -> bool; }
 
 /**
 * public

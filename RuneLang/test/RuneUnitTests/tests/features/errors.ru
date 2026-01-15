@@ -1,6 +1,6 @@
 somewhere
 { 
-    def assert(condition: bool, message: string) -> null;
+    def assert(condition: bool, message: string) -> bool;
     def error(s: string) -> null;
 }
 

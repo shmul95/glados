@@ -1,18 +1,18 @@
 somewhere
 {
     /* window */
-    def InitWindow(width: i32, height: i32, title: string) -> null;
-    def CloseWindow() -> null;
-    def WindowShouldClose() -> bool;
+    extern def InitWindow(width: i32, height: i32, title: string) -> null;
+    extern def CloseWindow() -> null;
+    extern def WindowShouldClose() -> bool;
 
     /* drawing */
-    def BeginDrawing() -> null;
-    def EndDrawing() -> null;
-    def ClearBackground(color: Color) -> null;
-    def DrawText(text: string, posX: i32, posY: i32, fontSize: i32, color: Color) -> null;
+    extern def BeginDrawing() -> null;
+    extern def EndDrawing() -> null;
+    extern def ClearBackground(color: Color) -> null;
+    extern def DrawText(text: string, x: i32, y: i32, font_size: i32, color: Color) -> null;
 
     /* utils */
-    def SetTargetFPS(fps: i32) -> null;
+    extern def SetTargetFPS(fps: i32) -> null;
 }
 
 /**

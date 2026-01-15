@@ -101,6 +101,8 @@ data UnaryOp
   | PrefixDec -- --x
   | PostfixInc -- x++
   | PostfixDec -- x--
+  | Deref -- *x
+  | Reference -- &x
   deriving (Show, Eq)
 
 data Program = Program

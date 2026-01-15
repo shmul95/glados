@@ -5,7 +5,6 @@ import Test.Tasty.HUnit (testCase, (@?=))
 
 import Rune.AST.Nodes
 import Rune.Semantics.Generic
-import Rune.Semantics.Helper (mangleName)
 
 --
 -- public
@@ -31,11 +30,10 @@ genericInstantiateTests = testGroup "instantiate function"
           def = DefFunction "foo" [Parameter "x" TypeAny Nothing] TypeAny [] False
           args = [TypeI32]
           ret = TypeI32
-          expectedName = mangleName "foo" ret args
           instantiated = instantiate def args ret
         in case instantiated of
             DefFunction n [Parameter "x" t _] r _ _ -> do
-                n @?= expectedName
+                n @?= "foo"
                 t @?= TypeI32
                 r @?= TypeI32
             _ -> error "Expected DefFunction"
@@ -45,11 +43,10 @@ genericInstantiateTests = testGroup "instantiate function"
           def = DefFunction "bar" [Parameter "y" TypeAny Nothing] TypeAny [] False
           args = [TypeF32]
           ret = TypeNull
-          expectedName = mangleName "bar" ret args
           instantiated = instantiate def args ret
         in case instantiated of
             DefFunction n [Parameter "y" t _] r _ _ -> do
-                n @?= expectedName
+                n @?= "bar"
                 t @?= TypeF32
                 r @?= TypeNull
             _ -> error "Expected DefFunction"
@@ -59,11 +56,10 @@ genericInstantiateTests = testGroup "instantiate function"
           def = DefFunction "baz" [Parameter "a" TypeI32 Nothing, Parameter "b" TypeAny Nothing] TypeAny [] False
           args = [TypeI32, TypeString]
           ret = TypeString
-          expectedName = mangleName "baz" ret args
           instantiated = instantiate def args ret
         in case instantiated of
             DefFunction n [Parameter "a" t1 _, Parameter "b" t2 _] r _ _ -> do
-                n @?= expectedName
+                n @?= "baz"
                 t1 @?= TypeI32
                 t2 @?= TypeString
                 r @?= TypeString

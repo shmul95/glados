@@ -8,8 +8,8 @@ somewhere
     def allocate(size: u64) ~> *any;
     def liberate(ptr: *any) -> bool;
 
-    def error(v: string) -> i32;
-    def error(v: char) -> i32;
+    def error(v: string) -> null;
+    def error(v: char) -> null;
 }
 
 /**
