@@ -175,7 +175,7 @@ checkParamType s@(fs, _, _, _) (fname, argTypes) file line col es =
       exact =
         HM.toList $
           HM.filterWithKey
-            (\k (ret, ps) ->
+            (\k ((ret, ps), _, _) ->
               isRightFunction (fname, argTypes) k (ret, map paramType ps))
             fs
 
@@ -183,7 +183,7 @@ checkParamType s@(fs, _, _, _) (fname, argTypes) file line col es =
         if isStructMethod fname
         then HM.toList $
              HM.filterWithKey
-               (\k (ret, ps) ->
+               (\k ((ret, ps), _, _) ->
                  isCompatibleMangling fname k ret (map paramType ps) argTypes)
                fs
         else []
@@ -192,19 +192,19 @@ checkParamType s@(fs, _, _, _) (fname, argTypes) file line col es =
         case (exact, compatible, HM.lookup fname fs) of
           (x@(_:_), _, _) -> x
           ([], x@(_:_), _) -> x
-          ([], [], Just sig) -> [(fname, sig)]
+          ([], [], Just ((ret, params), v, isS)) -> [(fname, ((ret, params), v, isS))]
           _ -> []
 
   in case candidates of
     [] ->
       Left $ mkError ("function '" <> fname <> "' to exist") "undefined function"
 
-    [(name, (_, ps))] ->
+    [(name, ((_, ps), _, _))] ->
       maybe (Right name) Left $
         checkEachParam s file line col 0 es ps
 
     multiple ->
-      case filter (\(_, (_, ps)) ->
+      case filter (\(_, ((_, ps), _, _)) ->
                     isNothing $ checkEachParam s file line col 0 es ps) multiple of
         [(name, _)] -> Right name
         [] -> Left $ mkError
@@ -228,19 +228,6 @@ exprType _ (ExprLitNull _)         = Right TypeNull
 exprType _ (ExprStructInit _ s _)  = Right $ TypeCustom s
 exprType _ (ExprCast _ _ t)        = Right t
 exprType _ (ExprSizeof _ _)        = Right TypeU64
-
-exprType s (ExprAccess pos target field) = do
-  let ss = case s of (_, _, ss', _) -> ss'
-  case target of
-    ExprVar _ sName | HM.member sName ss ->
-      case getFieldType pos ss (TypeCustom sName) field of
-        Right t -> Right t
-        Left err -> Left (formatSemanticError err)
-    _ -> do
-      targetType <- exprType s target
-      case getFieldType pos ss targetType field of
-        Right t -> Right t
-        Left err -> Left (formatSemanticError err)
 
 exprType s (ExprUnary _ _ e) =
   exprType s e
@@ -279,10 +266,17 @@ exprType s (ExprLitArray _ (e:es)) = do
   else Left $ printf "incompatible array element types, expected %s" (show t)
 
 exprType s (ExprAccess pos target field) = do
-  t <- exprType s target
-  let (_, _, ss) = s
-  either (Left . formatSemanticError) Right $
-    getFieldType pos ss t field
+  let ss = case s of (_, _, ss', _) -> ss'
+  case target of
+    ExprVar _ sName | HM.member sName ss ->
+      case getFieldType pos ss (TypeCustom sName) field of
+        Right t -> Right t
+        Left err -> Left (formatSemanticError err)
+    _ -> do
+      targetType <- exprType s target
+      case getFieldType pos ss targetType field of
+        Right t -> Right t
+        Left err -> Left (formatSemanticError err)
 
 --
 -- assignment / compatibility
@@ -353,11 +347,11 @@ selectSignature :: FuncStack -> String -> [Type] -> Maybe Type
 selectSignature fs name argTypes =
   case HM.toList $
        HM.filterWithKey
-         (\k (ret, ps) ->
+         (\k ((ret, ps), _, _) ->
            isRightFunction (name, argTypes) k (ret, map paramType ps))
          fs of
-    ((_, (ret, _)) : _) -> Just ret
-    [] -> fmap fst (HM.lookup name fs)
+    ((_, ((ret, _), _, _)) : _) -> Just ret
+    [] -> fmap (\((ret, _), _, _) -> ret) (HM.lookup name fs)
 
 getFieldType :: SourcePos -> StructStack -> Type -> String -> Either SemanticError Type
 getFieldType (SourcePos file line col) ss (TypeCustom s) field =
@@ -370,7 +364,7 @@ getFieldType (SourcePos file line col) ss (TypeCustom s) field =
         ["field access", "global context"]
 
     Just (DefStruct _ fields _) ->
-      case [ t | Field f t <- fields, f == field ] of
+      case [ t | Field f t _ _ _ <- fields, f == field ] of
         (t:_) -> Right t
         [] ->
           Left $ SemanticError

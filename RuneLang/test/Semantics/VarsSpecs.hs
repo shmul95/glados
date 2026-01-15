@@ -75,6 +75,7 @@ mockSemState fs ss currentStruct = SemState
   , stInstantiated = HM.empty
   , stStructs = ss
   , stCurrentStruct = currentStruct
+  , stGlobals = HM.empty
   }
 
 -- Helper to run SemM computations for testing
@@ -837,7 +838,7 @@ resolveCallTests =
       [ testCase "resolves exact function match" $ do
           let fs = HM.fromList [("func", ((TypeI32, [Parameter "x" TypeI32 Nothing]), Public, False))]
               ss = HM.empty
-              stack = (fs, HM.empty, ss)
+              stack = (fs, HM.empty, ss, HM.empty)
               state = mockSemState fs ss Nothing
               args = [ExprLitInt dummyPos 42]
               result = runSemMForTest (resolveCall dummyPos dummyPos stack Nothing "func" args [TypeI32]) state
@@ -847,7 +848,7 @@ resolveCallTests =
       ]
     , testGroup "Failure Cases"
       [ testCase "fails when function not found" $ do
-          let stack = (HM.empty, HM.empty, HM.empty)
+          let stack = (HM.empty, HM.empty, HM.empty, HM.empty)
               state = mockSemState HM.empty HM.empty Nothing
               result = runSemMForTest (resolveCall dummyPos dummyPos stack Nothing "nonexistent" [] []) state
           case result of

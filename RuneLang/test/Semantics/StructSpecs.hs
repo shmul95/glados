@@ -42,13 +42,13 @@ findStructTests :: TestTree
 findStructTests = testGroup "findStruct"
   [ testCase "collects simple structures" $
       case findStruct simpleProgram of
-        Right stack -> do
+        Right (stack, _) -> do
           HM.member "Point" stack @? "Point struct should exist"
           HM.member "Vec2f" stack @? "Vec2f struct should exist"
         Left err -> assertFailure $ "Expected success, got error: " ++ err,
     testCase "allows self-referential struct definitions" $
       case findStruct selfRefProgram of
-        Right _ -> return ()
+        Right (_, _) -> return ()
         Left err -> assertFailure $ "Expected success for self-reference, got: " ++ err,
     testCase "rejects duplicate struct definitions" $
       case findStruct duplicateStructProgram of
@@ -61,12 +61,12 @@ checkFieldsTests = testGroup "checkFields"
   [ testCase "rejects duplicate field names" $
       case findStruct duplicateFieldProgram of
         Left err -> "duplicate field" `isInfixOf` err @? "Expected duplicate field error"
-        Right _ -> assertFailure "Expected error for duplicate field"
+        Right (_, _) -> assertFailure "Expected error for duplicate field"
   ]
 
 checkMethodsTests :: TestTree
 checkMethodsTests = testGroup "checkMethods"
-  [ 
+  [
   ]
 
 validateFieldTypeTests :: TestTree
@@ -74,23 +74,23 @@ validateFieldTypeTests = testGroup "validateFieldType"
   [ testCase "rejects TypeAny in fields" $
       case findStruct anyFieldProgram of
         Left err -> "type 'any' is not allowed" `isInfixOf` err @? "Expected TypeAny rejection"
-        Right _ -> assertFailure "Expected error for TypeAny field",
+        Right (_, _) -> assertFailure "Expected error for TypeAny field",
     testCase "rejects TypeNull in fields" $
       case findStruct nullFieldProgram of
         Left err -> "type 'null' is not allowed" `isInfixOf` err @? "Expected TypeNull rejection"
-        Right _ -> assertFailure "Expected error for TypeNull field",
+        Right (_, _) -> assertFailure "Expected error for TypeNull field",
     testCase "rejects unknown struct types" $
       case findStruct unknownTypeProgram of
         Left err -> "unknown struct type" `isInfixOf` err @? "Expected unknown struct error"
-        Right _ -> assertFailure "Expected error for unknown struct type",
+        Right (_, _) -> assertFailure "Expected error for unknown struct type",
     testCase "accepts valid default value with matching type" $
       case findStruct validDefaultProgram of
-        Right _ -> return ()
+        Right (_, _) -> return ()
         Left err -> assertFailure $ "Expected success for valid default, got error: " ++ err,
     testCase "rejects invalid default value with mismatched type" $
       case findStruct invalidDefaultProgram of
         Left err -> "default value has type" `isInfixOf` err @? "Expected type mismatch error"
-        Right _ -> assertFailure "Expected error for mismatched default type"
+        Right (_, _) -> assertFailure "Expected error for mismatched default type"
   ]
 
 --

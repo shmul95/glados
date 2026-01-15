@@ -40,7 +40,7 @@ findFuncTests = testGroup "findFunc"
          HM.lookup "dup" stack @?= Just ((TypeI32, [Parameter "value" TypeI32 Nothing]), Public, False)
          HM.lookup "bool_dup_bool" stack @?= Just ((TypeBool, [Parameter "value" TypeBool Nothing]), Public, False),
     testCase "struct methods are also collected" $
-      findFunc structMethodProgram @?= (Right $ HM.fromList [("Vec_len",(TypeI32,[Parameter "self" (TypeCustom "Vec") Nothing]))]),
+      findFunc structMethodProgram @?= (Right $ HM.fromList [("Vec_len",((TypeI32,[Parameter "self" (TypeCustom "Vec") Nothing]),Public,False))]),
     testCase "creates overrides for different signatures" $
       case findFunc duplicateFunctionProgram of
         Right stack -> do
@@ -49,7 +49,7 @@ findFuncTests = testGroup "findFunc"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "accepts function definition with array of any type (RELOADED)" $
       let stack = either error id (findFunc arrayOverrideProgram)
-       in HM.lookup "show" stack @?= Just (TypeNull, [Parameter {paramName = "arr", paramType = TypeArray TypeAny, paramDefault = Nothing}])
+       in HM.lookup "show" stack @?= Just ((TypeNull, [Parameter {paramName = "arr", paramType = TypeArray TypeAny, paramDefault = Nothing}]),Public,False)
   ]
 
 --
@@ -101,7 +101,7 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected function 'print' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "processes DefSomewhere with override signature" $
-      case findDefs (HM.singleton "print" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull False]) of
+      case findDefs (HM.singleton "print" ((TypeNull, [Parameter "value" TypeAny Nothing]),Public,False)) (DefSomewhere [FunctionSignature "print" [TypeString] TypeNull False]) of
         Right stack -> do
           case HM.lookup "print" stack of
             Just ((TypeNull, params), _, _) -> length params @?= 1

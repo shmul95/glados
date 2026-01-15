@@ -313,7 +313,7 @@ test_generateIR_success = do
   case parseLexer (validFile, validRuneCode) of
     Right (fp, tokens) -> case parseAST (fp, tokens) of
       Right ast -> case checkSemantics ast of
-        Right (checkedAST, fs) -> case generateIR checkedAST fs of
+        Right (checkedAST, fs, gs) -> case generateIR checkedAST fs gs of
           Right _ -> return ()
           Left err -> assertFailure $ "generateIR failed: " ++ err
         Left _ -> assertFailure "checkSemantics failed (prerequisite for generateIR_success)"

@@ -44,12 +44,12 @@ isAssign _ = False
 -- setup
 --
 
-runGenWithFuncStack :: HM.HashMap String (Type, [Parameter]) -> IRGen a -> Either String a
+runGenWithFuncStack :: HM.HashMap String ((Type, [Parameter]), Visibility, Bool) -> IRGen a -> Either String a
 runGenWithFuncStack funcStack action =
   let state = emptyState { gsFuncStack = funcStack }
   in evalState (runExceptT action) state
 
-runGenWithFuncStackUnsafe :: HM.HashMap String (Type, [Parameter]) -> IRGen a -> a
+runGenWithFuncStackUnsafe :: HM.HashMap String ((Type, [Parameter]), Visibility, Bool) -> IRGen a -> a
 runGenWithFuncStackUnsafe fs action = case runGenWithFuncStack fs action of
   Right val -> val
   Left err -> error $ "IR Generation failed: " ++ err
@@ -119,7 +119,7 @@ testStandardCallPaths = testGroup "genStandardCall Fallbacks"
 
   , testCase "genStandardCall: handles case with no signature match (fallback to simple mapM)" $
       let genExpr _ = return ([], IRConstInt 1, IRI32)
-          fs = HM.fromList [("test", (TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing]))]
+          fs = HM.fromList [("test", ((TypeI32, [Parameter "a" TypeI32 Nothing, Parameter "b" TypeI32 Nothing]),Public,False))]
           res = runGenWithFuncStack fs (genStandardCall genExpr "test" [])
       in case res of
            Left _ -> return ()
@@ -128,7 +128,7 @@ testStandardCallPaths = testGroup "genStandardCall Fallbacks"
   , testCase "genStandardCall: variadic path without unrolling" $
       let genExpr _ = return ([], IRConstInt 1, IRI32)
           -- Only one function, so unrolling disabled
-          variadic = ("sum", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
+          variadic = ("sum", ((TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]),Public,False))
           matching = [variadic]
           fs = HM.fromList matching
           args = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2]
@@ -144,32 +144,37 @@ testUnrolledVariadicPaths :: TestTree
 testUnrolledVariadicPaths = testGroup "genUnrolledCall & Overloads"
   [ testCase "genUnrolledCall: single variadic argument branch" $
       let genExpr _ = return ([], IRConstInt 1, IRI32)
-          variadic = ("p", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
-          overload = ("p_i32", (TypeI32, [Parameter "v" TypeI32 Nothing]))
-          matching = [variadic, overload]
+          variadic = ("p", ((TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]),Public,False))
+          overload = ("p_i32", ((TypeI32, [Parameter "v" TypeI32 Nothing]),Public,False))
+          fs = HM.fromList [variadic, overload]
+          -- Extract FunctionCallInfo format for genUnrolledCall
+          matchingInfo = [("p", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing])), ("p_i32", (TypeI32, [Parameter "v" TypeI32 Nothing]))]
+          variadicInfo = ("p", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
           args = [ExprLitInt dummyPos 1]
-          fs = HM.fromList matching
-          (instrs, _, _) = runGenWithFuncStackUnsafe fs (genUnrolledCall genExpr "p" matching variadic args)
+          (instrs, _, _) = runGenWithFuncStackUnsafe fs (genUnrolledCall genExpr "p" matchingInfo variadicInfo args)
       in (length $ filter isCall instrs) @?= 1
 
   , testCase "genUnrolledCall: multiple variadic arguments trigger accumulateResults" $
       let genExpr _ = return ([], IRConstInt 1, IRI32)
-          variadic = ("sum", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
-          overload = ("sum_i32", (TypeI32, [Parameter "v" TypeI32 Nothing]))
-          matching = [variadic, overload]
+          variadic = ("sum", ((TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]),Public,False))
+          overload = ("sum_i32", ((TypeI32, [Parameter "v" TypeI32 Nothing]),Public,False))
+          fs = HM.fromList [variadic, overload]
+          -- Extract FunctionCallInfo format for genUnrolledCall
+          matchingInfo = [("sum", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing])), ("sum_i32", (TypeI32, [Parameter "v" TypeI32 Nothing]))]
+          variadicInfo = ("sum", (TypeI32, [Parameter "v" (TypeVariadic TypeI32) Nothing]))
           args = [ExprLitInt dummyPos 1, ExprLitInt dummyPos 2] -- 2 args > maxNonVariadic (1 for sum_i32)
-          fs = HM.fromList matching
-          (instrs, _, _) = runGenWithFuncStackUnsafe fs (genUnrolledCall genExpr "sum" matching variadic args)
+          (instrs, _, _) = runGenWithFuncStackUnsafe fs (genUnrolledCall genExpr "sum" matchingInfo variadicInfo args)
       in do
          -- accumulateResults generates IRADD_OP
          assertBool "Should have IRADD_OP" (any isAdd instrs)
 
   , testCase "genOverloadedCall: fallback to baseName when no bestMatch found" $
       let genExpr _ = return ([], IRConstInt 1, IRI32)
-          variadic = ("print", (TypeI32, [Parameter "v" (TypeVariadic TypeAny) Nothing]))
-          matching = [variadic]
-          fs = HM.fromList matching
-          (instrs, _) = runGenWithFuncStackUnsafe fs (genOverloadedCall genExpr "print" matching IRI32 ([], IRConstInt 1, IRI32))
+          variadic = ("print", ((TypeI32, [Parameter "v" (TypeVariadic TypeAny) Nothing]),Public,False))
+          fs = HM.fromList [variadic]
+          -- Extract FunctionCallInfo format for genOverloadedCall
+          matchingInfo = [("print", (TypeI32, [Parameter "v" (TypeVariadic TypeAny) Nothing]))]
+          (instrs, _) = runGenWithFuncStackUnsafe fs (genOverloadedCall genExpr "print" matchingInfo IRI32 ([], IRConstInt 1, IRI32))
       in case filter isCall instrs of
            (IRCALL _ name _ _ : _) -> name @?= "print"
            _ -> error "Should call base print"

@@ -87,7 +87,7 @@ structTests = testGroup "Struct Operations"
           result = emitInstruction Map.empty Map.empty "" "" instr
       in assertBool "should be empty (pre-allocated)" $ null result
   , testCase "emitStructCopy (via IRASSIGN)" $
-      let structs = Map.fromList [("MyStruct", [("f1", IRI64), ("f2", IRI64)])]
+      let structs = Map.fromList [("MyStruct", [("f1", IRI64, Nothing), ("f2", IRI64, Nothing)])]
           sm = Map.fromList [("dest", -16), ("src", -32)]
           instr = IRASSIGN "dest" (IRTemp "src" (IRStruct "MyStruct")) (IRStruct "MyStruct")
           result = emitInstruction structs sm "" "" instr
@@ -95,26 +95,26 @@ structTests = testGroup "Struct Operations"
            any (== "    mov rax, qword [rbp-32]") result &&
            any (== "    mov qword [rbp-16], rax") result
   , testCase "emitStructRet" $
-      let structs = Map.fromList [("S", [("x", IRI64)])]
+      let structs = Map.fromList [("S", [("x", IRI64, Nothing)])]
           sm = Map.fromList [("res", -8)]
           result = emitRet structs sm "end" (Just (IRTemp "res" (IRStruct "S")))
       in assertBool "should load into rax" $
            any (== "    mov rax, qword [rbp-8]") result
   , testCase "saveStructResult" $
-      let structs = Map.fromList [("S", [("x", IRI64)])]
+      let structs = Map.fromList [("S", [("x", IRI64, Nothing)])]
           sm = Map.fromList [("dest", -8)]
           result = saveCallResult structs sm "dest" (Just (IRStruct "S"))
       in assertBool "should store from rax" $
            any (== "    mov qword [rbp-8], rax") result
   , testCase "IRGET_FIELD" $
-      let structs = Map.fromList [("S", [("a", IRI32), ("b", IRI32)])]
+      let structs = Map.fromList [("S", [("a", IRI32, Nothing), ("b", IRI32, Nothing)])]
           sm = Map.fromList [("base", -8), ("dest", -12)]
           instr = IRGET_FIELD "dest" (IRTemp "base" (IRPtr (IRStruct "S"))) "S" "b" IRI32
           result = emitInstruction structs sm "" "" instr
       in assertBool "should call emitGetField (implied by coverage of IRGET_FIELD match)" $
            not (null result) -- We trust emitGetField works or is tested in StructSpecs, we just check Codegen dispatch
   , testCase "IRSET_FIELD" $
-      let structs = Map.fromList [("S", [("a", IRI32), ("b", IRI32)])]
+      let structs = Map.fromList [("S", [("a", IRI32, Nothing), ("b", IRI32, Nothing)])]
           sm = Map.fromList [("base", -8), ("val", -12)]
           instr = IRSET_FIELD (IRTemp "base" (IRPtr (IRStruct "S"))) "S" "b" (IRTemp "val" IRI32)
           result = emitInstruction structs sm "" "" instr

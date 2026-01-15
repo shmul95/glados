@@ -32,7 +32,7 @@ testGenerateIR = testGroup "generateIR"
   [ testCase "Generates empty program" $
       let prog = Program "test" []
           fs = HM.empty
-          result = generateIR prog fs
+          result = generateIR prog fs HM.empty
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
@@ -43,7 +43,7 @@ testGenerateIR = testGroup "generateIR"
       let prog = Program "test" 
             [ DefFunction "main" [] TypeNull [] False Public False ]
           fs = HM.empty
-          result = generateIR prog fs
+          result = generateIR prog fs HM.empty
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
@@ -66,7 +66,7 @@ testGenerateIR = testGroup "generateIR"
                 False
             ]
           fs = HM.singleton "external_func" ((TypeNull, []), Public, False)
-          result = generateIR prog fs
+          result = generateIR prog fs HM.empty
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
@@ -86,7 +86,7 @@ testGenerateIR = testGroup "generateIR"
                 []
             ]
           fs = HM.empty
-          result = generateIR prog fs
+          result = generateIR prog fs HM.empty
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
@@ -106,7 +106,7 @@ testGenerateIR = testGroup "generateIR"
                 False
             ]
           fs = HM.singleton "ext1" ((TypeNull, []), Public, False)
-          result = generateIR prog fs
+          result = generateIR prog fs HM.empty
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg ->
@@ -125,7 +125,7 @@ testGenerateIR = testGroup "generateIR"
                 False
             ]
           fs = HM.empty
-          result = generateIR prog fs
+          result = generateIR prog fs HM.empty
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
@@ -138,7 +138,7 @@ testGenerateIR = testGroup "generateIR"
             , DefFunction "func2" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))] False Public False
             ]
           fs = HM.empty
-          result = generateIR prog fs
+          result = generateIR prog fs HM.empty
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
@@ -152,7 +152,8 @@ testGenerateIR = testGroup "generateIR"
                 [ StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "callee") []) ] False Public False
             ]
           fs = HM.singleton "callee" ((TypeNull, []), Public, False)
-          result = generateIR prog fs
+          gs = HM.empty
+          result = generateIR prog fs gs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do
@@ -166,7 +167,8 @@ testGenerateIR = testGroup "generateIR"
                 , StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "ext2") []) ] False Public False
             ]
           fs = HM.fromList [("ext1", ((TypeNull, []), Public, False)), ("ext2", ((TypeNull, []), Public, False))]
-          result = generateIR prog fs
+          gs = HM.empty
+          result = generateIR prog fs gs
       in case result of
         Left err -> fail $ "Unexpected error: " ++ err
         Right irProg -> do

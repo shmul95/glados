@@ -34,8 +34,8 @@ genExpressionTests = testGroup "Rune.IR.Generator.GenExpression"
 
 stateWithBuiltins :: GenState
 stateWithBuiltins = emptyState { gsFuncStack = HM.fromList [
-    ("show", (TypeNull, [Parameter "x" TypeAny Nothing])),
-    ("error", (TypeNull, [Parameter "msg" TypeString Nothing])) 
+    ("show", ((TypeNull, [Parameter "x" TypeAny Nothing]),Public,False)),
+    ("error", ((TypeNull, [Parameter "msg" TypeString Nothing]),Public,False)) 
   ] }
 
 testGenExpression :: TestTree

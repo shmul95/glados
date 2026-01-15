@@ -45,7 +45,7 @@ findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 findDefs s (DefFunction name params rType _ _ visibility isStatic) =
     case HM.lookup name s of
         Nothing       -> Right $ HM.insert name sig s
-        Just existing -> handleConflict existing
+        Just (existing, _, _) -> handleConflict existing
   where
     sig         = ((rType, params), visibility, isStatic)
     pTypes      = map paramType params
@@ -67,7 +67,7 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
         sig       = ((rType, params), Public, False)
         params    = map (\t -> Parameter "" t Nothing) pTypes
         finalName = if isExtern then name else resolveName
-        
+
         resolveName = if HM.member name fs 
                       then mangleFuncName name rType pTypes 
                       else name

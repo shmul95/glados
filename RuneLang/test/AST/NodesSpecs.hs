@@ -197,7 +197,7 @@ testTopLevelDefAccessors =
               funcReturnType def @?= TypeNull
               funcBody def @?= dummyBlock
               funcIsExport def @?= True
-              show def @?= "DefFunction {funcName = \"main\", funcParams = [], funcReturnType = null, funcBody = [StmtReturn test.ru:0:0 Nothing], funcIsExport = True}",
+              show def @?= "DefFunction {funcName = \"main\", funcParams = [], funcReturnType = null, funcBody = [StmtReturn test.ru:0:0 Nothing], funcIsExport = True, funcVisibility = public, funcIsStatic = False}",
       testCase "DefStruct accessors" $
         let def =
               DefStruct

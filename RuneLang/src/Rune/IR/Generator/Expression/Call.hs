@@ -69,9 +69,10 @@ genCall :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> String 
 genCall genExpr funcName args = do
   fs <- gets gsFuncStack
 
-  let allFuncs      = HM.toList fs
+  let allFuncs      = [(name, (ret, ps)) | (name, ((ret, ps), _, _)) <- HM.toList fs]
       matchingFuncs = filter (\(name, _) -> matchesBaseName funcName name) allFuncs
-      variadicMatch = find (\(_, (_, params)) -> hasVariadicParam params) matchingFuncs
+      variadicMatch = (\(name, ((ret, ps), _, _)) -> (name, (ret, ps))) <$>
+                find (\(name, ((_, params), _, _)) -> hasVariadicParam params && matchesBaseName funcName name) (HM.toList fs)
 
       strategy = selectCallStrategy funcName args matchingFuncs variadicMatch
 

@@ -30,16 +30,16 @@ funcStack1 = HM.fromList
   ]
 
 stack1 :: Stack
-stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)], HM.empty)
+stack1 = (funcStack1, HM.fromList [("x", TypeI32), ("f", TypeF32)], HM.empty, HM.empty)
 
 structStack1 :: HM.HashMap String TopLevelDef
 structStack1 = HM.fromList
   [ ("Point", DefStruct "Point" 
-      [ Field "x" TypeF32
-      , Field "y" TypeF32
+      [ Field "x" TypeF32 Public False Nothing
+      , Field "y" TypeF32 Public False Nothing
       ] [])
   , ("Empty", DefStruct "Empty" [] [])
-  , ("Fake", DefFunction "Fake" [] TypeNull [] False)
+  , ("Fake", DefFunction "Fake" [] TypeNull [] False Public False)
   ]
 
 paramI32 :: Parameter
@@ -216,7 +216,7 @@ exprTypeTests = testGroup "exprType Tests"
       exprType stack1 (ExprIndex dummyPos charArr (ExprLitInt dummyPos 1)) @?= Right TypeChar
   , testCase "ExprIndex on TypeAny" $ 
       let vs = HM.singleton "a" TypeAny
-      in exprType (funcStack1, vs, HM.empty) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
+      in exprType (funcStack1, vs, HM.empty, HM.empty) (ExprIndex dummyPos (ExprVar dummyPos "a") (ExprLitInt dummyPos 0)) @?= Right TypeAny
   , testCase "ExprLitArray incompatible elements - Error" $ 
       (case exprType stack1 (ExprLitArray dummyPos [ExprLitInt dummyPos 1, ExprLitBool dummyPos True]) of
                 Left err -> err @?= "incompatible array element types, expected i32"
