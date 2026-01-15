@@ -1,6 +1,11 @@
 somewhere
 {
     def compare(str1: string, str2: string) -> i32;
+
+    def error(v: string) -> i32;
+    def error(v: char) -> i32;
+    def show(v: string) -> i32;
+    def show(v: char) -> i32;
 }
 
 /**

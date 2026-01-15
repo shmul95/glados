@@ -30,6 +30,7 @@ keywordMap =
     (KwSomewhere, "somewhere"),
     (KwUse, "use"),
     (KwExport, "export"),
+    (KwExtern, "extern"),
     (KwAs, "as"),
     (OpAnd, "and"),
     (OpOr, "or"),

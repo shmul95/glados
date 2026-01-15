@@ -28,12 +28,7 @@ import Rune.Semantics.Helper (fixSelfType)
 --
 
 findFunc :: Program -> Either String FuncStack
-findFunc (Program _ defs) = do
-  let builtins = HM.fromList
-        [ ("show" , (TypeNull, [Parameter "value" TypeAny Nothing]))
-        , ("error", (TypeNull, [Parameter "msg" TypeAny Nothing]))
-        ]
-  foldM findDefs builtins defs
+findFunc (Program _ defs) = foldM findDefs HM.empty defs
 
 --
 -- private
@@ -41,7 +36,6 @@ findFunc (Program _ defs) = do
 
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
--- | find function definitions
 findDefs s (DefFunction name params rType _ _) =
     let paramTypes = map paramType params
         sig = (rType, params)

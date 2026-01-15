@@ -98,7 +98,9 @@ astTypeToIRType (TypeCustom name) = IRStruct name
 astTypeToIRType TypeString = IRPtr IRChar
 astTypeToIRType (TypeArray elemType) = IRPtr (IRArray (astTypeToIRType elemType) 0)
 astTypeToIRType (TypePtr t) = IRPtr (astTypeToIRType t)
+astTypeToIRType (TypeRef t) = IRRef (astTypeToIRType t)
 astTypeToIRType TypeAny = IRPtr IRNull
+astTypeToIRType (TypeVariadic t) = IRVariadic (astTypeToIRType t)
 
 irTypeToASTType :: IRType -> Type
 irTypeToASTType IRI8 = TypeI8
@@ -121,6 +123,8 @@ irTypeToASTType (IRArray t _) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr (IRArray t _)) = TypeArray (irTypeToASTType t)
 irTypeToASTType (IRPtr IRNull) = TypeAny
 irTypeToASTType (IRPtr t) = TypePtr (irTypeToASTType t)
+irTypeToASTType (IRRef t) = TypeRef (irTypeToASTType t)
+irTypeToASTType (IRVariadic t) = TypeVariadic (irTypeToASTType t)
 
 getDefaultValue :: IRType -> IROperand
 getDefaultValue (IRPtr _) = IRConstNull
@@ -149,6 +153,8 @@ sizeOfIRType _ IRChar    = 1
 sizeOfIRType _ IRBool    = 1
 sizeOfIRType _ IRNull    = 8
 sizeOfIRType _ (IRPtr _) = 8
+sizeOfIRType _ (IRRef _) = 8
+sizeOfIRType _ (IRVariadic _) = 8
 
 sizeOfIRType structs (IRArray t len) =
   sizeOfIRType structs t * len

@@ -19,6 +19,8 @@ varsSemanticsTests =
     [ testGroup "Control Flow"
       [ expectOk "handles return without expression" returnNullProgram,
         expectOk "handles return with expression" returnWithExprProgram,
+        expectErr "detects unreachable code after return with expression" unreachableAfterReturnProgram "unreachable statement(s) after return",
+        expectErr "detects unreachable code after return without expression" unreachableAfterReturnNullProgram "unreachable statement(s) after return",
         expectOk "handles if-else branches" ifElseFullProgram,
         expectOk "handles if without else" ifOnlyProgram,
         expectOk "handles loop statement" loopProgram,
@@ -147,6 +149,20 @@ returnNullProgram = Program "ret"
 returnWithExprProgram :: Program
 returnWithExprProgram = Program "ret-expr"
   [DefFunction "f" [] TypeI32 [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))] False]
+
+unreachableAfterReturnProgram :: Program
+unreachableAfterReturnProgram = Program "unreachable-ret-expr"
+  [DefFunction "f" [] TypeI32 
+    [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42)),
+     StmtExpr dummyPos (ExprLitInt dummyPos 1)]
+    False]
+
+unreachableAfterReturnNullProgram :: Program
+unreachableAfterReturnNullProgram = Program "unreachable-ret-null"
+  [DefFunction "f" [] TypeNull
+    [StmtReturn dummyPos Nothing,
+     StmtExpr dummyPos (ExprLitInt dummyPos 1)]
+    False]
 
 ifElseFullProgram :: Program
 ifElseFullProgram = Program "if"

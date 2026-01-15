@@ -47,8 +47,6 @@ import IR.Generator.Expression.UnarySpecs (unaryExprTests)
 import IR.Generator.Expression.LiteralsSpecs (literalsTests)
 import IR.Generator.Expression.CallSpecs (callExprTests)
 import IR.Generator.Expression.StructSpecs (structExprTests)
-import IR.Generator.Expression.Call.ShowSpecs (showCallTests)
-import IR.Generator.Expression.Call.ErrorSpecs (errorCallTests)
 import IR.Generator.Statement.ControlFlowSpecs (controlFlowTests)
 import IR.Generator.Statement.LoopsSpecs (loopsTests)
 import IR.PrinterSpecs (irPrinterTests)
@@ -151,8 +149,6 @@ irSpecs =
     , literalsTests
     , callExprTests
     , structExprTests
-    , showCallTests
-    , errorCallTests
     , controlFlowTests
     , loopsTests
     , irPrinterTests

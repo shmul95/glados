@@ -18,9 +18,21 @@ import qualified Rune.Lexer.Tokens as T
 
 parseType :: Parser Type
 parseType =
-  parseArrayType
+  parseVariadicType
+    <|> parseArrayType
+    <|> parseRefType
     <|> parsePtrType
     <|> parseBaseType
+
+parseVariadicType :: Parser Type
+parseVariadicType = do
+  _ <- expect T.Elipsis
+  TypeVariadic <$> parseType
+
+parseRefType :: Parser Type
+parseRefType = do
+  _ <- expect T.OpBitAnd
+  TypeRef <$> parseType
 
 parsePtrType :: Parser Type
 parsePtrType = do

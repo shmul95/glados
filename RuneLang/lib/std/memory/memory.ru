@@ -1,9 +1,11 @@
 somewhere
 {
-    def malloc(size: u64) -> *any;
-    def free(ptr: *any) -> null;
-    def realloc(ptr: *any, size: u64) -> *any;
-    def memset(ptr: *any, value: u8, size: u64) -> *any;
+    extern def malloc(size: u64) -> *any;
+    extern def free(ptr: *any) -> null;
+    extern def realloc(ptr: *any, size: u64) -> *any;
+    extern def memset(ptr: *any, value: u8, size: u64) -> *any;
+
+    def error(v: string) -> i32;
 }
 
 /**
