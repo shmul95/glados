@@ -334,7 +334,6 @@ optimizeInstr :: IRInstruction -> [IRInstruction] -> OptM [IRInstruction]
 
 -- remember assignment for later; remove if safe
 optimizeInstr inst@(IRASSIGN target op _) rest = do
-  modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
   st <- get
   let keep = osKeepAssignments st
       addrTaken = S.member target (osAddrTaken st)
@@ -346,7 +345,13 @@ optimizeInstr inst@(IRASSIGN target op _) rest = do
         _ -> False
       shouldKeep = keep || (addrTaken && not canRedirect)
   
-  if shouldKeep then emitInstr inst rest else optimizeBlock rest
+  -- Only add to osConsts if we're going to eliminate the assignment
+  -- If address is taken, we must not substitute uses with the operand
+  if shouldKeep 
+    then emitInstr inst rest 
+    else do
+      modify' (\s -> s { osConsts = M.insert target op (osConsts s) })
+      optimizeBlock rest
 
 -- reset remembered values at labels
 optimizeInstr inst@(IRLABEL _) rest =
@@ -365,12 +370,16 @@ optimizeInstr (IRCALL target fun args retType) rest =
 optimizeInstr inst rest = emitInstr inst rest
 
 inlineFunction :: String -> String -> IRFunction -> [IROperand] -> [IRInstruction] -> OptM [IRInstruction]
-inlineFunction target fun callee args rest =
+inlineFunction target fun callee args rest = do
   let prefix = fun <> "_" <> target <> "_"
       renamedBody = renameInstr prefix <$> irFuncBody callee
       renamedParams = map (first (prefix <>)) $ irFuncParams callee
       assigns = zipWith (\(n, t) arg -> IRASSIGN n arg t) renamedParams args
-  in optimizeBlock (assigns <> replaceRet target renamedBody <> rest)
+      -- Get address-taken variables from inlined function and rename them
+      inlinedAddrTaken = S.map (prefix <>) (getAddrTaken (irFuncBody callee))
+  -- Update the state to include address-taken variables from inlined function
+  modify (\s -> s { osAddrTaken = S.union (osAddrTaken s) inlinedAddrTaken })
+  optimizeBlock (assigns <> replaceRet target renamedBody <> rest)
 
 --
 -- helpers
