@@ -86,15 +86,17 @@ parseFunction isExport visibility isStatic isAbstract = do
   pure $ DefFunction name params retType body isExport visibility isStatic isAbstract
 
 --
--- structs
+-- structs²
 --
 
 parseStruct :: Bool -> Parser TopLevelDef
 parseStruct isAbstract = do
   name <- expect T.KwStruct *> parseIdentifier
+  extensions <- parseStructExtensions
   _ <- expect T.LBrace
-  (fields, methods) <- withContext ("body of struct '" ++ name ++ "'") parseStructBody
-  pure $ DefStruct name fields methods isAbstract
+  (fields, methods) <- withContext
+                        ("body of struct '" ++ name ++ "'") parseStructBody
+  pure $ DefStruct name fields methods isAbstract extensions
 
 parseStructBody :: Parser ([Field], [TopLevelDef])
 parseStructBody = do
@@ -123,6 +125,16 @@ parseStructItem = do
     T.KwDef -> Right <$> parseFunction False visibility isStatic isAbstract
     T.Identifier _ -> Left <$> parseField visibility isStatic <* expect T.Semicolon
     _ -> failParse "Expected struct field or method"
+
+parseStructExtensions :: Parser (Maybe [String])
+parseStructExtensions = do
+  t <- peek
+  case T.tokenKind t of
+    T.KwExtends -> do
+      _ <- advance
+      names <- sepBy parseIdentifier (expect T.Comma)
+      pure $ Just names
+    _ -> pure Nothing
 
 --
 -- parameters

@@ -5,7 +5,7 @@ somewhere
     def show(v: i32) -> i32;
 }
 
-abstract struct Vec2f
+abstract struct Vec2f extends Shape
 {
     private x: f32 = 0.0;
     private y: f32 = 1.0;

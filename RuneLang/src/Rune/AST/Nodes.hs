@@ -153,7 +153,8 @@ data TopLevelDef
       { structName :: String,
         structFields :: [Field],
         structMethods :: [TopLevelDef],
-        structIsAbstract :: Bool
+        structIsAbstract :: Bool,
+        structExtension :: Maybe [String]
       }
   | -- | somewhere block (forward declarations)
     -- somewhere

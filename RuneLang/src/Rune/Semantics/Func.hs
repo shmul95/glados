@@ -72,7 +72,7 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
                       then mangleFuncName name rType pTypes 
                       else name
 
-findDefs s (DefStruct name _ methods _) = foldM findDefs s $ transformStructMethods name methods
+findDefs s (DefStruct name _ methods _ _) = foldM findDefs s $ transformStructMethods name methods
 
 -- | Infer parameter type from default value if type is TypeAny
 inferParamType :: Parameter -> Parameter

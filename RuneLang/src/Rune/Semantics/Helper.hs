@@ -363,7 +363,7 @@ getFieldType (SourcePos file line col) ss (TypeCustom s) field =
         "undefined struct"
         ["field access", "global context"]
 
-    Just (DefStruct _ fields _ _) ->
+    Just (DefStruct _ fields _ _ _) ->
       case [ t | Field f t _ _ _ <- fields, f == field ] of
         (t:_) -> Right t
         [] ->

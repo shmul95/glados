@@ -77,7 +77,7 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- | For static variables, it creates IRStaticVar definitions
 -- STRUCT Vec2f { x: f32, y: f32 }
 genStruct :: TopLevelDef -> IRGen [IRTopLevel]
-genStruct (DefStruct name fields methods _) = do
+genStruct (DefStruct name fields methods _ _) = do
   let nonStaticFields = [f | f <- fields, not (fieldIsStatic f)]
       staticFields = [(n, t, d) | Field n t _ True d <- fields]
 

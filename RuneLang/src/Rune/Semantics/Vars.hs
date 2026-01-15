@@ -147,7 +147,7 @@ hasAny _ = False
 
 getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _ _ _ _ _) = n
-getDefName (DefStruct n _ _ _) = n
+getDefName (DefStruct n _ _ _ _) = n
 getDefName (DefSomewhere {}) = ""
 
 mangleFuncStack :: FuncStack -> FuncStack
@@ -176,9 +176,9 @@ verifTopLevel (DefFunction name params r_t body isExport visibility isStatic isA
   body' <- verifScope vs body
   pure $ DefFunction finalName params r_t body' isExport visibility isStatic isAbstract
 
-verifTopLevel (DefStruct name fields methods isAbstract) = do
+verifTopLevel (DefStruct name fields methods isAbstract extensions) = do
   methods' <- mapM (verifMethod name) methods
-  pure $ DefStruct name fields methods' isAbstract
+  pure $ DefStruct name fields methods' isAbstract extensions
 
 verifTopLevel def = pure def -- Somewhere
 
@@ -422,7 +422,7 @@ verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
   ss <- gets stStructs
   case HM.lookup name ss of
-    Just (DefStruct _ sFields _ _) -> do
+    Just (DefStruct _ sFields _ _ _) -> do
       let providedFieldNames = map fst fields'
           missingFields = [(fieldName f, fieldDefault f) | f <- sFields, not (fieldIsStatic f), fieldName f `notElem` providedFieldNames]
           defaultFields = [(fname, expr) | (fname, Just expr) <- missingFields]
@@ -646,7 +646,7 @@ lookupStructFields ss sName file line col =
       (printf "struct '%s'" sName)
       (printf "struct '%s' not found" sName)
       ["field access"]
-    Just (DefStruct _ fields _ _) -> pure fields
+    Just (DefStruct _ fields _ _ _) -> pure fields
     Just _ -> lift $ Left $ formatSemanticError $ SemanticError file line col
       (printf "struct '%s'" sName)
       (printf "'%s' is not a struct" sName)
