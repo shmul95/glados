@@ -9,7 +9,7 @@ somewhere
     extern def BeginDrawing() -> null;
     extern def EndDrawing() -> null;
     extern def ClearBackground(color: Color) -> null;
-    extern def DrawText(text: string, posX: i32, posY: i32, fontSize: i32, color: Color) -> null;
+    extern def DrawText(text: string, x: i32, y: i32, font_size: i32, color: Color) -> null;
 
     /* utils */
     extern def SetTargetFPS(fps: i32) -> null;
