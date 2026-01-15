@@ -104,7 +104,7 @@ visitSomewhere (DefSomewhere sigs) = do
   emitBlock "Signatures:" (mapM_ emitSomewhereDecl sigs)
   dedent
   where
-    emitSomewhereDecl (DeclFuncSig (FunctionSignature name paramTypes retType)) = do
+    emitSomewhereDecl (DeclFuncSig (FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = retType })) = do
       newLine
       emit $ name <> "("
       emit $ unwords (map showType paramTypes)

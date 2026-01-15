@@ -12,6 +12,7 @@ module Rune.AST.Nodes
     Parameter (..),
     Field (..),
     FunctionSignature (..),
+    StructureSignature (..),
     SomewhereDecl (..),
     Block,
     SourcePos (..),
@@ -173,7 +174,7 @@ data Field = Field {fieldName :: String, fieldType :: Type}
 
 -- | function signature for forward declarations
 data FunctionSignature = FunctionSignature
-  { sigName :: String,
+  { sigFuncName :: String,
     sigParams :: [Type],
     sigReturnType :: Type
   }
@@ -181,7 +182,7 @@ data FunctionSignature = FunctionSignature
 
 -- | StructureSignature for forward declaration
 data StructureSignature = StructureSignature
-  { sigName :: String
+  { sigStructName :: String
   , sigAttributes :: [(String, Type)]
   , sigMethods :: [FunctionSignature]
   }

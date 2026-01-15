@@ -92,7 +92,7 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected override 'null_show_i32' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "processes DefSomewhere with non-override signature" $
-      case findDefs HM.empty (DefSomewhere [DeclFuncSig (FunctionSignature "print" [TypeString] TypeNull)]) of
+      case findDefs HM.empty (DefSomewhere [DeclFuncSig (FunctionSignature { sigFuncName = "print", sigParams = [TypeString], sigReturnType = TypeNull })]) of
         Right stack -> do
           case HM.lookup "print" stack of
             Just (TypeNull, params) -> do
@@ -103,7 +103,7 @@ findDefsTests = testGroup "findDefs"
             _ -> assertFailure "Expected function 'print' in stack"
         Left err -> assertFailure $ "Expected success but got: " ++ err,
     testCase "processes DefSomewhere with override signature" $
-      case findDefs (HM.singleton "print" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefSomewhere [DeclFuncSig (FunctionSignature "print" [TypeString] TypeNull)]) of
+      case findDefs (HM.singleton "print" (TypeNull, [Parameter "value" TypeAny Nothing])) (DefSomewhere [DeclFuncSig (FunctionSignature { sigFuncName = "print", sigParams = [TypeString], sigReturnType = TypeNull })]) of
         Right stack -> do
           case HM.lookup "print" stack of
             Just (TypeNull, params) -> length params @?= 1

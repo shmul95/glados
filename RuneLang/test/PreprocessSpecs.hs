@@ -6,7 +6,6 @@ import System.IO.Temp (withSystemTempDirectory)
 import System.FilePath ((</>))
 import System.Directory (createDirectoryIfMissing)
 import Control.Monad (unless)
-import Control.Exception (try, IOException)
 
 import Rune.Preprocess (preprocessUseStatements)
 
@@ -60,7 +59,7 @@ testDuplicateUseStatements :: TestTree
 testDuplicateUseStatements = testCase "duplicate use statements are ignored" $
   withTempFiles [("dup.sw", "def unique() -> i32 { 123 }")] $ \dir -> do
     let content = "use dup.sw;\nuse dup.sw;\nuse dup.sw;\n"
-    result <- preprocessUseStatements (dir </> "main.sw") content
+    result <- preprocessUseStatements [dir] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> do
@@ -72,7 +71,7 @@ testCyclicUseStatements = testCase "cyclic use statements don't cause infinite r
   withTempFiles [("cycle_a.sw", "def a() -> i32 { 1 }\nuse cycle_b.sw;"),
                  ("cycle_b.sw", "def b() -> i32 { 2 }\nuse cycle_a.sw;")] $ \dir -> do
     let content = "use cycle_a.sw;\n"
-    result <- preprocessUseStatements (dir </> "main.sw") content
+    result <- preprocessUseStatements [dir] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> do
@@ -90,7 +89,7 @@ testNestedUseStatements = testCase "nested use statements work correctly" $
                  ("middle.sw", "def middle() -> i32 { 1 }\nuse base.sw;"),
                  ("top.sw", "def top() -> i32 { 2 }\nuse middle.sw;")] $ \dir -> do
     let content = "use top.sw;\n"
-    result <- preprocessUseStatements (dir </> "main.sw") content
+    result <- preprocessUseStatements [dir] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> do
@@ -103,7 +102,7 @@ testMixedContent :: TestTree
 testMixedContent = testCase "mixed content with use statements" $
   withTempFiles [("lib.sw", "def helper() -> i32 { 99 }")] $ \dir -> do
     let content = "def main() -> i32 {\n    use lib.sw;\n    helper()\n}\n"
-    result <- preprocessUseStatements (dir </> "main.sw") content
+    result <- preprocessUseStatements [dir] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> do
@@ -116,7 +115,7 @@ testEmptyFile :: TestTree
 testEmptyFile = testCase "empty file handling" $
   withTempFiles [("empty.sw", "")] $ \dir -> do
     let content = "use empty.sw;\ndef main() -> i32 { 0 }\n"
-    result <- preprocessUseStatements (dir </> "main.sw") content
+    result <- preprocessUseStatements [dir] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> do
@@ -134,7 +133,7 @@ testNonExistentFile = testCase "non-existent file error" $ do
 testInvalidUseStatements :: TestTree
 testInvalidUseStatements = testCase "invalid use statements are ignored" $ do
     let content = "use;\nuse file\ndef main() -> i32 { 0 }\nuse file.sw\n"
-    result <- preprocessUseStatements "main.sw" content
+    result <- preprocessUseStatements ["."] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> do
@@ -146,7 +145,7 @@ testWhitespaceHandling :: TestTree
 testWhitespaceHandling = testCase "whitespace handling in use statements" $
   withTempFiles [("spaces.sw", "def spaced() -> i32 { 42 }")] $ \dir -> do
     let content = "  use   spaces.sw  ;  \n\t use spaces.sw;\n"
-    result <- preprocessUseStatements (dir </> "main.sw") content
+    result <- preprocessUseStatements [dir] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> do
@@ -157,7 +156,7 @@ testComplexFilenames :: TestTree
 testComplexFilenames = testCase "complex filenames with spaces and paths" $
   withTempFiles [("path/to file.sw", "def complex() -> i32 { 1 }")] $ \dir -> do
     let content = "use path/to file.sw;\n"
-    result <- preprocessUseStatements (dir </> "main.sw") content
+    result <- preprocessUseStatements [dir] content
     case result of
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> 
@@ -175,7 +174,7 @@ withTempFiles files action = withSystemTempDirectory "preprocess-test" $ \dir ->
     takeDirectory path = 
       let reversed = reverse path
           afterSlash = dropWhile (/= '/') reversed  
-      in if null afterSlash then "." else reverse (tail afterSlash)
+      in if null afterSlash then "." else reverse (drop 1 afterSlash)
     
     createFile dir (filename, content) = do
       let fullPath = dir </> filename

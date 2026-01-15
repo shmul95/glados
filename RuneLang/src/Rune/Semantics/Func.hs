@@ -59,7 +59,7 @@ findDefs s (DefFunction name params rType _ _) =
 -- | find function signatures defined somewhere else
 findDefs s (DefSomewhere sigs) = foldM addSig s [sig | DeclFuncSig sig <- sigs]
   where
-    addSig fs (FunctionSignature name paramTypes rType) =
+    addSig fs (FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = rType }) =
       let params = map (\pType -> Parameter "" pType Nothing) paramTypes
           sig = (rType, params)
       in Right $ HM.insertWith (\_ old -> old) name sig fs
