@@ -352,7 +352,7 @@ test_threadJump = testCase "threadJump: logic" $ do
 
 test_optimizeBlock :: TestTree
 test_optimizeBlock = testCase "optimizeBlock: sequence runner" $ do
-    let st = OptState M.empty M.empty False M.empty
+    let st = OptState M.empty M.empty False M.empty S.empty
         instrs = [IRASSIGN "x" (IRConstInt 5) IRI64, IRRET (Just (IRTemp "x" IRI64))]
         (res, _) = runState (optimizeBlock instrs) st
     res @?= [IRRET (Just (IRConstInt 5))]
@@ -362,18 +362,18 @@ test_optimizeBlock = testCase "optimizeBlock: sequence runner" $ do
 test_optimizeInstr :: TestTree
 test_optimizeInstr = testGroup "optimizeInstr"
   [ testCase "label/call routing" $ do
-      let st = OptState (M.singleton "x" (IRConstInt 1)) M.empty False M.empty
+      let st = OptState (M.singleton "x" (IRConstInt 1)) M.empty False M.empty S.empty
           (res, st') = runState (optimizeInstr (IRLABEL (IRLabel "L")) []) st
       res @?= [IRLABEL (IRLabel "L")]
       M.null (osConsts st') @?= True
   , testCase "keep assignments" $ do
-      let st = OptState M.empty M.empty True M.empty
+      let st = OptState M.empty M.empty True M.empty S.empty
           (res, _) = runState (optimizeInstr (IRASSIGN "x" (IRConstInt 1) IRI64) []) st
       res @?= [IRASSIGN "x" (IRConstInt 1) IRI64]
   , testCase "inline call" $ do
       let callee = IRFunction "sub" [("p", IRI64)] (Just IRI64) [IRRET (Just (IRParam "p" IRI64))] False
           funcs = M.singleton "sub" callee
-          st = OptState M.empty funcs False M.empty
+          st = OptState M.empty funcs False M.empty S.empty
           (res, _) = runState (optimizeInstr (IRCALL "res" "sub" [IRConstInt 42] (Just IRI64)) [IRRET (Just (IRTemp "res" IRI64))]) st
       res @?= [IRRET (Just (IRConstInt 42))]
   ]
@@ -381,7 +381,7 @@ test_optimizeInstr = testGroup "optimizeInstr"
 test_inlineFunction :: TestTree
 test_inlineFunction = testCase "inlineFunction: renaming logic" $ do
     let callee = IRFunction "sub" [("p", IRI64)] (Just IRI64) [IRRET (Just (IRParam "p" IRI64))] False
-        st = OptState M.empty M.empty False M.empty
+        st = OptState M.empty M.empty False M.empty S.empty
         (res, _) = runState (inlineFunction "target" "sub" callee [IRConstInt 42] []) st
     res @?= []
 
@@ -413,7 +413,7 @@ test_isControlFlow = testCase "isControlFlow: checks" $ do
 
 test_simplifyInstr :: TestTree
 test_simplifyInstr = testCase "simplifyInstr: identities and constant folding" $ do
-    let st = OptState M.empty M.empty False M.empty
+    let st = OptState M.empty M.empty False M.empty S.empty
         check i e = fst (runState (simplifyInstr i) st) @?= e
     check (IRADD_OP "t" (IRConstInt 1) (IRConstInt 2) IRI64) (IRASSIGN "t" (IRConstInt 3) IRI64)
     check (IRSUB_OP "t" (IRConstInt 5) (IRConstInt 2) IRI64) (IRASSIGN "t" (IRConstInt 3) IRI64)
@@ -442,7 +442,7 @@ test_simplifyInstr = testCase "simplifyInstr: identities and constant folding" $
 
 test_simplifyOp :: TestTree
 test_simplifyOp = testCase "simplifyOp: const lookup" $ do
-    let st = OptState (M.singleton "x" (IRConstInt 42)) M.empty False M.empty
+    let st = OptState (M.singleton "x" (IRConstInt 42)) M.empty False M.empty S.empty
     fst (runState (simplifyOp (IRTemp "x" IRI64)) st) @?= IRConstInt 42
 
 test_renameInstr :: TestTree
@@ -522,7 +522,7 @@ test_operandType = testCase "operandType: extraction" $ do
 
 test_mathHelpers :: TestTree
 test_mathHelpers = testCase "isPowerOf2 and log2" $ do
-    let st = OptState M.empty M.empty False M.empty
+    let st = OptState M.empty M.empty False M.empty S.empty
         check i e = fst (runState (simplifyInstr i) st) @?= e
     check (IRDIV_OP "t" (IRTemp "x" IRI64) (IRConstInt 4) IRI64) (IRSHR_OP "t" (IRTemp "x" IRI64) (IRConstInt 2) IRI64)
     check (IRMOD_OP "t" (IRTemp "x" IRI64) (IRConstInt 8) IRI64) (IRBAND_OP "t" (IRTemp "x" IRI64) (IRConstInt 7) IRI64)

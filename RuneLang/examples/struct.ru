@@ -1,3 +1,9 @@
+somewhere
+{
+    def show(v: string) -> i32;
+    def show(v: f32) -> i32;
+}
+
 struct Vec2f
 {
     x: f32;

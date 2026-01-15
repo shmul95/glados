@@ -7,6 +7,7 @@ module Rune.Backend.X86_64.Struct
     emitSetField,
     sizeOfStruct,
     getFieldOffset,
+    loadStructBase
   )
 where
 #else
@@ -70,7 +71,7 @@ emitAllocStruct _ _ = ""  -- Stack space is already allocated in calculateStackM
 -- IRGET_FIELD dest basePtr structName fieldName fieldType
 --
 -- Steps:
--- 1. Load the struct pointer into a register
+-- 1. Load the struct pointer into a register (LEA if stack struct, MOV if pointer)
 -- 2. Calculate the field offset
 -- 3. Load the field value at [ptr + offset] into the destination
 emitGetField :: Map String Int -> StructMap -> String -> IROperand -> String -> String -> IRType -> [String]
@@ -80,7 +81,7 @@ emitGetField stackMap structMap dest basePtr structName fieldName fieldType =
       reg = getRegisterName "rax" fieldType
    in if isFloatType fieldType
       then emitGetFieldFloat stackMap dest basePtr offset fieldType
-      else loadReg stackMap "rdi" basePtr
+      else loadStructBase stackMap "rdi" basePtr
            <> [ emit 1 $ "mov " <> reg <> ", " <> sizeSpec <> " [rdi + " <> show offset <> "]"
               , storeReg stackMap dest "rax" fieldType
               ]
@@ -92,7 +93,7 @@ emitGetFieldFloat stackMap dest basePtr offset fieldType =
         IRF32 -> ("movss", "dword")
         IRF64 -> ("movsd", "qword")
         _     -> ("movsd", "qword")  -- fallback
-   in loadReg stackMap "rdi" basePtr
+   in loadStructBase stackMap "rdi" basePtr
       <> [ emit 1 $ movInstr <> " xmm0, " <> sizeSpec <> " [rdi + " <> show offset <> "]"
          , emit 1 $ movInstr <> " " <> sizeSpec <> " " <> stackAddr stackMap dest <> ", xmm0"
          ]
@@ -101,7 +102,7 @@ emitGetFieldFloat stackMap dest basePtr offset fieldType =
 -- IRSET_FIELD basePtr structName fieldName value
 --
 -- Steps:
--- 1. Load the struct pointer into a register
+-- 1. Load the struct pointer into a register (LEA if stack struct, MOV if pointer)
 -- 2. Calculate the field offset
 -- 3. Load the value into a register
 -- 4. Store the value at [ptr + offset]
@@ -125,7 +126,7 @@ emitSetFieldInt :: Map String Int -> IROperand -> Int -> IROperand -> IRType -> 
 emitSetFieldInt stackMap basePtr offset valueOp fieldType =
   let sizeSpec = getSizeSpecifier fieldType
       reg = getRegisterName "rax" fieldType
-   in loadReg stackMap "rdi" basePtr
+   in loadStructBase stackMap "rdi" basePtr
       <> loadRegWithExt stackMap ("rax", valueOp)
       <> [ emit 1 $ "mov " <> sizeSpec <> " [rdi + " <> show offset <> "], " <> reg ]
 
@@ -135,7 +136,16 @@ emitSetFieldFloat stackMap basePtr offset valueOp fieldType =
   let (movInstr, sizeSpec) = case fieldType of
         IRF32 -> ("movss", "dword")
         IRF64 -> ("movsd", "qword")
-        _     -> ("movsd", "qword")  -- fallback
-   in loadReg stackMap "rdi" basePtr
+        _     -> ("movsd", "qword")
+   in loadStructBase stackMap "rdi" basePtr
       <> loadFloatOperand stackMap "xmm0" valueOp fieldType
       <> [ emit 1 $ movInstr <> " " <> sizeSpec <> " [rdi + " <> show offset <> "], xmm0" ]
+
+
+-- | Helper to load the base address of a struct into a register
+-- If the operand is a struct value (on stack), use LEA
+-- If the operand is a pointer (on stack or elsewhere), use MOV (standard load)
+loadStructBase :: Map String Int -> String -> IROperand -> [String]
+loadStructBase sm reg (IRTemp name (IRStruct _)) = [emit 1 $ "lea " <> reg <> ", " <> stackAddr sm name]
+loadStructBase sm reg (IRParam name (IRStruct _)) = [emit 1 $ "lea " <> reg <> ", " <> stackAddr sm name]
+loadStructBase sm reg op = loadReg sm reg op

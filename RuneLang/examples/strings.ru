@@ -1,3 +1,5 @@
+somewhere { def show(c: char) -> null; }
+
 def show_string(str: string) -> null
 {
     for c in str {
