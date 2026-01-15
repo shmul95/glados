@@ -30,8 +30,7 @@ import Data.List (intercalate, nub)
 import qualified Data.Map.Strict as Map
 import Rune.Backend.Types (Extern, Function, Global, Struct, Static)
 import Rune.IR.IRHelpers (sizeOfIRType)
-import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..))
-import Rune.AST.Nodes (Expression)
+import Rune.IR.Nodes (IRFunction (..), IRInstruction (..), IRTopLevel (..), IRType (..), IROperand (..))
 import Lib (isPrintable, alignTo, alignSize)
 import Data.Char (ord)
 
@@ -121,7 +120,7 @@ collectVars acc (IRINC _) = acc
 collectVars acc (IRDEC _) = acc
 collectVars acc _ = acc
 
-accumulateOffset :: StructMap -> (Int, Map.Map String Int) -> (String, IRType, Maybe Expression) -> (Int, Map.Map String Int)
+accumulateOffset :: StructMap -> (Int, Map.Map String Int) -> (String, IRType, Maybe IROperand) -> (Int, Map.Map String Int)
 accumulateOffset structMap (currentOffset, accMap) (name, irType, _) =
   let size = sizeOfIRType structMap irType
       align = alignSize size

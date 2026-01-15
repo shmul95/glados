@@ -30,12 +30,10 @@ import Rune.Backend.X86_64.Registers (getRegisterName, getSizeSpecifier)
 import Rune.Backend.X86_64.Compare (loadFloatOperand, isFloatType)
 import Rune.IR.Nodes (IROperand (..), IRType (..))
 import Rune.IR.IRHelpers (sizeOfIRType)
-import Rune.AST.Nodes (Expression)
-
 import Lib (alignTo, alignSize)
 
 -- | Type alias for struct field definitions: (fieldName, fieldType, defaultValue)
-type StructDef = [(String, IRType, Maybe Expression)]
+type StructDef = [(String, IRType, Maybe IROperand)]
 
 -- | Type alias for struct definitions map
 type StructMap = Map String StructDef

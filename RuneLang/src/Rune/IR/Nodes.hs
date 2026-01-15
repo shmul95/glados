@@ -19,8 +19,6 @@ import Control.Monad.Except (ExceptT)
 import Data.Map (Map)
 import Data.Set (Set)
 import Rune.Semantics.Type (FuncStack)
-import Rune.AST.Nodes (Expression)
-
 --
 -- state
 --
@@ -33,7 +31,7 @@ data GenState = GenState
     gsGlobals :: [IRTopLevel],
     gsCurrentFunc :: Maybe String,
     gsSymTable :: Map String (IROperand, IRType),
-    gsStructs :: Map String [(String, IRType, Maybe Expression)],
+    gsStructs :: Map String [(String, IRType, Maybe IROperand)],
     gsLoopStack :: [(IRLabel, IRLabel)],
     gsCalledFuncs :: Set String,
     gsStringMap :: Map String String,
@@ -180,7 +178,7 @@ data IRGlobalValue
 data IRTopLevel
   = IRGlobalDef String IRGlobalValue
   | IRFunctionDef IRFunction
-  | IRStructDef String [(String, IRType, Maybe Expression)]
+  | IRStructDef String [(String, IRType, Maybe IROperand)]
   | IRExtern String
   | IRStaticVar String IRType (Maybe IROperand)
   deriving (Show, Eq)

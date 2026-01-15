@@ -12,7 +12,6 @@ where
 import Control.Monad.State.Strict (State)
 import Data.Map.Strict (Map)
 import Rune.IR.Nodes (IRFunction, IRGlobalValue, IRType (..), IROperand)
-import Rune.AST.Nodes (Expression)
 
 --
 -- public
@@ -28,7 +27,7 @@ type Global = (String, IRGlobalValue)
 
 type Static = (String, IRType, Maybe IROperand)
 
-type Struct = [(String, IRType, Maybe Expression)]
+type Struct = [(String, IRType, Maybe IROperand)]
 
 data AsmState = AsmState
   { asOutput :: [String],

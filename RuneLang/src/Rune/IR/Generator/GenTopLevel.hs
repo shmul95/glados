@@ -73,11 +73,15 @@ genFunction x = throwError $ "genFunction called on non-function: received " ++ 
 -- | generate IR for a struct definition and its methods
 -- | For static variables, it creates IRStaticVar definitions
 -- STRUCT Vec2f { x: f32, y: f32 }
+-- | generate IR for a struct definition and its methods
+-- | For static variables, it creates IRStaticVar definitions
+-- STRUCT Vec2f { x: f32, y: f32 }
 genStruct :: TopLevelDef -> IRGen [IRTopLevel]
 genStruct (DefStruct name fields methods) = do
-  let irFields = map (\(Field n t _ _ d) -> (n, astTypeToIRType t, d)) [f | f <- fields, not (fieldIsStatic f)]
+  let nonStaticFields = [f | f <- fields, not (fieldIsStatic f)]
       staticFields = [(n, t, d) | Field n t _ True d <- fields]
 
+  irFields <- mapM convertFieldToIR nonStaticFields
   staticVars <- convertStaticToIRType name staticFields
 
   modify $ \s -> s
@@ -88,6 +92,15 @@ genStruct (DefStruct name fields methods) = do
   methodDefs <- concat <$> mapM (genStructMethod name) methods
   pure $ IRStructDef name irFields : staticVars ++ methodDefs
 genStruct _ = pure []
+
+convertFieldToIR :: Field -> IRGen (String, IRType, Maybe IROperand)
+convertFieldToIR (Field name typ _ _ mbExpr) = do
+  mbOp <- case mbExpr of
+    Just expr -> do
+      (_, op, _) <- genExpression expr
+      pure $ Just op
+    Nothing -> pure Nothing
+  pure (name, astTypeToIRType typ, mbOp)
 
 convertStaticToIRType :: String -> [(String, Type, Maybe Expression)] -> IRGen [IRTopLevel]
 convertStaticToIRType sName = mapM (\(n, t, mbExpr) -> do

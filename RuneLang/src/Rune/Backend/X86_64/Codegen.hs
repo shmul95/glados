@@ -139,12 +139,23 @@ emitRoDataSection gs = "section .rodata" : map emitGlobal gs
     emitGlobal (name, IRGlobalFloatVal val _)     = name <> " dd " <> " " <> show val
 
 emitDataSection :: StructMap -> [Function] -> [Static] -> [String]
-emitDataSection structs fs _ =
+emitDataSection structs fs statics =
   let arrays = collectStaticArrays fs
-   in case arrays of
-        [] -> []
-        _  -> "section .data" : concatMap emitArray arrays
+      scalarStatics = filter isScalarStatic statics
+   in case (arrays, scalarStatics) of
+        ([], []) -> []
+        _        -> "section .data" : (concatMap emitStaticVar scalarStatics <> concatMap emitArray arrays)
   where
+    isScalarStatic (_, IRArray {}, _) = False
+    isScalarStatic _ = True
+
+    emitStaticVar (name, typ, mbOp) =
+      let dir = getDataDirective structs typ
+          val = case mbOp of
+                  Just op  -> showStaticOperand typ op
+                  Nothing  -> "0"
+       in [name <> ": " <> dir <> " " <> val]
+
     emitArray (lbl, elemType, values) =
       let dir = getDataDirective structs elemType
           initVals = map (showStaticOperand elemType) values <> ["0"]

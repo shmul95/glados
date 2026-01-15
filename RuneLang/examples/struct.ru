@@ -2,6 +2,7 @@ somewhere
 {
     def show(v: string) -> i32;
     def show(v: f32) -> i32;
+    def show(v: i32) -> i32;
 }
 
 struct Vec2f
@@ -9,15 +10,17 @@ struct Vec2f
     private x: f32 = 0.0;
     private y: f32 = 1.0;
 
-    public static count: i32 = 0;
+    public static count: i32 = 20;
 
     public def new() -> Vec2f
     {
+        Vec2f.count += 1;
         Vec2f {}
     }
 
     public def new(x: f32, y: f32) -> Vec2f
     {
+        Vec2f.count += 1;
         Vec2f { x: x, y: y }
     }
 
@@ -65,6 +68,10 @@ def show(prefix: string, v: Vec2f) -> null
 
 def main() -> null
 {
-    v1 = Vec2f.new(3.0, 4.0);
-    show("v1: ", v1);
+    a: i32 = 10;
+    show(a);
+    a: i32 = 11;
+    show(a);
+
+    show(Vec2f.count);
 }

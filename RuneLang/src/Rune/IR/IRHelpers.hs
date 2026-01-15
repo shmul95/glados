@@ -58,7 +58,7 @@ import Control.Monad.Except (throwError)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
-import Rune.AST.Nodes (Type (..), Expression)
+import Rune.AST.Nodes (Type (..))
 import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IROperand (..), IRTopLevel (..), IRType (..), IRGlobalValue (..))
 import Rune.Semantics.Type (FuncStack)
 import Rune.Semantics.Helper (selectSignature)
@@ -138,7 +138,7 @@ getDefaultValue _ = IRConstInt 0
 
 -- TODO: treat struct properly
 -- currently they are treated as 8 byte references/pointers
-sizeOfIRType :: Map.Map String [(String, IRType, Maybe Expression)] -> IRType -> Int
+sizeOfIRType :: Map.Map String [(String, IRType, Maybe IROperand)] -> IRType -> Int
 sizeOfIRType _ IRI8      = 1
 sizeOfIRType _ IRI16     = 2
 sizeOfIRType _ IRI32     = 4
@@ -163,12 +163,12 @@ sizeOfIRType structs (IRStruct name) =
   maybe 8 sizeOfStructType $ Map.lookup name structs
 
   where
-    sizeOfStructType :: [(String, IRType, Maybe Expression)] -> Int
+    sizeOfStructType :: [(String, IRType, Maybe IROperand)] -> Int
     sizeOfStructType fields =
       let (total, _) = foldl step (0, 0) fields
       in align8 total
 
-    step :: (Int, Int) -> (String, IRType, Maybe Expression) -> (Int, Int)
+    step :: (Int, Int) -> (String, IRType, Maybe IROperand) -> (Int, Int)
     step (offset, _) (_, t, _) =
       let s       = sizeOfIRType structs t
           align   = alignSize s

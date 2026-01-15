@@ -55,7 +55,7 @@ import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), I
 --
 
 type FunctionCallInfo = (String, (Type, [Parameter]))
-type StructMap = Map.Map String [(String, IRType)]
+type StructMap = Map.Map String [(String, IRType, Maybe IROperand)]
 
 data CallStrategy
   = StandardCall
