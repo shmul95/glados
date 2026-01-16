@@ -18,6 +18,7 @@ preprocessTests =
   testGroup
     "Preprocess Specs"
     [ testBasicUseStatement,
+      testExtensionlessUseStatement,
       testMultipleUseStatements,
       testDuplicateUseStatements,
       testCyclicUseStatements,
@@ -43,6 +44,16 @@ testBasicUseStatement = testCase "basic use statement" $
       Left err -> fail $ "Unexpected error: " ++ err
       Right expanded -> 
         assertEqual "Should expand use statement" "def test() -> i32 { 42 }\n" expanded
+
+testExtensionlessUseStatement :: TestTree
+testExtensionlessUseStatement = testCase "extensionless use statement tries multiple extensions" $
+  withTempFiles [("test.sw", "def test() -> i32 { 42 }")] $ \dir -> do
+    let content = "use test;\n"
+    result <- preprocessUseStatements [dir] content
+    case result of
+      Left err -> fail $ "Unexpected error: " ++ err
+      Right expanded -> 
+        assertEqual "Should expand use statement by finding .sw file" "def test() -> i32 { 42 }\n" expanded
 
 testMultipleUseStatements :: TestTree
 testMultipleUseStatements = testCase "multiple use statements" $

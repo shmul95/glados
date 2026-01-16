@@ -175,10 +175,18 @@ testParseParamTypeInSignature = testGroup "parseParamTypeInSignature"
 
 testParseSomewhereDecl :: TestTree 
 testParseSomewhereDecl = testGroup "parseSomewhereDecl"
-  [ testCase "parse use statement" $ 
+  [ testCase "parse use statement with .sw extension" $ 
       assertS "use statement" parseSomewhereDecl 
       [tok T.KwUse, tok (T.Identifier "Vec"), tok T.Dot, tok (T.Identifier "sw"), tok T.Semicolon]
       (DeclUse "Vec.sw")
+  , testCase "parse use statement with .somewhere extension" $ 
+      assertS "use statement" parseSomewhereDecl 
+      [tok T.KwUse, tok (T.Identifier "Vec"), tok T.Dot, tok (T.Identifier "somewhere"), tok T.Semicolon]
+      (DeclUse "Vec.somewhere")
+  , testCase "parse use statement without extension" $ 
+      assertS "use statement" parseSomewhereDecl 
+      [tok T.KwUse, tok (T.Identifier "Vec"), tok T.Semicolon]
+      (DeclUse "Vec")
   , testCase "parse function signature" $
       assertS "function signature" parseSomewhereDecl
       [tok T.KwDef, tok (T.Identifier "test"), tok T.LParen, tok T.RParen, tok T.OpArrow, tok T.TypeI32, tok T.Semicolon]
