@@ -98,7 +98,7 @@ checkExt pos ss sName extName =
       "unknown struct in extends"
 
 addBaseField :: [Field] -> String -> [Field]
-addBaseField fields ext = Field "__base" (TypeCustom ext) Protected False Nothing : fields
+addBaseField fields ext = Field "__base" (TypeCustom ext) Public False Nothing : fields
 
 checkMethods :: String -> SourcePos -> [TopLevelDef] -> Either String [TopLevelDef]
 checkMethods _ _ = Right

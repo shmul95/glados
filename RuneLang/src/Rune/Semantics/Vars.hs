@@ -77,6 +77,8 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
+import Debug.Trace (trace)
+
 --
 -- state monad
 --
@@ -151,6 +153,10 @@ getDefName (DefSomewhere {}) = ""
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = fs
+
+getCustomTypeName :: Type -> Maybe String
+getCustomTypeName (TypeCustom name) = Just name
+getCustomTypeName _                 = Nothing
 
 --
 -- verif
@@ -379,24 +385,29 @@ verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   callExpr <- resolveCall cPos vPos s hint name finalArgs finalArgTypes
   pure $ ExprCall cPos callExpr finalArgs
 
-verifExprWithContext hint vs (ExprAccess pos (ExprVar vPos target) field) = do
-  ss <- gets stStructs
+verifExprWithContext hint vs (ExprAccess pos expr@(ExprVar vPos target) field) = do
+  ss <- trace (target ++ "." ++ field) $ gets stStructs
   currentStruct <- gets stCurrentStruct
+
   let SourcePos file line col = pos
 
-  case HM.lookup target ss of
-    Just _ -> do
-      fields <- lookupStructFields ss target file line col
-      Field _ _ visibility isStatic _ <- findField fields field target file line col
-      unless isStatic $
-        lift $ Left $ formatSemanticError $ SemanticError file line col
-          (printf "static field access '%s.%s'" target field)
-          (printf "field '%s' is not static, use an instance instead" field)
-          ["static field access"]
-      checkFieldVisibility visibility currentStruct target False field file line col
-      let globalVarName = target ++ "_" ++ field
-      pure $ ExprVar vPos globalVarName
-    Nothing -> verifFieldAccess pos (ExprVar vPos target) field hint vs
+  case convertVarToAccess expr ss (getCustomTypeName =<< HM.lookup target vs) field of
+    ExprVar{} -> do
+      case HM.lookup target ss of
+        Just _ -> do
+          fields <- lookupStructFields ss target file line col
+          Field _ _ visibility isStatic _ <- findField fields field target file line col
+          unless isStatic $
+            lift $ Left $ formatSemanticError $ SemanticError file line col
+              (printf "static field access '%s.%s'" target field)
+              (printf "field '%s' is not static, use an instance instead" field)
+              ["static field access"]
+          checkFieldVisibility visibility currentStruct target False field file line col
+          let globalVarName = target ++ "_" ++ field
+          pure $ ExprVar vPos globalVarName
+        Nothing -> verifFieldAccess pos (ExprVar vPos target) field hint vs
+
+    expr' -> verifExprWithContext hint vs (ExprAccess pos expr' field)
 
 verifExprWithContext hint vs (ExprAccess pos target field) =
   verifFieldAccess pos target field hint vs
@@ -730,3 +741,25 @@ checkMethodVisibility fs baseName currentStruct sName isSelf method file line co
     [] -> pure ()
     (visibility:_) ->
       raiseVisibilityError visibility currentStruct sName isSelf method "method" file line col "method call"
+
+-- | 1. Get the current struct in the stack
+-- | 2. Check if the struct inherit from another
+-- | -> If no, return the expression as is
+-- | -> If yes, convert the variable to an access expression
+-- | Do it recursively until the top of the inheritance chain
+convertVarToAccess :: Expression -> StructStack -> Maybe String -> String -> Expression
+convertVarToAccess expr ss (Just sName) field =
+  case HM.lookup sName ss of
+    Just (DefStruct _ fields _ _ (Just (ext:_))) ->
+      -- Check if field exists in current struct
+      case findFieldInList fields field of
+        Just _ -> expr  -- Field exists in current struct, don't traverse
+        Nothing ->
+          -- Field doesn't exist in current struct, look in parent
+          let baseAccess = ExprAccess (SourcePos "<unknown>" 0 0) expr "__base"
+          in convertVarToAccess baseAccess ss (Just ext) field
+    _ -> expr
+  where
+    findFieldInList fs fname = List.find (\f -> fieldName f == fname) fs
+convertVarToAccess expr _ _ _ = expr
+

@@ -168,7 +168,7 @@ interpretPipeline :: FilePath -> IO ()
 interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
 
 pipeline :: (FilePath, String) -> Either String IRProgram
-pipeline = parseLexer >=> parseAST >=> verifAndGenIR >=> optimizeIR
+pipeline = parseLexer >=> parseAST >=> verifAndGenIR -- >=> optimizeIR
 
 verifAndGenIR :: Program -> Either String IRProgram
 verifAndGenIR = checkSemantics >=> uncurry generateIR
