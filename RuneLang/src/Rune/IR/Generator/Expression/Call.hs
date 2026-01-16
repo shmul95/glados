@@ -300,7 +300,8 @@ prepareArg :: StructMap -> ([IRInstruction], IROperand, IRType) -> ([IRInstructi
 prepareArg structs (i, IRTemp n t, st@(IRStruct _))
   | sizeOfIRType structs st <= 8 = (i, IRTemp n t)  -- pass small structs by value
   | otherwise = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
-prepareArg _ (i, IRTemp n t, IRPtr (IRStruct _)) = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
+-- if already a pointer to struct, don't take address again
+prepareArg _ (i, op, IRPtr (IRStruct _)) = (i, op)
 prepareArg _ (i, op, _) = (i, op)
 
 -- prepare a parameter argument, handling reference parameter types (taking addresses) or passing as-is
