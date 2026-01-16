@@ -10,9 +10,9 @@ def main() -> null {
     v.push("le")?;
     v.push("monde")?;
 
-    show(v.pop()?);
-    show(v.pop()?);
-    show(v.get(0)?);
+    show(v.pop()? as string);
+    show(v.pop()? as string);
+    show(v.get(0)? as string);
 
     v.delete();
 }
