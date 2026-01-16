@@ -200,8 +200,8 @@ testPointerAndReferenceLogic = testGroup "Pointer & Reference Edge Cases"
       let
           (instrs, op) = prepareArg Map.empty ([], IRTemp "ptr" (IRPtr (IRStruct "S")), IRPtr (IRStruct "S"))
       in do
-        assertBool "Should emit ADDR for ptr" (any isAddr instrs)
-        op @?= IRTemp "p_ptr" (IRPtr (IRPtr (IRStruct "S")))
+        assertBool "Should NOT emit ADDR for ptr (pass pointer as is)" (not (any isAddr instrs))
+        op @?= IRTemp "ptr" (IRPtr (IRStruct "S"))
 
   , testCase "prepareParamArg: handles IRGlobal as reference" $
       let (instrs, op) = prepareParamArg Map.empty (TypeRef TypeI32) [] (IRGlobal "glob" IRI32) IRI32
