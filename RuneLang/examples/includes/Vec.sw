@@ -1,14 +1,4 @@
-def show(var: any) -> null;
-
-def allocate(size: u64) ~> *any;
-def liberate(ptr: *any) -> bool;
-def reallocate(ptr: *any, size: u64) ~> *any;
-def initialize(ptr: *any, size: u64, value: u8) ~> *any;
-
-def assert(condition: bool, message: string) -> bool;
-def assert_eq(a: string, b: string, message: string) -> bool;
-
-def error(s: string) -> null;
+use stdlib;
 
 struct Vec
 {
