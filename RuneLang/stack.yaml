@@ -75,5 +75,5 @@ packages:
 # install-ghc: false
 
 nix:
-  enable: true
+  enable: false
   packages: [nasm, gcc, binutils]
