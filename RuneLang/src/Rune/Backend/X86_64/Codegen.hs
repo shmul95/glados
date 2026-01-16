@@ -29,6 +29,7 @@ module Rune.Backend.X86_64.Codegen
     saveStructResult,
     emitRet,
     emitStructRet,
+    emitStore,
     emitDeref,
     emitLoadOffset,
     emitAllocArray,
@@ -261,6 +262,7 @@ emitInstructionGen _ _ sm _ _ (IRJUMP_TEST_NZ o1 o2 (IRLabel lbl)) = emitTestJum
 emitInstructionGen _ _ sm _ _ (IRJUMP_TEST_Z o1 o2 (IRLabel lbl)) = emitTestJump sm o1 o2 "jz" lbl
 emitInstructionGen mbExterns structs sm _ _ (IRCALL dest funcName args mbType) = emitCallGen mbExterns structs sm dest funcName args mbType
 emitInstructionGen _ structs sm endLbl _ (IRRET mbOp) = emitRet structs sm endLbl mbOp
+emitInstructionGen _ _ sm _ _ (IRSTORE ptr value) = emitStore sm ptr value
 emitInstructionGen _ _ sm _ _ (IRDEREF dest ptr typ) = emitDeref sm dest ptr typ
 emitInstructionGen _ _ sm _ _ (IRLOAD_OFFSET dest ptr offset typ) = emitLoadOffset sm dest ptr offset typ
 emitInstructionGen _ structs sm _ fn (IRALLOC_ARRAY dest elemType values) = emitAllocArray structs sm fn dest elemType values
@@ -488,6 +490,20 @@ emitDeref sm dest ptr typ =
   , storeReg sm dest "rax" typ
   ]
 
+-- | Store a value through a pointer
+-- IRSTORE ptr value means *ptr = value
+emitStore :: Map String Int -> IROperand -> IROperand -> [String]
+emitStore sm ptr value =
+  case getOperandType value of
+    Just valueType ->
+      let sizeSpec = getSizeSpecifier valueType
+          reg = getRegisterName "rbx" valueType
+       in loadReg sm "rax" ptr  -- load pointer address into rax
+       <> loadReg sm "rbx" value  -- load value into rbx
+       <> [ emit 1 $ "mov " <> sizeSpec <> " [rax], " <> reg  -- store value at pointer address
+          ]
+    Nothing -> []
+
 -- | Load a value of given type from pointer + byte offset
 -- ptr[offset] where we load sizeof(typ) bytes
 emitLoadOffset :: Map String Int -> String -> IROperand -> IROperand -> IRType -> [String]
@@ -584,6 +600,7 @@ emitIncDecHelper structs sm name t asmOp =
 --  2- source is a local variable: lea its address
 emitAddr :: Map String Int -> String -> String -> IRType -> [String]
 emitAddr sm dest source t
+  | Map.member source sm = [emit 1 $ "lea rax, " <> stackAddr sm source, storeReg sm dest "rax" t]
   | isGlobalName source = [emit 1 $ "lea rax, [rel " <> source <> "]", storeReg sm dest "rax" t]
   | otherwise = [emit 1 $ "lea rax, " <> stackAddr sm source, storeReg sm dest "rax" t]
   where

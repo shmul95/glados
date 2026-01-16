@@ -5,7 +5,7 @@ somewhere
     extern def realloc(ptr: *any, size: u64) -> *any;
     extern def memset(ptr: *any, value: u8, size: u64) -> *any;
 
-    def error(v: string) -> i32;
+    def error(v: string) -> null;
 }
 
 /**

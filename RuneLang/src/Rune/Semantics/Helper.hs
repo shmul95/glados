@@ -87,16 +87,10 @@ isRightFunction :: (String, [Type]) -> String -> (Type, [Type]) -> Bool
 isRightFunction (fname, argTypes) name (ret, _) =
   name == mangleName fname ret argTypes
 
-isStructMethod :: String -> Bool
-isStructMethod = elem '_'
-
 isCompatibleMangling :: String -> String -> Type -> [Type] -> [Type] -> Bool
 isCompatibleMangling baseName fname ret paramTypes argTypes =
-  let prefix = show ret <> "_" <> baseName
-      nameOk =
-           fname == baseName
-        || fname == prefix
-        || take (length prefix) fname == prefix
+  let mangledName = mangleName baseName ret paramTypes
+      nameOk = fname == baseName || fname == mangledName
       argsOk =
            length paramTypes == length argTypes
         && all (uncurry isTypeCompatible) (zip paramTypes argTypes)
@@ -180,13 +174,11 @@ checkParamType s@(fs, _, _) (fname, argTypes) file line col es =
             fs
 
       compatible =
-        if isStructMethod fname
-        then HM.toList $
-             HM.filterWithKey
-               (\k (ret, ps) ->
-                 isCompatibleMangling fname k ret (map paramType ps) argTypes)
-               fs
-        else []
+        HM.toList $
+          HM.filterWithKey
+            (\k (ret, ps) ->
+              isCompatibleMangling fname k ret (map paramType ps) argTypes)
+            fs
 
       candidates =
         case (exact, compatible, HM.lookup fname fs) of
@@ -229,8 +221,14 @@ exprType _ (ExprStructInit _ s _)  = Right $ TypeCustom s
 exprType _ (ExprCast _ _ t)        = Right t
 exprType _ (ExprSizeof _ _)        = Right TypeU64
 
-exprType s (ExprUnary _ _ e) =
-  exprType s e
+exprType s (ExprUnary _ op e) = case op of
+  Deref -> exprType s e >>= \case
+    TypePtr t -> Right t
+    t -> Left $ "Cannot dereference non-pointer type: " ++ show t
+  Reference -> do
+    t <- exprType s e
+    Right $ TypePtr t
+  _ -> exprType s e
 
 exprType s (ExprBinary _ op a b) = do
   ta <- exprType s a

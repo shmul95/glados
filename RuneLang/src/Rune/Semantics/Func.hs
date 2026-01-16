@@ -37,21 +37,21 @@ findFunc (Program _ defs) = foldM findDefs HM.empty defs
 findDefs :: FuncStack -> TopLevelDef -> Either String FuncStack
 
 findDefs s (DefFunction name params rType _ _) =
-    case HM.lookup name s of
-        Nothing       -> Right $ HM.insert name sig s
+    case HM.lookup finalName s of
+        Nothing       -> Right $ HM.insert finalName sig s
         Just existing -> handleConflict existing
   where
     sig         = (rType, params)
     pTypes      = map paramType params
     mangledName = mangleFuncName name rType pTypes
+    finalName   = if name == "main" then name else mangledName
 
     handleConflict (exRet, exArgs)
         | exRet == rType && exArgs == params = Left errSameSig
-        | HM.member mangledName s            = Left errMangled
-        | otherwise                          = Right $ HM.insert mangledName sig s
+        | otherwise                          = Left errMangled
 
     errSameSig = printf "FuncAlreadyExist: %s was already defined with same signature" name
-    errMangled = printf "FuncAlreadyExist: %s (mangled: %s) was already defined" name mangledName
+    errMangled = printf "FuncAlreadyExist: %s (mangled: %s) was already defined" name finalName
 
 findDefs s (DefSomewhere sigs) = foldM addSig s sigs
   where
@@ -60,11 +60,7 @@ findDefs s (DefSomewhere sigs) = foldM addSig s sigs
       where
         sig       = (rType, params)
         params    = map (\t -> Parameter "" t Nothing) pTypes
-        finalName = if isExtern then name else resolveName
-        
-        resolveName = if HM.member name fs 
-                      then mangleFuncName name rType pTypes 
-                      else name
+        finalName = if isExtern then name else mangleFuncName name rType pTypes
 
 findDefs s (DefStruct name _ methods) = foldM findDefs s $ transformStructMethods name methods
 

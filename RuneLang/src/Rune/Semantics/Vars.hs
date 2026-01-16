@@ -59,6 +59,7 @@ data SemState = SemState
   , stNewDefs      :: [TopLevelDef]           -- << new functions
   , stInstantiated :: HM.HashMap String Bool  -- << cache of instantiated templates
   , stStructs      :: StructStack             -- << known structs
+  , stCurrentStruct :: Maybe String           -- << current struct name (for method calls)
   }
 
 type SemM a = StateT SemState (Either String) a
@@ -83,6 +84,7 @@ verifVars (Program n defs) = do
         , stNewDefs = []
         , stInstantiated = HM.empty
         , stStructs = ss
+        , stCurrentStruct = Nothing
         }
 
   (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
@@ -147,14 +149,12 @@ checkFnReturn pos fnName retType body =
 
 verifTopLevel :: TopLevelDef -> SemM TopLevelDef
 verifTopLevel (DefFunction name params r_t body isExport) = do
-  fs <- gets stFuncs
   let paramTypes = map paramType params
-      finalName = case HM.lookup name fs of
-        Just (exRet, exArgs) ->
-            if exRet == r_t && map paramType exArgs == paramTypes
-            then name
-            else mangleName name r_t paramTypes
-        Nothing -> name
+      expectedMangled = mangleName name r_t paramTypes
+      -- Don't double-mangle: if name is already mangled form, use it as-is
+      finalName = if name == "main" || name == expectedMangled 
+                  then name 
+                  else mangleName name r_t paramTypes
       pos = case body of
               (stmt:_) -> getStmtPos stmt
               [] -> SourcePos "<unknownPos>" 0 0
@@ -452,24 +452,21 @@ verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 
 verifMethod sName (DefFunction methodName params retType body isExport) = do
   checkMethodParams methodName params
-  fs <- gets stFuncs
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
+      finalName = mangleName baseName retType paramTypes
 
-      finalName = case HM.lookup baseName fs of
-        Just (exRet, exArgs) ->
-            if exRet == retType && map paramType exArgs == paramTypes
-            then baseName
-            else mangleName baseName retType paramTypes
-        Nothing -> baseName
+      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
       pos = case body of
               (stmt:_) -> getStmtPos stmt
               [] -> SourcePos "<unknownPos>" 0 0
-
-      vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
-  checkFnReturn pos baseName retType body
+  checkFnReturn pos methodName retType body
+  oldStruct <- stCurrentStruct <$> get
+  modify $ \st -> st { stCurrentStruct = Just sName }
   body' <- verifScope vs body
+  modify $ \st -> st { stCurrentStruct = oldStruct }
+  
   pure $ DefFunction finalName params' retType body' isExport
 
 verifMethod _ def = pure def
@@ -541,14 +538,30 @@ resolveCall cPos vPos s hint name args argTypes = do
   let file = posFile cPos
       line = posLine cPos
       col = posCol cPos
-      match = checkParamType s (name, argTypes) file line col args
-  case match of
-    Right foundName -> pure $ ExprVar vPos foundName
-    Left err -> do
-      templates <- gets stTemplates
-      case HM.lookup name templates of
-        Nothing -> lift $ Left $ formatSemanticError err
-        Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
+  
+  -- First, try to resolve as a struct method if we're inside a struct
+  currentStruct <- gets stCurrentStruct
+  case currentStruct of
+    Just sName -> do
+      let structMethodName = sName ++ "_" ++ name
+          matchStruct = checkParamType s (structMethodName, argTypes) file line col args
+      case matchStruct of
+        Right foundName -> pure $ ExprVar vPos foundName
+        Left _ -> resolveRegular
+    Nothing -> resolveRegular
+  where
+    resolveRegular = do
+      let file = posFile cPos
+          line = posLine cPos
+          col = posCol cPos
+          match = checkParamType s (name, argTypes) file line col args
+      case match of
+        Right foundName -> pure $ ExprVar vPos foundName
+        Left err -> do
+          templates <- gets stTemplates
+          case HM.lookup name templates of
+            Nothing -> lift $ Left $ formatSemanticError err
+            Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
 
 -- | Check if a method is static (doesn't need self)
 isStaticMethod :: String -> Bool

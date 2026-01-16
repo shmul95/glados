@@ -28,6 +28,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (zipWithM, mapAndUnzipM)
 import Control.Monad.State (gets)
 import Control.Monad.Except (throwError)
+import qualified Data.Map.Strict as Map
 import qualified Data.HashMap.Strict as HM
 import Data.List (find, isInfixOf)
 
@@ -38,6 +39,7 @@ import Rune.IR.IRHelpers
   , astTypeToIRType
   , irTypeToASTType
   , isFloatType
+  , sizeOfIRType
   )
 import Rune.Semantics.Helper
   ( hasVariadicParam
@@ -53,6 +55,7 @@ import Rune.IR.Nodes (GenState(..), IRGen, IRInstruction (..), IROperand (..), I
 --
 
 type FunctionCallInfo = (String, (Type, [Parameter]))
+type StructMap = Map.Map String [(String, IRType)]
 
 data CallStrategy
   = StandardCall
@@ -168,6 +171,7 @@ genOverloadedCall
   -> ([IRInstruction], IROperand, IRType)
   -> IRGen ([IRInstruction], IROperand)
 genOverloadedCall _ baseName overloads defaultRetType (argInstrs, argOp, argType) = do
+  structs <- gets gsStructs
 
   -- consider only single-parameter non-variadic overloads as dispatch targets
   let candidates :: [(String, Type, Parameter)]
@@ -178,16 +182,16 @@ genOverloadedCall _ baseName overloads defaultRetType (argInstrs, argOp, argType
       -- search policy: exact unwrap-ref match first, then compatible match
       bestMatch = findBestOverload argASTType candidates
 
-  findBestMatch bestMatch
+  findBestMatch structs bestMatch
 
     where
 
-    findBestMatch :: Maybe (String, Type, Parameter) -> IRGen ([IRInstruction], IROperand)
+    findBestMatch :: StructMap -> Maybe (String, Type, Parameter) -> IRGen ([IRInstruction], IROperand)
 
     -- found a matching overload
-    findBestMatch (Just (matchedName, retType, p)) = do
+    findBestMatch sm (Just (matchedName, retType, p)) = do
       let irRetType = astTypeToIRType retType
-          (finalInstrs, finalOp) = prepareParamArg (paramType p) argInstrs argOp argType
+          (finalInstrs, finalOp) = prepareParamArg sm (paramType p) argInstrs argOp argType
       
       registerCall matchedName
       retTemp <- newTemp "t" irRetType
@@ -195,8 +199,8 @@ genOverloadedCall _ baseName overloads defaultRetType (argInstrs, argOp, argType
       pure (finalInstrs ++ [callInstr], IRTemp retTemp irRetType)
 
     -- fallback: call base name with the argument as-is
-    findBestMatch Nothing = do
-      let (argInstrs', argOp') = prepareArg (argInstrs, argOp, argType)
+    findBestMatch sm Nothing = do
+      let (argInstrs', argOp') = prepareArg sm (argInstrs, argOp, argType)
       registerCall baseName
       retTemp <- newTemp "t" defaultRetType
       let callInstr = IRCALL retTemp baseName [argOp'] (Just defaultRetType)
@@ -233,6 +237,7 @@ accumulateResults irRetType (first:rest) = go first rest []
 genStandardCall :: (Expression -> IRGen ([IRInstruction], IROperand, IRType)) -> String -> [Expression] -> IRGen ([IRInstruction], IROperand, IRType)
 genStandardCall genExpr funcName args = do
   fs <- gets gsFuncStack
+  structs <- gets gsStructs
   let funcSignature = HM.lookup funcName fs
 
   argsData <- case funcSignature of
@@ -252,7 +257,7 @@ genStandardCall genExpr funcName args = do
 
     _ -> mapM genExpr args
 
-  let (instrs, ops) = unzip $ map prepareArg argsData
+  let (instrs, ops) = unzip $ map (prepareArg structs) argsData
       allInstrs     = concat instrs
 
   retType <- case funcSignature of
@@ -288,15 +293,19 @@ genArgWithContext genExpr expr expectedType = do
     needsInference (IRGlobal _ _) infT targT = isFloatType infT && isFloatType targT
     needsInference _ _ _ = False
 
--- prepare argument for the final call (address-taking for structs/ptrs)
-prepareArg :: ([IRInstruction], IROperand, IRType) -> ([IRInstruction], IROperand)
-prepareArg (i, IRTemp n t, IRStruct _) = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
-prepareArg (i, IRTemp n t, IRPtr (IRStruct _)) = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
-prepareArg (i, op, _) = (i, op)
+-- prepare argument for the final call
+-- small structs (<=8 bytes) are passed by value according to System V AMD64 ABI
+-- Larger structs are passed by reference (pointer)
+prepareArg :: StructMap -> ([IRInstruction], IROperand, IRType) -> ([IRInstruction], IROperand)
+prepareArg structs (i, IRTemp n t, st@(IRStruct _))
+  | sizeOfIRType structs st <= 8 = (i, IRTemp n t)  -- pass small structs by value
+  | otherwise = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
+prepareArg _ (i, IRTemp n t, IRPtr (IRStruct _)) = (i <> [IRADDR ("p_" <> n) n (IRPtr t)], IRTemp ("p_" <> n) (IRPtr t))
+prepareArg _ (i, op, _) = (i, op)
 
 -- prepare a parameter argument, handling reference parameter types (taking addresses) or passing as-is
-prepareParamArg :: Type -> [IRInstruction] -> IROperand -> IRType -> ([IRInstruction], IROperand)
-prepareParamArg pType argInstrs argOp argType =
+prepareParamArg :: StructMap -> Type -> [IRInstruction] -> IROperand -> IRType -> ([IRInstruction], IROperand)
+prepareParamArg structs pType argInstrs argOp argType =
   if isRefParam pType
     then case argOp of
       IRGlobal name _ ->
@@ -312,4 +321,4 @@ prepareParamArg pType argInstrs argOp argType =
             addrTemp = "addr_tmp"
         in (argInstrs ++ [IRASSIGN constTemp argOp argType, IRADDR addrTemp constTemp (IRPtr argType)], IRTemp addrTemp (IRPtr argType))
 
-    else prepareArg (argInstrs, argOp, argType)
+    else prepareArg structs (argInstrs, argOp, argType)

@@ -111,6 +111,14 @@ parseUnary =
         pos <- getCurrentPos
         _ <- expect T.OpDec
         ExprUnary pos PrefixDec <$> parseUnary,
+      do
+        pos <- getCurrentPos
+        _ <- expect T.OpMul
+        ExprUnary pos Deref <$> parseUnary,
+      do
+        pos <- getCurrentPos
+        _ <- expect T.OpBitAnd
+        ExprUnary pos Reference <$> parseUnary,
       parseSizeof,
       parsePostfix
     ]
