@@ -4,7 +4,7 @@
  */
 
 somewhere {
-    use stdlib.sw;
+    use stdlib;
 }
 
 def main() -> i32
