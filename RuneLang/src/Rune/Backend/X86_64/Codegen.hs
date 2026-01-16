@@ -175,14 +175,28 @@ emitFunctionLib :: [Extern] -> StructMap -> Function -> [String]
 emitFunctionLib externs = emitFunctionGen $ Just externs
 
 emitFunctionGen :: Maybe [Extern] -> StructMap -> Function -> [String]
-emitFunctionGen mbExterns structMap fn@(IRFunction name params _ body _) =
-  let (stackMap, frameSize) = calculateStackMap structMap fn
+emitFunctionGen mbExterns structMap fn@(IRFunction name params retType body _) =
+  let usesHiddenPtr = case retType of
+                        Just (IRStruct sName) -> sizeOfStruct structMap sName > 16
+                        _ -> False
+      (baseStackMap, baseFrameSize) = calculateStackMap structMap fn
+      -- Add hidden pointer to stack map if needed
+      (stackMap, frameSize, hiddenPtrName) = 
+        if usesHiddenPtr
+        then let hpName = "__hidden_ret_ptr__"
+                 hpOffset = -(baseFrameSize + 8)
+                 newStackMap = Map.insert hpName hpOffset baseStackMap
+             in (newStackMap, baseFrameSize + 8, Just hpName)
+        else (baseStackMap, baseFrameSize, Nothing)
       endLabel = ".L.function_end_" <> name
       prologue = emitFunctionPrologueGen mbExterns fn frameSize
-      paramSetup = emitParameters params stackMap
+      hiddenPtrSave = case hiddenPtrName of
+                        Just hpName -> [emit 1 $ "mov qword " <> stackAddr stackMap hpName <> ", rdi"]
+                        Nothing -> []
+      paramSetup = emitParameters params stackMap usesHiddenPtr
       bodyInstrs = concatMap (emitInstructionGen mbExterns structMap stackMap endLabel name) body
       epilogue = emitFunctionEpilogue endLabel
-   in prologue <> paramSetup <> bodyInstrs <> epilogue
+   in prologue <> hiddenPtrSave <> paramSetup <> bodyInstrs <> epilogue
 
 emitFunctionPrologue :: Function -> Int -> [String]
 emitFunctionPrologue = emitFunctionPrologueGen Nothing
@@ -209,9 +223,10 @@ emitFunctionEpilogue endLabel =
   ]
 
 -- | emit function parameters
-emitParameters :: [(String, IRType)] -> Map String Int -> [String]
-emitParameters params stackMap =
-  let (instrs, _, _) = foldl step ([], 0, 0) params
+emitParameters :: [(String, IRType)] -> Map String Int -> Bool -> [String]
+emitParameters params stackMap usesHiddenPtr =
+  let startIntIdx = if usesHiddenPtr then 1 else 0  -- Skip rdi if hidden pointer used
+      (instrs, _, _) = foldl step ([], startIntIdx, 0) params
    in instrs
   where
     getStoreInstr sizeSpec irName xmmReg IRF32 = emit 1 $ "movss " <> sizeSpec <> " " <> stackAddr stackMap irName <> ", " <> xmmReg
@@ -379,18 +394,25 @@ emitCall = emitCallGen Nothing
 
 emitCallGen :: Maybe [Extern] -> StructMap -> Map String Int -> String -> String -> [IROperand] -> Maybe IRType -> [String]
 emitCallGen mbExterns structs sm dest funcName args mbType =
-  let argSetup    = setupCallArgs sm args
+  let usesHiddenPtr = case mbType of
+                        Just (IRStruct sName) -> sizeOfStruct structs sName > 16
+                        _ -> False
+      hiddenPtrSetup = if usesHiddenPtr
+                       then [ emit 1 $ "lea rdi, " <> stackAddr sm dest ]
+                       else []
+      argSetup    = setupCallArgs sm args usesHiddenPtr
       usePlt      = case mbExterns of
                       Just externs -> funcName `elem` externs
                       Nothing      -> False
       callTarget  = if usePlt then funcName <> " wrt ..plt" else funcName
       callInstr   = [emit 1 $ "call " <> callTarget]
-      retSave     = saveCallResult structs sm dest mbType
-   in argSetup <> callInstr <> retSave
+      retSave     = saveCallResult structs sm dest mbType usesHiddenPtr
+   in hiddenPtrSetup <> argSetup <> callInstr <> retSave
 
-setupCallArgs :: Map String Int -> [IROperand] -> [String]
-setupCallArgs sm args =
-  let (instrs, _, _) = foldl step ([], 0, 0) args
+setupCallArgs :: Map String Int -> [IROperand] -> Bool -> [String]
+setupCallArgs sm args usesHiddenPtr =
+  let startIntIdx = if usesHiddenPtr then 1 else 0  -- Skip rdi if hidden pointer used
+      (instrs, _, _) = foldl step ([], startIntIdx, 0) args
    in instrs
   where
     step :: ([String], Int, Int) -> IROperand -> ([String], Int, Int)
@@ -409,11 +431,13 @@ setupCallArgs sm args =
           in (acc <> loadRegWithExt sm (reg, op) , intIdx + 1 , floatIdx)
       | otherwise = (acc, intIdx, floatIdx)
 
-saveCallResult :: StructMap -> Map String Int -> String -> Maybe IRType -> [String]
-saveCallResult _ _ "" _           = []
-saveCallResult structs sm dest (Just (IRStruct sName)) = saveStructResult structs sm dest sName
-saveCallResult _ sm dest Nothing  = [emit 1 $ "mov qword " <> stackAddr sm dest <> ", rax"]
-saveCallResult _ sm dest (Just t)
+saveCallResult :: StructMap -> Map String Int -> String -> Maybe IRType -> Bool -> [String]
+saveCallResult _ _ "" _ _          = []
+saveCallResult structs sm dest (Just (IRStruct sName)) usesHiddenPtr
+  | usesHiddenPtr = []  -- Result already written to dest via hidden pointer
+  | otherwise     = saveStructResult structs sm dest sName
+saveCallResult _ sm dest Nothing _  = [emit 1 $ "mov qword " <> stackAddr sm dest <> ", rax"]
+saveCallResult _ sm dest (Just t) _
   | isFloatType t = saveFloat t x86_64FloatArgsRegisters
   | otherwise     = [ storeReg sm dest "rax" t ]
   where
@@ -460,7 +484,7 @@ emitRet structs sm endLbl (Just op) = emitRetHelper $ getOperandType op
       | isFloatType t = getFloatReg t x86_64FloatArgsRegisters
     emitRetHelper _ = getReg
 
--- | emit struct return - load struct bytes into rax/rdx
+-- | emit struct return - load struct bytes into rax/rdx or write via hidden pointer
 emitStructRet :: StructMap -> Map String Int -> String -> IROperand -> String -> [String]
 emitStructRet structs sm endLbl op sName =
   let size = sizeOfStruct structs sName
@@ -471,11 +495,31 @@ emitStructRet structs sm endLbl op sName =
       srcOffset = case Map.lookup srcName sm of
                     Just o -> o
                     Nothing -> error $ "emitStructRet: source not found: " <> srcName
-      numWords = (size + 7) `div` 8
-      -- Load words into registers: rax, rdx, rcx, r8
-      regs = ["rax", "rdx", "rcx", "r8"]
-      loadWord i = emit 1 $ "mov " <> (regs !! i) <> ", qword [rbp" <> show (srcOffset + i * 8) <> "]"
-  in map loadWord [0..min (numWords - 1) 3] <> [emit 1 $ "jmp " <> endLbl]
+   in if size > 16
+      then emitLargeStructRet sm srcOffset size
+      else emitSmallStructRet srcOffset size
+  where
+    -- For structs > 16 bytes: copy to hidden pointer (saved on stack)
+    emitLargeStructRet stackMap srcOffset size =
+      case Map.lookup "__hidden_ret_ptr__" stackMap of
+        Nothing -> error "emitLargeStructRet: hidden pointer not found in stack map"
+        Just hpOffset ->
+          let numQwords = (size + 7) `div` 8
+              -- Load hidden pointer into rdi
+              loadHiddenPtr = emit 1 $ "mov rdi, qword [rbp" <> show hpOffset <> "]"
+              -- Copy struct to hidden pointer location
+              copyQword i = [ emit 1 $ "mov rax, qword [rbp" <> show (srcOffset + i * 8) <> "]"
+                            , emit 1 $ "mov qword [rdi + " <> show (i * 8) <> "], rax"
+                            ]
+              copyInstrs = concatMap copyQword [0..numQwords - 1]
+           in [loadHiddenPtr] <> copyInstrs <> [emit 1 "mov rax, rdi", emit 1 $ "jmp " <> endLbl]
+    
+    -- For structs <= 16 bytes: load into rax/rdx
+    emitSmallStructRet srcOffset size =
+      let numWords = (size + 7) `div` 8
+          regs = ["rax", "rdx"]
+          loadWord i = emit 1 $ "mov " <> (regs !! i) <> ", qword [rbp" <> show (srcOffset + i * 8) <> "]"
+       in map loadWord [0..min (numWords - 1) 1] <> [emit 1 $ "jmp " <> endLbl]
 
 
 -- | emit deref ptr
