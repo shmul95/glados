@@ -211,7 +211,7 @@ parseUseFileName = do
   case T.tokenKind tok of
     T.Identifier name -> do
       advance
-      -- Check for .sw or .somewhere extension
+      -- Check for optional .sw or .somewhere extension
       dotTok <- peek
       case T.tokenKind dotTok of
         T.Dot -> do
@@ -225,7 +225,7 @@ parseUseFileName = do
               advance
               pure $ name ++ ".somewhere"
             _ -> failParse "Expected 'sw' or 'somewhere' file extension"
-        _ -> failParse "Expected .sw or .somewhere file extension"
+        _ -> pure name  -- Allow extension-less filename
     _ -> failParse "Expected filename"
 
 parseFunctionSignatures :: Parser [FunctionSignature]

@@ -57,13 +57,25 @@ preprocessUseStatements includePaths content = do
       tryPaths allPaths fileName
       
     tryPaths :: [FilePath] -> FilePath -> IO (Either String String)
-    tryPaths [] fileName = pure $ Left $ "File not found in any include path: " ++ fileName
+    tryPaths [] fileName = pure $ Left $ "File not found in any include path: " ++ fileName ++ " (tried extensions: .sw, .somewhere, and no extension)"
     tryPaths (dir:dirs) fileName = do
-      let fullPath = if dir == "." then fileName else dir ++ "/" ++ fileName
-      result <- safeRead fullPath
+      let basePath = if dir == "." then fileName else dir ++ "/" ++ fileName
+      -- If fileName has no extension, try .sw and .somewhere extensions
+      let candidateFiles = if '.' `elem` fileName
+                          then [basePath]  -- File already has extension
+                          else [basePath, basePath ++ ".sw", basePath ++ ".somewhere"]  -- Try multiple extensions
+      result <- tryFiles candidateFiles
       case result of
         Right content' -> pure $ Right content'
         Left _ -> tryPaths dirs fileName
+    
+    tryFiles :: [FilePath] -> IO (Either String String)
+    tryFiles [] = pure $ Left "No files to try"
+    tryFiles (file:files) = do
+      result <- safeRead file
+      case result of
+        Right content' -> pure $ Right content'
+        Left _ -> tryFiles files
     
     safeRead :: FilePath -> IO (Either String String)
     safeRead fp = (try (readFile fp) :: IO (Either IOException String)) <&> first (("Failed to read input file: " <>) . show)
