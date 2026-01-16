@@ -139,24 +139,14 @@ emitRoDataSection gs = "section .rodata" : map emitGlobal gs
     emitGlobal (name, IRGlobalFloatVal val IRF64) = name <> " dq " <> " " <> show val
     emitGlobal (name, IRGlobalFloatVal val _)     = name <> " dd " <> " " <> show val
 
+-- TODO: Static arrays are not implemented yet, but it's here if you want to implement it
 emitDataSection :: StructMap -> [Function] -> [Static] -> [String]
-emitDataSection structs fs statics =
+emitDataSection structs fs _ =
   let arrays = collectStaticArrays fs
-      scalarStatics = filter isScalarStatic statics
-   in case (arrays, scalarStatics) of
-        ([], []) -> []
-        _        -> "section .data" : (concatMap emitStaticVar scalarStatics <> concatMap emitArray arrays)
+   in case arrays of
+        [] -> []
+        _  -> "section .data" : concatMap emitArray arrays
   where
-    isScalarStatic (_, IRArray {}, _) = False
-    isScalarStatic _ = True
-
-    emitStaticVar (name, typ, mbOp) =
-      let dir = getDataDirective structs typ
-          val = case mbOp of
-                  Just op  -> showStaticOperand typ op
-                  Nothing  -> "0"
-       in [name <> ": " <> dir <> " " <> val]
-
     emitArray (lbl, elemType, values) =
       let dir = getDataDirective structs elemType
           initVals = map (showStaticOperand elemType) values <> ["0"]

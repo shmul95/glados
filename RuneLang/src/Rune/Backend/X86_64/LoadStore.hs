@@ -124,9 +124,7 @@ loadRegWithExt _  (reg, IRConstChar c)    = [emit 1 $ "mov " <> reg <> ", " <> s
 loadRegWithExt _  (reg, IRConstNull)      = [emit 1 $ "mov " <> reg <> ", 0"]
 loadRegWithExt _  (reg, IRConstBool b)    = [emit 1 $ "mov " <> reg <> ", " <> if b then "1" else "0"]
 loadRegWithExt _  (reg, IRGlobal "stderr" _) = [emit 1 $ "mov " <> reg <> ", [rel stderr]"]
-loadRegWithExt _  (reg, IRGlobal name t)  = 
-  let sizeSpec = getSizeSpecifier t
-   in [emit 1 $ "mov " <> reg <> ", " <> sizeSpec <> " [rel " <> name <> "]"]
+loadRegWithExt _  (reg, IRGlobal name _)  = [emit 1 $ "mov " <> reg <> ", " <> name]
 loadRegWithExt sm (reg, op@(IRTemp _ t))  = extendVar sm reg op t
 loadRegWithExt sm (reg, op@(IRParam _ t)) = extendVar sm reg op t
 loadRegWithExt sm (reg, op)               = [emit 1 $ "mov " <> reg <> ", qword " <> varStackAddr sm op]

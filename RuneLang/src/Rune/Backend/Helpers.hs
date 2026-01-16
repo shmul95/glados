@@ -52,7 +52,6 @@ calculateStackMap :: StructMap -> Function -> (Map.Map String Int, Int)
 calculateStackMap structMap func =
   let varsMap = collectIRVars func
       varsList = Map.toList varsMap
-      -- Convert local variables to struct field format (with dummy Maybe Expression)
       varsListWithDefaults = [(n, t, Nothing) | (n, t) <- varsList]
       (totalUsedSize, offsetsMap) = foldl' (accumulateOffset structMap) (0, Map.empty) varsListWithDefaults
       totalSize = alignTo 16 totalUsedSize
