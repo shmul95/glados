@@ -6,6 +6,9 @@ import Rune.AST.ParserHelper
 import Rune.AST.Types (Parser (..), ParserState (..))
 import qualified Rune.Lexer.Tokens as T
 
+-- import Debug.Trace (trace)
+-- import Rune.AST.Printer (prettyPrint)
+
 --
 -- public
 --

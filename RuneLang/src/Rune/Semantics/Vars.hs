@@ -77,8 +77,6 @@ import Rune.Semantics.Helper
   )
 import Rune.Semantics.OpType (iHTBinary)
 
-import Debug.Trace (trace)
-
 --
 -- state monad
 --
@@ -370,28 +368,49 @@ verifExprWithContext hint vs (ExprBinary pos op l r) = do
     Left err -> lift $ Left $ formatSemanticError $ SemanticError file line col "binary operation type mismatch" err ["binary operation"]
     Right _  -> pure $ ExprBinary pos op l' r'
 
+-- Function call: func(args...)
 verifExprWithContext hint vs (ExprCall cPos (ExprVar vPos name) args) = do
   fs      <- gets stFuncs
   ss      <- gets stStructs
   let s   = (fs, vs, ss)
 
   args' <- mapM (verifExpr vs) args
-  _ <- lift $ mapM (exprType s) args'
-
-  -- Inject default values for missing parameters
   finalArgs <- injectDefaultArgs fs name args' vs
   finalArgTypes <- lift $ mapM (exprType s) finalArgs
 
   callExpr <- resolveCall cPos vPos s hint name finalArgs finalArgTypes
   pure $ ExprCall cPos callExpr finalArgs
 
+-- Method call: target.method(args...) with inheritance chain support
+verifExprWithContext hint vs (ExprCall cPos (ExprAccess accPos target method) args) = do
+  ss <- gets stStructs
+  args' <- mapM (verifExpr vs) args
+
+  let targetName = case target of
+        ExprVar _ n -> n
+        _           -> ""
+      isStaticCall = HM.member targetName ss
+      adjustedTarget = case target of
+        ExprVar vPos tName ->
+          convertVarToAccess (ExprVar vPos tName) ss (getCustomTypeName =<< HM.lookup tName vs) Nothing (Just method)
+        _ -> target
+
+  if isStaticCall
+    then verifStaticCall cPos accPos adjustedTarget method args' hint vs
+    else verifInstanceCall cPos accPos adjustedTarget method args' hint vs
+
+-- Invalid function call target
+verifExprWithContext _ _ (ExprCall {}) =
+  lift $ Left "Invalid function call target"
+
+-- Field access: target.field with inheritance chain support
 verifExprWithContext hint vs (ExprAccess pos expr@(ExprVar vPos target) field) = do
-  ss <- trace (target ++ "." ++ field) $ gets stStructs
+  ss <- gets stStructs
   currentStruct <- gets stCurrentStruct
 
   let SourcePos file line col = pos
 
-  case convertVarToAccess expr ss (getCustomTypeName =<< HM.lookup target vs) field of
+  case convertVarToAccess expr ss (getCustomTypeName =<< HM.lookup target vs) (Just field) Nothing of
     ExprVar{} -> do
       case HM.lookup target ss of
         Just _ -> do
@@ -409,18 +428,9 @@ verifExprWithContext hint vs (ExprAccess pos expr@(ExprVar vPos target) field) =
 
     expr' -> verifExprWithContext hint vs (ExprAccess pos expr' field)
 
+-- Other field access
 verifExprWithContext hint vs (ExprAccess pos target field) =
   verifFieldAccess pos target field hint vs
-
-verifExprWithContext hint vs (ExprCall cPos (ExprAccess _ (ExprVar vPos target) method) args) = do
-  ss <- gets stStructs
-  args' <- mapM (verifExpr vs) args
-  case HM.lookup target ss of
-    Just _ -> verifStaticCall cPos vPos target method args' hint vs
-    Nothing -> verifInstanceCall cPos vPos target method args' hint vs
-
-verifExprWithContext _ _ (ExprCall {}) =
-  lift $ Left "Invalid function call target"
 
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
@@ -452,37 +462,47 @@ verifExprWithContext _ vs (ExprVar pos var)
 
 verifExprWithContext _ _ expr = pure expr
 
-verifStaticCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
-verifStaticCall cPos vPos target method args' hint vs = do
+verifStaticCall :: SourcePos -> SourcePos -> Expression -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
+verifStaticCall cPos accPos target method args' hint vs = do
   fs <- gets stFuncs
   ss <- gets stStructs
   currentStruct <- gets stCurrentStruct
   let s = (fs, vs, ss)
       SourcePos file line col = cPos
+      sName = case target of
+        ExprVar _ n -> n
+        _ -> ""
   argTypes <- lift $ mapM (exprType s) args'
-  let baseName = target ++ "_" ++ method
-  callExpr <- resolveCall cPos vPos s hint baseName args' argTypes
+  let baseName = sName ++ "_" ++ method
+  callExpr <- resolveCall cPos accPos s hint baseName args' argTypes
   let mangledName = case callExpr of ExprVar _ n -> n; _ -> ""
-  verifStaticMethodCall fs mangledName currentStruct target method file line col
+  verifStaticMethodCall fs mangledName currentStruct sName method file line col
   pure $ ExprCall cPos callExpr args'
 
-verifInstanceCall :: SourcePos -> SourcePos -> String -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
-verifInstanceCall cPos vPos target method args' hint vs = do
+verifInstanceCall :: SourcePos -> SourcePos -> Expression -> String -> [Expression] -> Maybe Type -> VarStack -> SemM Expression
+verifInstanceCall cPos accPos target method args' hint vs = do
   fs <- gets stFuncs
   ss <- gets stStructs
   currentStruct <- gets stCurrentStruct
   let s = (fs, vs, ss)
       SourcePos file line col = cPos
+
+  target' <- verifExprWithContext hint vs target
+  targetType <- lift $ either
+    (\msg -> Left . formatSemanticError $ SemanticError file line col "valid target type for method" msg ["method call"])
+    Right $ exprType s target'
   argTypes <- lift $ mapM (exprType s) args'
-  targetType <- lift $ exprType s (ExprVar vPos target)
-  let baseName = show targetType ++ "_" ++ method
-      sName = case targetType of { TypeCustom name -> name; _ -> show targetType }
-      isSelf = target == "self"
-      allArgs = ExprVar vPos target : args'
+
+  let sName = case targetType of 
+        TypeCustom name -> name
+        _ -> show targetType
+      baseName = sName ++ "_" ++ method
+      allArgs = target' : args'
       allArgTypes = targetType : argTypes
-  callExpr <- resolveCall cPos vPos s hint baseName allArgs allArgTypes
+
+  callExpr <- resolveCall cPos accPos s hint baseName allArgs allArgTypes
   let mangledName = case callExpr of ExprVar _ n -> n; _ -> ""
-  verifInstanceMethodCall fs mangledName currentStruct sName isSelf method file line col
+  verifInstanceMethodCall fs mangledName currentStruct sName (isSelfAccess target') method file line col
   pure $ ExprCall cPos callExpr allArgs
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
@@ -570,7 +590,6 @@ resolveCall cPos vPos s hint name args argTypes = do
   let file = posFile cPos
       line = posLine cPos
       col = posCol cPos
-  
   -- First, try to resolve as a struct method if we're inside a struct
   currentStruct <- gets stCurrentStruct
   case currentStruct of
@@ -747,19 +766,34 @@ checkMethodVisibility fs baseName currentStruct sName isSelf method file line co
 -- | -> If no, return the expression as is
 -- | -> If yes, convert the variable to an access expression
 -- | Do it recursively until the top of the inheritance chain
-convertVarToAccess :: Expression -> StructStack -> Maybe String -> String -> Expression
-convertVarToAccess expr ss (Just sName) field =
+convertVarToAccess :: Expression -> StructStack -> Maybe String -> Maybe String -> Maybe String -> Expression
+
+convertVarToAccess expr ss (Just sName) (Just field) Nothing =
   case HM.lookup sName ss of
     Just (DefStruct _ fields _ _ (Just (ext:_))) ->
-      -- Check if field exists in current struct
       case findFieldInList fields field of
-        Just _ -> expr  -- Field exists in current struct, don't traverse
+        Just _ -> expr
         Nothing ->
-          -- Field doesn't exist in current struct, look in parent
           let baseAccess = ExprAccess (SourcePos "<unknown>" 0 0) expr "__base"
-          in convertVarToAccess baseAccess ss (Just ext) field
+          in convertVarToAccess baseAccess ss (Just ext) (Just field) Nothing
     _ -> expr
   where
     findFieldInList fs fname = List.find (\f -> fieldName f == fname) fs
-convertVarToAccess expr _ _ _ = expr
+
+convertVarToAccess expr ss (Just sName) Nothing (Just method) =
+  case HM.lookup sName ss of
+    Just (DefStruct _ _ methods _ (Just (ext:_))) ->
+      case findMethodInList methods method of
+        Just _ -> expr
+        Nothing ->
+          let baseAccess = ExprAccess (SourcePos "<unknown>" 0 0) expr "__base"
+          in convertVarToAccess baseAccess ss (Just ext) Nothing (Just method)
+    _ -> expr
+  where
+    findMethodInList ms mname =
+      List.find (\d -> case d of
+        DefFunction n _ _ _ _ _ _ _ -> n == mname
+        _                           -> False) ms
+
+convertVarToAccess expr _ _ _ _ = expr
 
