@@ -164,22 +164,22 @@ testTopLevelDefAccessors =
               structMethods def @?= []
     , testCase "DefSomewhere accessors" $
         let sig = FunctionSignature "foo" [] TypeNull False
-            def = DefSomewhere [sig]
+            def = DefSomewhere [DeclFuncSig sig]
          in do
-              somewhereDecls def @?= [sig]
+              somewhereDecls def @?= [DeclFuncSig sig]
     ]
 
 testFunctionSignature :: TestTree
 testFunctionSignature =
   testCase "FunctionSignature accessors" $
     let sig = FunctionSignature 
-                { sigName = "ext", 
+                { sigFuncName = "ext", 
                   sigParams = [TypeI32], 
                   sigReturnType = TypeBool, 
                   sigIsExtern = True 
                 }
     in do
-      sigName sig @?= "ext"
+      sigFuncName sig @?= "ext"
       sigParams sig @?= [TypeI32]
       sigReturnType sig @?= TypeBool
       sigIsExtern sig @?= True

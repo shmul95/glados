@@ -1,7 +1,7 @@
 module Semantics.VarsSpecs (varsSemanticsTests) where
 
 import Rune.AST.Nodes
-import Rune.Semantics.Vars (verifVars, mangleFuncStack)
+import Rune.Semantics.Vars (verifVars, mangleFuncStack, hasImplicitOrExplicitReturn, blockContainsReturn)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, assertFailure, assertBool)
 import Data.List (isInfixOf)
@@ -92,8 +92,8 @@ varsSemanticsTests =
       ],
 
     testGroup "Method Verification"
-      [ expectErr "rejects method with wrong first parameter" methodNoSelfProgram "First parameter of method",
-        expectErr "rejects method with wrong first parameter name" methodWrongFirstParamProgram "First parameter of method"
+      [ expectErr "rejects method with wrong first parameter" methodNoSelfProgram "first parameter named 'self'",
+        expectErr "rejects method with wrong first parameter name" methodWrongFirstParamProgram "first parameter named 'self'"
       ],
 
     testGroup "Method Calls via ExprAccess"
@@ -105,8 +105,8 @@ varsSemanticsTests =
 
     testGroup "Method Body Verification"
       [ expectOk "verifies method with self parameter and body" methodWithBodyProgram,
-        expectErr "rejects method without any parameters" methodNoParamsProgram "must have at least one parameter",
-        expectErr "rejects method with wrong first parameter" methodNoSelfProgram "First parameter of method"
+        expectErr "rejects method without any parameters" methodNoParamsProgram "at least one parameter",
+        expectErr "rejects method with wrong first parameter" methodNoSelfProgram "first parameter named 'self'"
       ],
 
     testGroup "Generic Functions"
@@ -115,6 +115,32 @@ varsSemanticsTests =
         expectOk "uses instantiation cache" genericCacheProgram,
         expectErr "fails generic without context or args" genericFailProgram "cannot be instantiated",
         expectErr "fails generic with no arguments" genericNoArgsProgram "cannot be instantiated"
+      ],
+
+    testGroup "Return Statement Validation"
+      [ expectOk "accepts TypeNull function without return" nullFunctionNoReturnProgram,
+        expectOk "accepts function with explicit return" functionWithReturnProgram,
+        expectErr "rejects i32 function without return" missingReturnI32Program "no return statement",
+        expectErr "rejects string function without return" missingReturnStringProgram "no return statement",
+        expectErr "rejects function with empty body and non-null return type" emptyBodyNonNullProgram "no return statement",
+        expectErr "rejects method without return" methodMissingReturnProgram "no return statement",
+        expectOk "accepts method with return" methodWithReturnProgram
+      ],
+
+    testGroup "Implicit Returns"
+      [ testCase "recognizes explicit return with value" testExplicitReturn,
+        testCase "recognizes StmtExpr as implicit return" testStmtExprReturn,
+        testCase "recognizes if-else with both branches returning" testIfElseReturn,
+        testCase "rejects if without else as implicit return" testIfNoElseNoReturn,
+        testCase "recognizes loop with explicit returns" testLoopWithReturn,
+        testCase "rejects loop without returns" testLoopNoReturn,
+        testCase "rejects empty block" testEmptyBlock,
+        testCase "blockContainsReturn finds returns in if branches" testBlockContainsReturnIf,
+        testCase "blockContainsReturn finds returns in nested loops" testBlockContainsReturnLoop,
+        expectOk "accepts function with expression as last statement" implicitReturnExprProgram,
+        expectOk "accepts function with if-else as implicit return" implicitReturnIfElseProgram,
+        expectOk "accepts function with loop containing returns" implicitReturnLoopProgram,
+        expectErr "rejects function with if without else" implicitReturnIfOnlyProgram "no return statement"
       ],
 
     testGroup "Utilities"
@@ -516,6 +542,53 @@ genericNoArgsProgram = Program "gen-no-args"
    DefFunction "m" [] TypeNull [StmtExpr dummyPos (ExprCall dummyPos (ExprVar dummyPos "id") [])] False]
 
 --
+-- Return Statement Validation Programs
+--
+
+nullFunctionNoReturnProgram :: Program
+nullFunctionNoReturnProgram = Program "null-no-ret"
+  [DefFunction "f" [] TypeNull
+    [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42)]
+    False]
+
+functionWithReturnProgram :: Program
+functionWithReturnProgram = Program "fn-with-ret"
+  [DefFunction "f" [] TypeI32
+    [StmtVarDecl dummyPos "x" (Just TypeI32) (ExprLitInt dummyPos 42),
+     StmtReturn dummyPos (Just (ExprVar dummyPos "x"))]
+    False]
+
+missingReturnI32Program :: Program
+missingReturnI32Program = Program "missing-ret-i32"
+  [DefFunction "f" [] TypeI32
+    [StmtVarDecl dummyPos "a" (Just TypeI32) (ExprLitInt dummyPos 10)]
+    False]
+
+missingReturnStringProgram :: Program
+missingReturnStringProgram = Program "missing-ret-string"
+  [DefFunction "f" [] TypeString
+    [StmtVarDecl dummyPos "s" (Just TypeString) (ExprLitString dummyPos "hello")]
+    False]
+
+emptyBodyNonNullProgram :: Program
+emptyBodyNonNullProgram = Program "empty-body-non-null"
+  [DefFunction "f" [] TypeI32 [] False]
+
+methodMissingReturnProgram :: Program
+methodMissingReturnProgram = Program "method-missing-ret"
+  [DefStruct "Point" [Field "x" TypeI32, Field "y" TypeI32]
+    [DefFunction "getX" [Parameter "self" (TypeCustom "Point") Nothing] TypeI32
+      [StmtVarDecl dummyPos "temp" (Just TypeI32) (ExprLitInt dummyPos 0)]
+      False]]
+
+methodWithReturnProgram :: Program
+methodWithReturnProgram = Program "method-with-ret"
+  [DefStruct "Point" [Field "x" TypeI32, Field "y" TypeI32]
+    [DefFunction "getX" [Parameter "self" (TypeCustom "Point") Nothing] TypeI32
+      [StmtReturn dummyPos (Just (ExprAccess dummyPos (ExprVar dummyPos "self") "x"))]
+      False]]
+
+--
 -- Utility Test
 --
 
@@ -525,3 +598,94 @@ testMangleFuncStack = do
       mangled = mangleFuncStack fs
   assertBool "Should contain mangled names" (HM.member "i32_f_i32" mangled)
   assertBool "Should contain other mangled name" (HM.member "f32_f_f32" mangled)
+
+--
+-- Implicit Returns Unit Tests
+--
+
+testExplicitReturn :: IO ()
+testExplicitReturn = do
+  let block = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))]
+  assertBool "Should recognize explicit return with value" (hasImplicitOrExplicitReturn block)
+
+testStmtExprReturn :: IO ()
+testStmtExprReturn = do
+  let block = [StmtExpr dummyPos (ExprLitInt dummyPos 42)]
+  assertBool "Should recognize StmtExpr as implicit return" (hasImplicitOrExplicitReturn block)
+
+testIfElseReturn :: IO ()
+testIfElseReturn = do
+  let thenBlock = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+      elseBlock = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))]
+      block = [StmtIf dummyPos (ExprLitBool dummyPos True) thenBlock (Just elseBlock)]
+  assertBool "Should recognize if-else with both branches returning" (hasImplicitOrExplicitReturn block)
+
+testIfNoElseNoReturn :: IO ()
+testIfNoElseNoReturn = do
+  let thenBlock = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+      block = [StmtIf dummyPos (ExprLitBool dummyPos True) thenBlock Nothing]
+  assertBool "Should reject if without else" (not $ hasImplicitOrExplicitReturn block)
+
+testLoopWithReturn :: IO ()
+testLoopWithReturn = do
+  let loopBody = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))]
+      block = [StmtLoop dummyPos loopBody]
+  assertBool "Should recognize loop with explicit returns" (hasImplicitOrExplicitReturn block)
+
+testLoopNoReturn :: IO ()
+testLoopNoReturn = do
+  let loopBody = [StmtExpr dummyPos (ExprLitInt dummyPos 42)]
+      block = [StmtLoop dummyPos loopBody]
+  assertBool "Should reject loop without returns" (not $ hasImplicitOrExplicitReturn block)
+
+testEmptyBlock :: IO ()
+testEmptyBlock = do
+  let block = []
+  assertBool "Should reject empty block" (not $ hasImplicitOrExplicitReturn block)
+
+testBlockContainsReturnIf :: IO ()
+testBlockContainsReturnIf = do
+  let thenBlock = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+      elseBlock = [StmtExpr dummyPos (ExprLitInt dummyPos 2)]
+      block = [StmtIf dummyPos (ExprLitBool dummyPos True) thenBlock (Just elseBlock)]
+  assertBool "Should find return in if branch" (blockContainsReturn block)
+
+testBlockContainsReturnLoop :: IO ()
+testBlockContainsReturnLoop = do
+  let innerLoop = [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))]
+      outerLoop = [StmtLoop dummyPos innerLoop]
+      block = [StmtLoop dummyPos outerLoop]
+  assertBool "Should find return in nested loops" (blockContainsReturn block)
+
+--
+-- Implicit Returns Integration Test Programs
+--
+
+implicitReturnExprProgram :: Program
+implicitReturnExprProgram = Program "implicit-return-expr"
+  [DefFunction "f" [] TypeI32
+    [StmtExpr dummyPos (ExprLitInt dummyPos 42)]
+    False]
+
+implicitReturnIfElseProgram :: Program
+implicitReturnIfElseProgram = Program "implicit-return-if-else"
+  [DefFunction "f" [] TypeI32
+    [StmtIf dummyPos (ExprLitBool dummyPos True)
+      [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+      (Just [StmtReturn dummyPos (Just (ExprLitInt dummyPos 2))])]
+    False]
+
+implicitReturnLoopProgram :: Program
+implicitReturnLoopProgram = Program "implicit-return-loop"
+  [DefFunction "f" [] TypeI32
+    [StmtLoop dummyPos
+      [StmtReturn dummyPos (Just (ExprLitInt dummyPos 42))]]
+    False]
+
+implicitReturnIfOnlyProgram :: Program
+implicitReturnIfOnlyProgram = Program "implicit-return-if-only"
+  [DefFunction "f" [] TypeI32
+    [StmtIf dummyPos (ExprLitBool dummyPos True)
+      [StmtReturn dummyPos (Just (ExprLitInt dummyPos 1))]
+      Nothing]
+    False]

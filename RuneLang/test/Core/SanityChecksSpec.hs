@@ -4,6 +4,10 @@ import Rune.SanityChecks (performSanityChecksWith, checkRequiredTools, checkArch
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
 
+--
+-- public
+--
+
 sanityChecksTests :: TestTree
 sanityChecksTests =
   testGroup
@@ -13,6 +17,10 @@ sanityChecksTests =
         checkArchitectureTest,
         performSanityChecksTest
     ]
+
+--
+-- private
+--
 
 checkRequiredToolsTest :: TestTree
 checkRequiredToolsTest =

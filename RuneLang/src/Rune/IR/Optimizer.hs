@@ -337,13 +337,9 @@ optimizeInstr inst@(IRASSIGN target op _) rest = do
   st <- get
   let keep = osKeepAssignments st
       addrTaken = S.member target (osAddrTaken st)
-      -- If address taken, keep assignment unless we can redirect the address to a valid lvalue
-      -- (like another variable/param). If op is constant, we must keep assignment.
-      canRedirect = case op of
-        IRTemp _ _ -> True
-        IRParam _ _ -> True
-        _ -> False
-      shouldKeep = keep || (addrTaken && not canRedirect)
+      -- If address taken, we must keep the assignment because we can't easily
+      -- redirect ADDR instructions (and they require the variable to exist)
+      shouldKeep = keep || addrTaken
   
   -- Only add to osConsts if we're going to eliminate the assignment
   -- If address is taken, we must not substitute uses with the operand

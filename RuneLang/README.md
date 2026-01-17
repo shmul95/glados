@@ -28,6 +28,11 @@ Rune is a **mid-level**, compiled programming language. It supports **static typ
 <br>
 The philosophy of the language  is to code like in a **high level language** (*Ruby*, *Crystal*, *Python*) with **low-level** performance (*C*, *C++*)
 
+## IDE Support
+
+### VS Code Extension
+
+For a better development experience, install the **RUNE File Icons** extension to display proper file icons for Rune files (`.ru`) in VS Code.
 
 ## Basic Syntax
 

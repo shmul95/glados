@@ -3,6 +3,7 @@ STACK_WORK_DIR    := .stack-work
 NPROCS            := $$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1)
 STACK_BUILD_FLAGS := --jobs $(NPROCS)
 STACK_NIX_FLAGS   := --nix --system-ghc
+TEST_ARGS         := # Default to empty
 
 STACK_BINARY_NAME := rune-exe
 NAME              := rune
@@ -21,9 +22,9 @@ all:
 
 tests:
 	@if grep -q 'ID=nixos' /etc/os-release; then \
-		$(STACK) test $(STACK_BUILD_FLAGS) $(STACK_NIX_FLAGS); \
+		$(STACK) test $(STACK_BUILD_FLAGS) $(STACK_NIX_FLAGS) --test-arguments "$(TEST_ARGS)"; \
 	else \
-		$(STACK) test $(STACK_BUILD_FLAGS); \
+		$(STACK) test $(STACK_BUILD_FLAGS) --test-arguments "$(TEST_ARGS)"; \
 	fi
 
 coverage:

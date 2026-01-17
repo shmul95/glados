@@ -93,7 +93,7 @@ removeFileIfExists fp = do
   when exists (removeFile fp)
 
 defaultLibOpts :: LibraryOptions
-defaultLibOpts = LibraryOptions False False [] []
+defaultLibOpts = LibraryOptions False False [] [] []
 
 --
 -- private
@@ -197,18 +197,18 @@ pipelineCoverageTests =
 test_interpretPipeline_success :: IO ()
 test_interpretPipeline_success = do
     withTempFile validRuneCode $ \inFile -> do
-        res <- catchExitCode (interpretPipeline inFile)
+        res <- catchExitCode (interpretPipeline inFile defaultLibOpts)
         assertEqual "interpretPipeline should succeed" ExitSuccess res
 
 test_interpretPipeline_parser_failure :: IO ()
 test_interpretPipeline_parser_failure = do
     withTempFile invalidRuneCode $ \inFile -> do
-        res <- catchExitCode (interpretPipeline inFile)
+        res <- catchExitCode (interpretPipeline inFile defaultLibOpts)
         assertEqual "interpretPipeline (parser failure) should exit with 84" (ExitFailure 84) res
 
 test_interpretPipeline_read_failure :: IO ()
 test_interpretPipeline_read_failure = do
-  res <- catchExitCode (interpretPipeline "non_existent.rune")
+  res <- catchExitCode (interpretPipeline "non_existent.rune" defaultLibOpts)
   assertEqual "interpretPipeline (read failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_success :: IO ()
@@ -219,26 +219,26 @@ test_compilePipeline_success = do
             (\(outFile, h) -> hClose h >> removeFile outFile)
             (\(outFile, h) -> do
                 hClose h
-                res <- catchExitCode (compilePipeline inFile outFile (FullCompile defaultLibOpts))
+                res <- catchExitCode (compilePipeline inFile outFile (FullCompile defaultLibOpts) defaultLibOpts)
                 assertEqual "compilePipeline should succeed" ExitSuccess res
                 exists <- doesFileExist outFile
                 assertBool "Output file should exist" exists)
 
 test_compilePipeline_read_failure :: IO ()
 test_compilePipeline_read_failure = do
-  res <- catchExitCode (compilePipeline "non_existent.rune" "out.asm" ToObject)
+  res <- catchExitCode (compilePipeline "non_existent.rune" "out.asm" ToObject defaultLibOpts)
   assertEqual "compilePipeline (read failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_lexer_failure :: IO ()
 test_compilePipeline_lexer_failure = do
     withTempFile invalidRuneCode $ \inFile -> do
-        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject)
+        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject defaultLibOpts)
         assertEqual "compilePipeline (lexer failure) should exit with 84" (ExitFailure 84) res
 
 test_compilePipeline_semantic_failure :: IO ()
 test_compilePipeline_semantic_failure = do
     withTempFile semErrorRuneCode $ \inFile -> do
-        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject)
+        res <- catchExitCode (compilePipeline inFile "out.asm" ToObject defaultLibOpts)
         assertEqual "compilePipeline (semantic failure) should exit with 84" (ExitFailure 84) res
 
 --
@@ -362,26 +362,26 @@ test_pipeline_semantic_failure = do
 test_runPipeline_success :: IO ()
 test_runPipeline_success = do
     withTempFile validRuneCode $ \fp -> do
-        res <- runPipeline fp
+        res <- runPipeline [] fp
         assertBool "runPipeline should succeed on valid code" (isRight res)
 
 test_runPipeline_read_failure :: IO ()
 test_runPipeline_read_failure = do
-  res <- runPipeline "non_existent.rune"
+  res <- runPipeline [] "non_existent.rune"
   assertBool "runPipeline should fail on non-existent file" (isLeft res)
 
 test_runPipelineAction_success :: IO ()
 test_runPipelineAction_success = do
     withTempFile validRuneCode $ \fp -> do
         let onSuccess _ = return ()
-        res <- catchExitCode (runPipelineAction fp onSuccess)
+        res <- catchExitCode (runPipelineAction [] fp onSuccess)
         assertEqual "runPipelineAction_success should exit successfully" ExitSuccess res
 
 test_runPipelineAction_failure :: IO ()
 test_runPipelineAction_failure = do
     withTempFile invalidRuneCode $ \fp -> do
         let onSuccess _ = assertFailure "onSuccess should not be called"
-        res <- catchExitCode (runPipelineAction fp onSuccess)
+        res <- catchExitCode (runPipelineAction [] fp onSuccess)
         assertEqual "runPipelineAction_failure should exit with 84" (ExitFailure 84) res
 
 test_compileAsmToObject_success :: IO ()
@@ -451,7 +451,7 @@ test_compilePipeline_asm_success = do
             hPutStr h asmContent
             hClose h
             let objFile = fp ++ ".o"
-            res <- catchExitCode (compilePipeline fp objFile ToObject)
+            res <- catchExitCode (compilePipeline fp objFile ToObject defaultLibOpts)
             exists <- doesFileExist objFile
             removeFileIfExists objFile
             assertEqual "compilePipeline .asm success" ExitSuccess res
@@ -459,7 +459,7 @@ test_compilePipeline_asm_success = do
 
 test_compilePipeline_asm_read_failure :: IO ()
 test_compilePipeline_asm_read_failure = do
-    res <- catchExitCode (compilePipeline "non_existent.asm" "out.o" ToObject)
+    res <- catchExitCode (compilePipeline "non_existent.asm" "out.o" ToObject defaultLibOpts)
     assertEqual "compilePipeline .asm read failure" (ExitFailure 84) res
 
 test_compilePipeline_unsupported_ext :: IO ()
@@ -467,7 +467,7 @@ test_compilePipeline_unsupported_ext = do
     withTempFile "content" $ \fp -> do
         let badFile = fp ++ ".xyz"
         writeFile badFile "content"
-        res <- catchExitCode (compilePipeline badFile "out.o" ToObject)
+        res <- catchExitCode (compilePipeline badFile "out.o" ToObject defaultLibOpts)
         removeFileIfExists badFile
         assertEqual "compilePipeline unsupported ext" (ExitFailure 84) res
 

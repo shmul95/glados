@@ -103,7 +103,7 @@ structTests = testGroup "Struct Operations"
   , testCase "saveStructResult" $
       let structs = Map.fromList [("S", [("x", IRI64)])]
           sm = Map.fromList [("dest", -8)]
-          result = saveCallResult structs sm "dest" (Just (IRStruct "S"))
+          result = saveCallResult structs sm "dest" (Just (IRStruct "S")) False
       in assertBool "should store from rax" $
            any (== "    mov qword [rbp-8], rax") result
   , testCase "IRGET_FIELD" $
@@ -190,7 +190,7 @@ paramSpillTests = testGroup "Parameter Spilling"
   [ testCase "Spill Int Params" $
       let params = zip (map (("p"++) . show) [1..7 :: Int]) (repeat IRI64)
           sm = Map.fromList $ zip (map fst params) (map (\i -> -8*i) [1..])
-          result = emitParameters params sm
+          result = emitParameters params sm False
       in assertBool "7th param spilled (not loaded to reg)" $ length result == 6
   ]
 
@@ -224,7 +224,7 @@ setupCallArgsTests = testGroup "setupCallArgs"
     testCase "mix int and float arguments" $
       let sm = Map.fromList [("a", -4), ("b", -8), ("c", -16)]
           args = [IRTemp "a" IRI32, IRTemp "b" IRF32, IRTemp "c" IRI64]
-          result = setupCallArgs sm args
+          result = setupCallArgs Map.empty sm args False
       in assertBool "should map to correct registers" $
            any (== "    movsxd rdi, dword [rbp-4]") result &&
            any (== "    movss xmm0, dword [rbp-8]") result &&
@@ -233,7 +233,7 @@ setupCallArgsTests = testGroup "setupCallArgs"
       let indices = [1..7 :: Int]
           sm = Map.fromList $ map (\i -> ("v" ++ show i, -8 * i)) indices
           args = map (\i -> IRTemp ("v" ++ show i) IRI64) indices
-          result = setupCallArgs sm args
+          result = setupCallArgs Map.empty sm args False
       in assertBool "should use 6 registers and skip the 7th" $
            any (== "    mov rdi, qword [rbp-8]") result &&
            any (== "    mov rsi, qword [rbp-16]") result &&
@@ -246,7 +246,7 @@ setupCallArgsTests = testGroup "setupCallArgs"
       let indices = [1..9 :: Int]
           sm = Map.fromList $ map (\i -> ("f" ++ show i, -8 * i)) indices
           args = map (\i -> IRTemp ("f" ++ show i) IRF64) indices
-          result = setupCallArgs sm args
+          result = setupCallArgs Map.empty sm args False
       in assertBool "should use 8 xmm registers and skip the 9th" $
            any (== "    movsd xmm0, qword [rbp-8]") result &&
            any (== "    movsd xmm7, qword [rbp-64]") result &&
@@ -258,7 +258,7 @@ setupCallArgsTests = testGroup "setupCallArgs"
                            ++ map (\i -> ("f" ++ show i, -64 - 8 * i)) fIdx
           args = map (\i -> IRTemp ("i" ++ show i) IRI64) iIdx
                   ++ map (\i -> IRTemp ("f" ++ show i) IRF64) fIdx
-          result = setupCallArgs sm args
+          result = setupCallArgs Map.empty sm args False
       in assertBool "should handle both limits correctly" $
            any (== "    mov r9, qword [rbp-48]") result &&
            any (== "    movsd xmm7, qword [rbp-128]") result
@@ -268,26 +268,26 @@ saveCallResultTests :: TestTree
 saveCallResultTests = testGroup "saveCallResult"
   [
     testCase "no destination" $
-      let result = saveCallResult Map.empty Map.empty "" Nothing
+      let result = saveCallResult Map.empty Map.empty "" Nothing False
       in assertBool "should be empty" $ null result
   , testCase "integer return" $
       let sm = Map.fromList [("res", -8)]
-          result = saveCallResult Map.empty sm "res" (Just IRI32)
+          result = saveCallResult Map.empty sm "res" (Just IRI32) False
       in assertBool "should store eax to stack" $
            any (== "    mov dword [rbp-8], eax") result
   , testCase "float return" $
       let sm = Map.fromList [("fres", -8)]
-          result = saveCallResult Map.empty sm "fres" (Just IRF32)
+          result = saveCallResult Map.empty sm "fres" (Just IRF32) False
       in assertBool "should store xmm0 to stack" $
            any (== "    movss dword [rbp-8], xmm0") result
   , testCase "void return" $
       let sm = Map.fromList [("vres", -8)]
-          result = saveCallResult Map.empty sm "vres" Nothing
+          result = saveCallResult Map.empty sm "vres" Nothing False
       in assertBool "should store rax to stack" $
            any (== "    mov qword [rbp-8], rax") result
   , testCase "f64 return" $
       let sm = Map.fromList [("dres", -16)]
-          result = saveCallResult Map.empty sm "dres" (Just IRF64)
+          result = saveCallResult Map.empty sm "dres" (Just IRF64) False
       in assertBool "should store xmm0 to stack" $
            any (== "    movsd qword [rbp-16], xmm0") result
   ]
@@ -312,10 +312,10 @@ collectStaticArraysTests = testGroup "collectStaticArrays"
 emitParametersTests :: TestTree
 emitParametersTests = testGroup "emitParameters"
   [
-    testCase "mix int and float parameters" $
+    testCase "mix int and float arguments" $
       let params = [("a", IRI32), ("b", IRF32), ("c", IRI64)]
           sm = Map.fromList [("a", -4), ("b", -8), ("c", -16)]
-          result = emitParameters params sm
+          result = emitParameters params sm False
       in assertBool "should map to correct registers" $
            any (== "    mov dword [rbp-4], edi") result &&
            any (== "    movss dword [rbp-8], xmm0") result &&
@@ -323,7 +323,7 @@ emitParametersTests = testGroup "emitParameters"
   , testCase "mix i64 and f64" $
       let params = [("x", IRI64), ("y", IRF64), ("z", IRI32)]
           sm = Map.fromList [("x", -8), ("y", -16), ("z", -20)]
-          result = emitParameters params sm
+          result = emitParameters params sm False
       in assertBool "should map to correct registers" $
            any (== "    mov qword [rbp-8], rdi") result &&
            any (== "    movsd qword [rbp-16], xmm0") result &&

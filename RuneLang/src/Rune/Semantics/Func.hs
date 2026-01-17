@@ -53,7 +53,7 @@ findDefs s (DefFunction name params rType _ _) =
     errSameSig = printf "FuncAlreadyExist: %s was already defined with same signature" name
     errMangled = printf "FuncAlreadyExist: %s (mangled: %s) was already defined" name finalName
 
-findDefs s (DefSomewhere sigs) = foldM addSig s sigs
+findDefs s (DefSomewhere sigs) = foldM addSig s [sig | DeclFuncSig sig <- sigs]
   where
     addSig fs (FunctionSignature name pTypes rType isExtern) =
         Right $ HM.insert finalName sig fs

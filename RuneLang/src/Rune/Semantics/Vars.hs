@@ -8,7 +8,9 @@ module Rune.Semantics.Vars (
   verifScope,
   verifExpr,
   verifExprWithContext,
-  mangleFuncStack
+  mangleFuncStack,
+  hasImplicitOrExplicitReturn,
+  blockContainsReturn
 ) where
 #else
 module Rune.Semantics.Vars (verifVars) where
@@ -64,6 +66,34 @@ data SemState = SemState
 
 type SemM a = StateT SemState (Either String) a
 
+-- | Extract all DeclDefs from somewhere blocks and return them as separate top-level definitions
+-- Also return cleaned somewhere blocks with only signatures  
+-- Note: DeclUse statements should have been preprocessed away by this point
+extractAndCleanSomewhereDefs :: [TopLevelDef] -> ([TopLevelDef], [TopLevelDef])
+extractAndCleanSomewhereDefs defs =
+  let (extracted, cleaned) = unzip $ map processTopLevel defs
+  in (concat extracted, cleaned)
+  where
+    processTopLevel :: TopLevelDef -> ([TopLevelDef], TopLevelDef)
+    processTopLevel (DefSomewhere decls) =
+      let (extractedDefs, remainingDecls) = partitionSomewhereDecls decls
+      in (extractedDefs, DefSomewhere remainingDecls)
+    processTopLevel other = ([], other)
+    
+    partitionSomewhereDecls :: [SomewhereDecl] -> ([TopLevelDef], [SomewhereDecl])
+    partitionSomewhereDecls decls =
+      let extractedDefs = [def | DeclDefs def <- decls]
+          remainingDecls = [decl | decl <- decls, not (isDeclDefs decl) && not (isDeclUse decl)]
+      in (extractedDefs, remainingDecls)
+    
+    isDeclDefs :: SomewhereDecl -> Bool
+    isDeclDefs (DeclDefs _) = True
+    isDeclDefs _ = False
+    
+    isDeclUse :: SomewhereDecl -> Bool
+    isDeclUse (DeclUse _) = True
+    isDeclUse _ = False
+
 --
 -- public
 --
@@ -74,9 +104,13 @@ verifVars (Program n defs) = do
   let defsWithInferredTypes = map applyInferenceToParams defs
       (templatesList, concreteDefs) = List.partition isGeneric defsWithInferredTypes
       templatesMap = HM.fromList $ map (\d -> (getDefName d, d)) templatesList
+      
+      -- Extract all full definitions from somewhere blocks and flatten them  
+      (flattenedDefs, cleanedDefs) = extractAndCleanSomewhereDefs concreteDefs
+      allConcreteDefs = flattenedDefs ++ cleanedDefs
 
-  fs <- findFunc (Program n concreteDefs)
-  ss <- findStruct (Program n concreteDefs)
+  fs <- findFunc (Program n allConcreteDefs)
+  ss <- findStruct (Program n allConcreteDefs)
 
   let initialState = SemState
         { stFuncs = fs
@@ -87,7 +121,7 @@ verifVars (Program n defs) = do
         , stCurrentStruct = Nothing
         }
 
-  (defs', finalState) <- runStateT (mapM verifTopLevel concreteDefs) initialState
+  (defs', finalState) <- runStateT (mapM verifTopLevel allConcreteDefs) initialState
   let allDefs = defs' <> stNewDefs finalState
       finalFuncStack = mangleFuncStack $ stFuncs finalState
   pure (Program n allDefs, finalFuncStack)
@@ -95,9 +129,9 @@ verifVars (Program n defs) = do
 --
 -- private
 --
-mkErrorReturn :: SourcePos -> String -> String -> String
-mkErrorReturn (SourcePos file line col) expected got =
-  formatSemanticError $ SemanticError file line col expected got ["function body", "control flow"]
+mkErrorReturn :: SourcePos -> String -> String -> [String] -> String
+mkErrorReturn (SourcePos file line col) expected got context =
+  formatSemanticError $ SemanticError file line col expected got context
 
 isGeneric :: TopLevelDef -> Bool
 isGeneric (DefFunction _ params ret _ _) = hasAny ret || any (hasAny . paramType) params
@@ -119,10 +153,46 @@ hasAny _ = False
 getDefName :: TopLevelDef -> String
 getDefName (DefFunction n _ _ _ _) = n
 getDefName (DefStruct n _ _) = n
-getDefName (DefSomewhere {}) = ""
+getDefName (DefSomewhere _) = ""
 
 mangleFuncStack :: FuncStack -> FuncStack
 mangleFuncStack fs = fs
+
+hasImplicitOrExplicitReturn :: Block -> Bool
+hasImplicitOrExplicitReturn [] = False
+hasImplicitOrExplicitReturn stmts = case last stmts of
+  StmtReturn _ (Just _) -> True
+  StmtReturn _ Nothing -> True
+  StmtExpr _ _ -> True
+  StmtIf _ _ thenB (Just elseB) -> 
+    hasImplicitOrExplicitReturn thenB && hasImplicitOrExplicitReturn elseB
+  StmtLoop _ body -> blockContainsReturn body
+  _ -> False
+
+blockContainsReturn :: Block -> Bool
+blockContainsReturn = any stmtContainsReturn
+  where
+    stmtContainsReturn (StmtReturn _ (Just _)) = True
+    stmtContainsReturn (StmtIf _ _ thenB elseB) = 
+      blockContainsReturn thenB || maybe False blockContainsReturn elseB
+    stmtContainsReturn (StmtFor _ _ _ _ _ body) = blockContainsReturn body
+    stmtContainsReturn (StmtForEach _ _ _ _ body) = blockContainsReturn body
+    stmtContainsReturn (StmtLoop _ body) = blockContainsReturn body
+    stmtContainsReturn _ = False
+
+checkFnReturn :: SourcePos -> String -> Type -> Block -> SemM ()
+checkFnReturn _ _ TypeNull _ = pure ()
+checkFnReturn pos fnName _ [] = 
+  lift $ Left $ mkErrorReturn pos
+    (printf "explicit return statement of type %s" (show TypeNull))
+    (printf "no return statement in function '%s'" fnName)
+    ["function body", "return statement"]
+checkFnReturn pos fnName retType body =
+  unless (hasImplicitOrExplicitReturn body) $
+    lift $ Left $ mkErrorReturn pos
+      (printf "explicit return statement of type %s" (show retType))
+      (printf "no return statement in function '%s'" fnName)
+      ["function body", "return statement"]
 
 --
 -- verif
@@ -136,7 +206,12 @@ verifTopLevel (DefFunction name params r_t body isExport) = do
       finalName = if name == "main" || name == expectedMangled 
                   then name 
                   else mangleName name r_t paramTypes
+      pos = case body of
+              (stmt:_) -> getStmtPos stmt
+              [] -> SourcePos "<unknownPos>" 0 0
 
+  checkFnReturn pos name r_t body
+  checkUniqueParamNames pos "function definition" name params
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
   pure $ DefFunction finalName params r_t body' isExport
@@ -176,12 +251,12 @@ verifScope vs (StmtExpr pos e : stmts) = do
 verifScope vs (StmtReturn pos (Just e) : stmts) = do
   e'      <- verifExpr vs e
   if not (null stmts)
-    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
+    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts)) ["function body", "control flow"]
     else pure [StmtReturn pos (Just e')]
 
 verifScope _ (StmtReturn pos Nothing : stmts) = do
   if not (null stmts)
-    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts))
+    then lift $ Left $ mkErrorReturn pos "no statements after return" (printf "%d unreachable statement(s) after return" (length stmts)) ["function body", "control flow"]
     else pure [StmtReturn pos (Just (ExprLitNull pos))]
 
 verifScope vs (StmtIf pos cond a (Just b) : stmts) = do
@@ -426,24 +501,23 @@ verifExprWithContext _ vs (ExprVar pos var)
 verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
-
 verifMethod sName (DefFunction methodName params retType body isExport) = do
-  checkMethodParams methodName params
+  let pos = case body of
+              (stmt:_) -> getStmtPos stmt
+              [] -> SourcePos "<unknownPos>" 0 0
+  checkMethodParams methodName params pos
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
       finalName = mangleName baseName retType paramTypes
 
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
-  
-  -- Set struct context for method body verification
-  oldStruct <- gets stCurrentStruct
+  checkFnReturn pos methodName retType body
+  oldStruct <- stCurrentStruct <$> get
   modify $ \st -> st { stCurrentStruct = Just sName }
   body' <- verifScope vs body
   modify $ \st -> st { stCurrentStruct = oldStruct }
-  
   pure $ DefFunction finalName params' retType body' isExport
-
 verifMethod _ def = pure def
 
 --
@@ -543,11 +617,27 @@ isStaticMethod :: String -> Bool
 isStaticMethod "new" = True
 isStaticMethod _     = False
 
-checkMethodParams :: String -> [Parameter] -> SemM ()
-checkMethodParams methodName params
-  | isStaticMethod methodName = pure ()  -- Static methods don't need self
+checkMethodParams :: String -> [Parameter] -> SourcePos -> SemM ()
+checkMethodParams methodName params pos
+  | isStaticMethod methodName = checkUniqueParamNames pos "method definition" methodName params
   | otherwise = case params of
-      [] -> lift $ Left $ printf "Instance method '%s' must have at least one parameter (self)" methodName
+      [] -> lift $ Left $ mkErrorReturn pos
+        "at least one parameter (self)"
+        (printf "no parameters in method '%s'" methodName)
+        ["method definition", "parameters"]
       (p:_) | paramName p /= "self" ->
-        lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
-      _ -> pure ()
+        lift $ Left $ mkErrorReturn pos
+          "first parameter named 'self'"
+          (printf "first parameter is '%s'" (paramName p))
+          ["method definition", "parameters"]
+      _ -> checkUniqueParamNames pos "method definition" methodName params
+
+checkUniqueParamNames :: SourcePos -> String -> String -> [Parameter] -> SemM ()
+checkUniqueParamNames pos context fName params = do
+  let paramNames = map paramName params
+      duplicates = paramNames List.\\ List.nub paramNames
+  unless (null duplicates) $
+    lift $ Left $ mkErrorReturn pos
+      (printf "unique parameter names in function '%s'" fName)
+      (printf "%s '%s' has duplicate parameter names: %s" context fName (show duplicates))
+      ["function definition", "parameters"]

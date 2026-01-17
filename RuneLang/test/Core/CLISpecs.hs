@@ -30,17 +30,22 @@ cliTests =
 usageString :: String
 usageString =
   unlines
-    [ "Usage: rune <command> [file] [options]",
-      "",
-      "Commands:",
-      "  help           Show this help message",
-      "  build [file]   Compile the given source file",
-      "  run   [file]   Show the IR of the given source file",
-      "",
-      "Options:",
-      "  -o, --output <file>   Specify the output file for compilation",
-      "  -c                    Compile to object file",
-      "  -S                    Compile to assembly code"
+    [ "Usage: rune <command> [file] [options]"
+    , ""
+    , "Commands:"
+    , "  help           Show this help message"
+    , "  build [file]   Compile the given source file (.ru, .rune, .asm)"
+    , "  run   [file]   Show the IR of the given source file (.ru, .rune)"
+    , ""
+    , "Options:"
+    , "  -o, --output <file>   Specify the output file for compilation"
+    , "  -c                    Compile to object file"
+    , "  -S                    Compile to assembly code"
+    , "  -shared               Build a shared library (.so)"
+    , "  -static-lib           Build a static library (.a)"
+    , "  -L<path>              Add library search path"
+    , "  -l<name>              Link with library"
+    , "  -I<path>              Add include search path for 'use' statements"
     ]
 
 cleanOutput :: String -> String
@@ -83,7 +88,7 @@ testCaseWithSetup name setup teardown test =
     teardown
 
 defaultLibOpts :: LibraryOptions
-defaultLibOpts = LibraryOptions False False [] []
+defaultLibOpts = LibraryOptions False False [] [] []
 
 --
 -- private
@@ -96,25 +101,24 @@ actionDerivingTests =
     [ testCase "Show coverage for all constructors" $ do
         let action1 = ShowUsage
             action2 = CompileAll "in" (Just "out") defaultLibOpts
-            action3 = Interpret "run"
+            action3 = Interpret "run" defaultLibOpts
             action4 = CompileAll "file" Nothing defaultLibOpts
             action5 = CompileAllMany ["f1", "f2"] Nothing defaultLibOpts
         assertEqual "Show ShowUsage" "ShowUsage" (show action1)
         assertEqual "Show Compile Just" ("CompileAll \"in\" (Just \"out\") (" ++ show defaultLibOpts ++ ")") (show action2)
-        assertEqual "Show Interpret" "Interpret \"run\"" (show action3)
+        assertEqual "Show Interpret" ("Interpret \"run\" (" ++ show defaultLibOpts ++ ")") (show action3)
         assertEqual "Show Compile Nothing" ("CompileAll \"file\" Nothing (" ++ show defaultLibOpts ++ ")") (show action4)
         assertEqual "Show CompileAllMany" ("CompileAllMany [\"f1\",\"f2\"] Nothing (" ++ show defaultLibOpts ++ ")") (show action5)
     , testCase "Eq coverage" $ do
         let c1 = CompileAll "f" Nothing defaultLibOpts
             c2 = CompileAll "f" Nothing defaultLibOpts
             c3 = CompileAllMany ["f1", "f2"] Nothing defaultLibOpts
-            i1 = Interpret "f"
             s1 = ShowUsage
         assertEqual "Equal actions (Compile)" c1 c2
         assertBool "Unequal actions (file)" (CompileAll "f" Nothing defaultLibOpts /= CompileAll "g" Nothing defaultLibOpts)
         assertBool "Unequal actions (output)" (CompileAll "f" Nothing defaultLibOpts /= CompileAll "f" (Just "out") defaultLibOpts)
-        assertBool "Unequal actions (Compile/Interpret)" (c1 /= i1)
-        assertBool "Unequal actions (Interpret/ShowUsage)" (i1 /= s1)
+        assertBool "Unequal actions (Compile/Interpret)" (c1 /= (Interpret "f" defaultLibOpts))
+        assertBool "Unequal actions (Interpret/ShowUsage)" ((Interpret "f" defaultLibOpts) /= s1)
         assertBool "Unequal actions (Compile/ShowUsage)" (c1 /= s1)
         assertBool "Unequal actions (Compile/CompileAllMany)" (c1 /= c3)
     ]
@@ -155,9 +159,9 @@ parseRunSuccessTests :: TestTree
 parseRunSuccessTests =
   testGroup
     "Run Command Success Parsing"
-    [ shouldParseTo ["run", "file.ru"] (Interpret "file.ru"),
-      shouldParseTo ["--run", "another.ru"] (Interpret "another.ru"),
-      shouldParseTo ["-r", "test.rune"] (Interpret "test.rune")
+    [ shouldParseTo ["run", "file.ru"] (Interpret "file.ru" (LibraryOptions False False [] [] [])),
+      shouldParseTo ["--run", "another.ru"] (Interpret "another.ru" (LibraryOptions False False [] [] [])),
+      shouldParseTo ["-r", "test.rune"] (Interpret "test.rune" (LibraryOptions False False [] [] []))
     ]
 
 parseRunFailureTests :: TestTree
@@ -183,11 +187,11 @@ parseBuildSuccessTests =
       shouldParseTo ["--build", "input.o"] (CompileObjToExec "input.o" Nothing defaultLibOpts),
       shouldParseTo ["build", "input.o", "-o", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin") defaultLibOpts),
       shouldParseTo ["--build", "input.o", "--output", "output.bin"] (CompileObjToExec "input.o" (Just "output.bin") defaultLibOpts),
-       shouldParseTo ["build", "-c", "input.ru"] (CompileToObj "input.ru" Nothing),
-       shouldParseTo ["--build", "-c", "input.asm"] (CompileToObj "input.asm" Nothing),
-       shouldParseTo ["build", "-S", "input.ru"] (CreateAsm "input.ru" Nothing),
-       shouldParseTo ["build", "-c", "input.ru", "-o", "output.o"] (CompileToObj "input.ru" (Just "output.o")),
-       shouldParseTo ["build", "-S", "input.ru", "--output", "output.asm"] (CreateAsm "input.ru" (Just "output.asm")),
+       shouldParseTo ["build", "-c", "input.ru"] (CompileToObj "input.ru" Nothing (LibraryOptions False False [] [] [])),
+       shouldParseTo ["--build", "-c", "input.asm"] (CompileToObj "input.asm" Nothing (LibraryOptions False False [] [] [])),
+       shouldParseTo ["build", "-S", "input.ru"] (CreateAsm "input.ru" Nothing (LibraryOptions False False [] [] [])),
+       shouldParseTo ["build", "-c", "input.ru", "-o", "output.o"] (CompileToObj "input.ru" (Just "output.o") (LibraryOptions False False [] [] [])),
+       shouldParseTo ["build", "-S", "input.ru", "--output", "output.asm"] (CreateAsm "input.ru" (Just "output.asm") (LibraryOptions False False [] [] [])),
        shouldParseTo ["build", "input1.ru", "input2.ru"] (CompileAllMany ["input1.ru", "input2.ru"] Nothing defaultLibOpts),
        shouldParseTo ["build", "input1.ru", "input2.ru", "-o", "output.bin"] (CompileAllMany ["input1.ru", "input2.ru"] (Just "output.bin") defaultLibOpts)
      ]
@@ -434,7 +438,7 @@ runCLIActionTests =
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, result) <- capture (try (runCLI (Interpret (testFolder ++ testFile))) :: IO (Either SomeException ()))
+          (_, result) <- capture (try (runCLI (Interpret (testFolder ++ testFile) defaultLibOpts)) :: IO (Either SomeException ()))
           case result of
             Right _ -> return ()
             Left _ -> return ()
@@ -466,28 +470,28 @@ runCLIActionTests =
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileToObj (testFolder ++ testFile) Nothing)) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileToObj (testFolder ++ testFile) Nothing defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt object compilation" True
         )
     , testCaseWithSetup "runCLI (CompileToObj file Just out) uses specified output"
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CompileToObj (testFolder ++ testFile) (Just (testFolder ++ "custom.o")))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CompileToObj (testFolder ++ testFile) (Just (testFolder ++ "custom.o")) defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt object compilation" True
         )
     , testCaseWithSetup "runCLI (CreateAsm file Nothing) uses output file with .asm extension replacing input file's extension"
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CreateAsm (testFolder ++ testFile) Nothing)) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CreateAsm (testFolder ++ testFile) Nothing defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt assembly generation" True
         )
     , testCaseWithSetup "runCLI (CreateAsm file Just out) uses specified output"
         (createFile (testFolder ++ testFile))
         (deleteFolder testFolder)
         (do
-          (_, _) <- capture (try (runCLI (CreateAsm (testFolder ++ testFile) (Just (testFolder ++ "custom.asm")))) :: IO (Either SomeException ()))
+          (_, _) <- capture (try (runCLI (CreateAsm (testFolder ++ testFile) (Just (testFolder ++ "custom.asm")) defaultLibOpts)) :: IO (Either SomeException ()))
           assertBool "Should attempt assembly generation" True
         )
     , testCaseWithSetup "runCLI (CompileObjToExec file Nothing) uses default output 'a.out'"

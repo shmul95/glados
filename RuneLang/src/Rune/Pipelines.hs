@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
 #if defined(TESTING_EXPORT)
@@ -58,6 +57,7 @@ import Rune.IR.Printer (prettyPrintIR)
 import Rune.IR.Optimizer (runIROptimizer)
 import Rune.Lexer.Lexer (lexer)
 import Rune.Lexer.Tokens (Token)
+import Rune.Preprocess (preprocessUseStatements)
 import Rune.Semantics.Vars (verifVars)
 import Rune.SanityChecks (performSanityChecks)
 import Rune.Semantics.Type (FuncStack)
@@ -74,6 +74,7 @@ data LibraryOptions = LibraryOptions
   , libStatic :: Bool
   , libPaths  :: [FilePath]
   , libNames  :: [String]
+  , includePaths :: [FilePath]
   } deriving (Show, Eq)
 
 data CompileMode
@@ -89,30 +90,30 @@ defaultLibPaths home = ["/usr/local/lib", "/usr/lib", home <> "/.local/lib", "./
 rpathArg :: FilePath -> String
 rpathArg home = "-Wl,-rpath," <> home <> "/.local/lib"
 
-compilePipeline :: FilePath -> FilePath -> CompileMode -> IO ()
-compilePipeline = modeToAction
-  where
-    modeToAction inf outf = \case
-      FullCompile libOpts  -> compileFullPipeline inf outf libOpts
-      ToAssembly           -> compileToAssembly inf outf
-      ToObject             -> compileToObject inf outf
-      ToExecutable libOpts -> compileObjectIntoExecutable inf outf libOpts
+compilePipeline :: FilePath -> FilePath -> CompileMode -> LibraryOptions -> IO ()
+compilePipeline inf outf mode libOpts = case mode of
+  FullCompile libOpts'  -> compileFullPipeline inf outf libOpts'
+  ToAssembly           -> compileToAssembly inf outf libOpts  
+  ToObject             -> compileToObject inf outf libOpts
+  ToExecutable libOpts' -> compileObjectIntoExecutable inf outf libOpts'
 
 compileFullPipeline :: FilePath -> FilePath -> LibraryOptions -> IO ()
 compileFullPipeline inFile outFile libOpts =
-  runPipelineAction inFile $ \ir -> do
+  runPipelineAction (includePaths libOpts) inFile $ \ir -> do
     let objFile = objectFileName inFile
         asmContent = selectEmitter libOpts ir
     compileAsmToObject asmContent objFile (isPIC libOpts)
     linkOrArchive libOpts [objFile] outFile
 
-compileToAssembly :: FilePath -> FilePath -> IO ()
-compileToAssembly inFile outFile = 
-  runPipelineAction inFile (writeFile outFile . emitAssembly)
+compileToAssembly :: FilePath -> FilePath -> LibraryOptions -> IO ()
+compileToAssembly inFile outFile libOpts = 
+  runPipelineAction (includePaths libOpts) inFile (writeFile outFile . emitAssembly)
 
-compileToObject :: FilePath -> FilePath -> IO ()
-compileToObject inFile outFile = case takeExtension inFile of
-  ".ru"  -> runPipelineAction inFile $ \ir -> 
+compileToObject :: FilePath -> FilePath -> LibraryOptions -> IO ()
+compileToObject inFile outFile libOpts = case takeExtension inFile of
+  ".ru"   -> runPipelineAction (includePaths libOpts) inFile $ \ir -> 
+              compileAsmToObject (emitAssembly ir) outFile False
+  ".rune" -> runPipelineAction (includePaths libOpts) inFile $ \ir -> 
               compileAsmToObject (emitAssembly ir) outFile False
   ".asm" -> safeRead inFile >>= either logError (\c -> compileAsmToObject c outFile False)
   ext    -> logError $ "Unsupported file extension: " <> ext
@@ -120,31 +121,31 @@ compileToObject inFile outFile = case takeExtension inFile of
 compileMultiplePipeline :: [FilePath] -> FilePath -> LibraryOptions -> IO ()
 compileMultiplePipeline [] _ _ = logError "No input files provided."
 compileMultiplePipeline inFiles outFile libOpts = do
-  let (runeFiles, remainder) = partitionByExt ".ru" inFiles
+  let (runeFiles, remainder) = partition (\f -> takeExtension f `elem` [".ru", ".rune"]) inFiles
       (asmFiles, objectFiles) = partitionByExt ".asm" remainder
       isLib = isPIC libOpts
 
-  runeObjs <- compileRuneSources runeFiles isLib
+  runeObjs <- compileRuneSources (includePaths libOpts) runeFiles isLib
   asmObjs  <- compileAsmSources asmFiles isLib
   
   linkOrArchive' libOpts (objectFiles <> asmObjs <> runeObjs) outFile
 
-compileRuneSources :: [FilePath] -> Bool -> IO [FilePath]
-compileRuneSources [] _ = pure []
-compileRuneSources runeFiles isLib =
+compileRuneSources :: [FilePath] -> [FilePath] -> Bool -> IO [FilePath]
+compileRuneSources _ [] _ = pure []
+compileRuneSources incPath runeFiles isLib =
   performSanityChecks >>= either exitWithError (const $ compileFiles runeFiles isLib)
   where
     exitWithError e = logError e >> pure []
     compileFiles files forLib = do
-      results <- mapConcurrently (compileRuneFile forLib) files
+      results <- mapConcurrently (compileRuneFile incPath forLib) files
       let (errors, successes) = partitionEithers results
       mapM_ logErrorNoExit errors
       unless (null errors) $ exitWith (ExitFailure 84)
       pure successes
 
-compileRuneFile :: Bool -> FilePath -> IO (Either String FilePath)
-compileRuneFile forLib runeFile =
-  runPipeline runeFile >>= either (pure . Left) (compileToObj forLib runeFile)
+compileRuneFile :: [FilePath] -> Bool -> FilePath -> IO (Either String FilePath)
+compileRuneFile incPath forLib runeFile =
+  runPipeline incPath runeFile >>= either (pure . Left) (compileToObj forLib runeFile)
   where
     compileToObj isLib rf ir = do
       let objFile = objectFileName rf
@@ -164,8 +165,8 @@ compileAsmSources asmFiles isLib =
     compileAndReturn obj forLib content = 
       compileAsmToObject content obj forLib >> pure (Just obj)
 
-interpretPipeline :: FilePath -> IO ()
-interpretPipeline inFile = runPipelineAction inFile (putStr . prettyPrintIR)
+interpretPipeline :: FilePath -> LibraryOptions -> IO ()
+interpretPipeline inFile libOpts = runPipelineAction (includePaths libOpts) inFile (putStr . prettyPrintIR)
 
 pipeline :: (FilePath, String) -> Either String IRProgram
 pipeline = parseLexer >=> parseAST >=> verifAndGenIR >=> optimizeIR
@@ -173,12 +174,22 @@ pipeline = parseLexer >=> parseAST >=> verifAndGenIR >=> optimizeIR
 verifAndGenIR :: Program -> Either String IRProgram
 verifAndGenIR = checkSemantics >=> uncurry generateIR
 
-runPipeline :: FilePath -> IO (Either String IRProgram)
-runPipeline fp = performSanityChecks >>= either (pure . Left) 
-  (const $ safeRead fp <&> (>>= pipeline . (fp,)))
+runPipeline :: [FilePath] -> FilePath -> IO (Either String IRProgram)
+runPipeline incPath fp = performSanityChecks >>= either (pure . Left) 
+  (const $ safeRead fp >>= either (pure . Left) (processWithPreprocessing incPath fp))
 
-runPipelineAction :: FilePath -> (IRProgram -> IO ()) -> IO ()
-runPipelineAction inFile = (runPipeline inFile >>=) . either logError
+-- | Process source with use-statement preprocessing
+processWithPreprocessing :: [FilePath] -> FilePath -> String -> IO (Either String IRProgram)
+processWithPreprocessing incPath fp content = do
+  preprocessResult <- preprocessUseStatements incPath content
+  case preprocessResult of
+    Left err -> pure $ Left err
+    Right expandedContent -> pure $ pipeline (fp, expandedContent)
+
+
+
+runPipelineAction :: [FilePath] -> FilePath -> (IRProgram -> IO ()) -> IO ()
+runPipelineAction incPath inFile = (runPipeline incPath inFile >>=) . either logError
 
 compileAsmToObject :: String -> FilePath -> Bool -> IO ()
 compileAsmToObject asmContent objFile forPic = 

@@ -28,6 +28,7 @@ keywordMap =
     (KwNext, "next"),
     (KwStop, "stop"),
     (KwSomewhere, "somewhere"),
+    (KwUse, "use"),
     (KwExport, "export"),
     (KwExtern, "extern"),
     (KwAs, "as"),

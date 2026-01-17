@@ -101,15 +101,20 @@ visitSomewhere :: TopLevelDef -> Printer ()
 visitSomewhere (DefSomewhere sigs) = do
   emit "DefSomewhere"
   indent
-  emitBlock "Signatures:" (mapM_ emitSig sigs)
+  emitBlock "Signatures:" (mapM_ emitSomewhereDecl sigs)
   dedent
   where
-    emitSig (FunctionSignature name paramTypes retType isExtern) = do
+    emitSomewhereDecl (DeclFuncSig (FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = retType, sigIsExtern = isExtern })) = do
       newLine
       when isExtern $ emit "extern "
       emit $ name <> "("
       emit $ unwords (map showType paramTypes)
       emit $ ") -> " <> showType retType
+    emitSomewhereDecl (DeclDefs def) = do
+      newLine
+      emit "Full Definition: "
+      visitTopLevel def
+    emitSomewhereDecl _ = return ()  -- Handle other SomewhereDecl cases
 visitSomewhere _ = return ()
 
 visitStatement :: Statement -> Printer ()

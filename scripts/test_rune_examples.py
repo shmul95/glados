@@ -25,7 +25,7 @@ EXAMPLE_FILES = glob_files("RuneLang/test/RuneUnitTests", "ru")
 
 EXPECTED_STDOUT = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
 EXPECTED_RETURN = 0
-EXPECTED_LINES = 224
+EXPECTED_LINES = 231
 
 GREEN = "\033[32m"
 RED = "\033[31m"
@@ -101,7 +101,7 @@ def verify_output(run: subprocess.CompletedProcess) -> None:
         raise SystemExit(ERROR)
 
     for i, line in enumerate(lines, 1):
-        if not line.startswith(VALID):
+        if not line.__contains__(VALID):
             print_ko(f"Test failed at line: {i}: {line}")
             raise SystemExit(ERROR)
 

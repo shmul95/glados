@@ -9,6 +9,8 @@ import Core.PipelinesSpecs (pipelinesTests)
 import Core.LoggerSpecs (loggerTests)
 import Core.SanityChecksSpec (sanityChecksTests)
 
+import PreprocessSpecs (preprocessTests)
+
 import Lexer.LexerSpecs (lexerTests)
 import Lexer.LexerIdentifiersSpecs (lexerIdentifiersTests)
 import Lexer.LexerLiteralsSpecs (lexerLiteralsTests)
@@ -89,6 +91,7 @@ coreSpecs =
     , cliTests
     , loggerTests
     , sanityChecksTests
+    , preprocessTests
     ]
 
 lexerSpecs :: TestTree

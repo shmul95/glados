@@ -12,6 +12,8 @@ module Rune.AST.Nodes
     Parameter (..),
     Field (..),
     FunctionSignature (..),
+    StructureSignature (..),
+    SomewhereDecl (..),
     Block,
     SourcePos (..),
     getExprPos,
@@ -148,7 +150,7 @@ data TopLevelDef
     --     override def bar(string) -> null;
     -- }
     DefSomewhere
-      { somewhereDecls :: [FunctionSignature]
+      { somewhereDecls :: [SomewhereDecl]
       }
   deriving (Show, Eq)
 
@@ -178,11 +180,27 @@ data Field = Field {fieldName :: String, fieldType :: Type}
 
 -- | function signature for forward declarations
 data FunctionSignature = FunctionSignature
-  { sigName :: String,
+  { sigFuncName :: String,
     sigParams :: [Type],
     sigReturnType :: Type,
     sigIsExtern :: Bool
   }
+  deriving (Show, Eq)
+
+-- | StructureSignature for forward declaration
+data StructureSignature = StructureSignature
+  { sigStructName :: String
+  , sigAttributes :: [(String, Type)]
+  , sigMethods :: [FunctionSignature]
+  }
+  deriving (Show, Eq)
+
+-- | everything that can be in a somewhere
+data SomewhereDecl
+  = DeclFuncSig FunctionSignature
+  | DeclStructSig StructureSignature
+  | DeclDefs TopLevelDef
+  | DeclUse String  -- use filename.sw or filename.somewhere;
   deriving (Show, Eq)
 
 -- | statements

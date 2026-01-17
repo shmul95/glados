@@ -29,7 +29,7 @@ export def open_file(path: string) ~> i32
     if fd < 0 {
         error("io: failed to open file: ");
         error(path);
-        error('\n')
+        error("\n")
     }
     fd
 }
@@ -78,7 +78,7 @@ export def read_file(fd: i32, size: u64) ~> string
     if bytes_read < 0 {
         liberate(buffer);
         error("io: error while reading file content");
-        error('\n')
+        error("\n")
     }
 
     buffer[bytes_read] = '\0';
@@ -99,7 +99,7 @@ export def read_all(path: string) ~> string
         close_file(fd);
         error("io: failed to get file size: ");
         error(path);
-        error('\n')
+        error("\n")
     }
 
     content = read_file(fd, file_size : u64)?;

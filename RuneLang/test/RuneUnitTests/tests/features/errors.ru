@@ -21,7 +21,10 @@ export def test_errors() -> null
 
 def fail_func() ~> i32
 {
-    return error("error");
+    if true {
+        return error("error");
+    }
+    return 1;
 }
 
 def succeed_func(n: i32) ~> i32

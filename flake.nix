@@ -1,21 +1,39 @@
+# /! auto-generated nix flake /!\
+# do NOT edit !
+
 {
-  description = "Dev environment with stack, ghc, gcc, gnumake";
-
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
   };
-
-  outputs = { self, nixpkgs }:
-    let
-      system = "x86_64-linux"; 
-      pkgs = import nixpkgs { inherit system; };
-    in {
-      devShells.${system}.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          stack ghc hlint
-          nasm gdb gcc gnumake
-        ];
-      };
-    };
+  outputs = { self, nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+        };
+      in
+      with pkgs; {
+        devShells.default = mkShell {
+         buildInputs = [
+           stack
+           ghc
+           hlint
+           nasm
+           gdb
+           gcc
+           gnumake
+           valgrind
+           python3
+         ];
+         shellHook = ''
+           export PKG_CONFIG_PATH=${pkgs.lib.makeLibraryPath [
+           
+           ]}:$PKG_CONFIG_PATH
+           export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [
+           
+           ]}:$LD_LIBRARY_PATH
+         '';
+       };
+   });
 }
-

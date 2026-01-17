@@ -30,9 +30,9 @@ import Rune.Backend.X86_64.LoadStore (loadReg, loadRegWithExt, stackAddr, storeR
 import Rune.Backend.X86_64.Registers (getRegisterName, getSizeSpecifier)
 import Rune.Backend.X86_64.Compare (loadFloatOperand, isFloatType)
 import Rune.IR.Nodes (IROperand (..), IRType (..))
-import Rune.IR.IRHelpers (sizeOfIRType)
+import Rune.IR.IRHelpers (sizeOfIRType, alignmentOfIRType)
 
-import Lib (alignTo, alignSize)
+import Lib (alignTo)
 
 -- | Type alias for struct field definitions: (fieldName, fieldType)
 type StructDef = [(String, IRType)]
@@ -58,7 +58,7 @@ getFieldOffset structMap structName fieldName =
       | otherwise = findFieldOffset rest (alignedOffset + size)
       where
         size = sizeOfIRType structMap typ
-        align = alignSize size
+        align = alignmentOfIRType structMap typ
         alignedOffset = alignTo align offset
 
 -- | Emit assembly for allocating a struct on the stack.

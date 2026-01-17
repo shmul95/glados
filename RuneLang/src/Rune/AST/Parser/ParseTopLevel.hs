@@ -16,6 +16,8 @@ module Rune.AST.Parser.ParseTopLevel
     parseReturnType,
     parseField,
     parseSomewhere,
+    parseSomewhereDecls,
+    parseSomewhereDecl,
     parseFunctionSignatures,
     parseFunctionSignature,
     parseParamTypeInSignature
@@ -28,7 +30,7 @@ where
 
 import Control.Applicative ((<|>))
 import Data.Either (partitionEithers)
-import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..))
+import Rune.AST.Nodes (Field (..), FunctionSignature (..), Parameter (..), TopLevelDef (..), Type (..), SomewhereDecl (..))
 import Rune.AST.Parser.ParseBlock (parseBlock)
 import Rune.AST.Parser.ParseExpression (parseExpression)
 import Rune.AST.Parser.ParseTypes (parseIdentifier, parseType)
@@ -174,7 +176,57 @@ parseField = Field <$> parseIdentifier <*> (expect T.Colon *> parseType)
 parseSomewhere :: Parser TopLevelDef
 parseSomewhere =
   do _ <- expect T.KwSomewhere *> expect T.LBrace
-     DefSomewhere <$> parseFunctionSignatures
+     DefSomewhere <$> parseSomewhereDecls
+
+parseSomewhereDecls :: Parser [SomewhereDecl]
+parseSomewhereDecls = do
+  isEnd <- check T.RBrace
+  if isEnd then
+    advance >> pure []
+  else do
+    decl <- parseSomewhereDecl
+    rest <- parseSomewhereDecls
+    pure $ decl : rest
+
+parseSomewhereDecl :: Parser SomewhereDecl
+parseSomewhereDecl = do
+  tok <- peek
+  case T.tokenKind tok of
+    T.KwUse -> parseUseStatement
+    T.KwDef -> DeclFuncSig <$> parseFunctionSignature
+    T.KwExtern -> DeclFuncSig <$> parseFunctionSignature
+    T.KwStruct -> DeclDefs <$> parseStruct
+    _ -> failParse $ "Expected use, function signature, struct definition, or extern function, got: " ++ show tok
+
+parseUseStatement :: Parser SomewhereDecl
+parseUseStatement = do
+  _ <- expect T.KwUse
+  fileName <- parseUseFileName
+  _ <- expect T.Semicolon
+  pure $ DeclUse fileName
+
+parseUseFileName :: Parser String
+parseUseFileName = do
+  tok <- peek
+  case T.tokenKind tok of
+    T.Identifier name -> do
+      advance
+      -- Check for optional .sw or .somewhere extension
+      dotTok <- peek
+      case T.tokenKind dotTok of
+        T.Dot -> do
+          advance
+          extTok <- peek
+          case T.tokenKind extTok of
+            T.Identifier "sw" -> do
+              advance
+              pure $ name ++ ".sw"
+            T.Identifier "somewhere" -> do
+              advance
+              pure $ name ++ ".somewhere"
+            _ -> failParse "Expected 'sw' or 'somewhere' file extension"
+        _ -> pure name  -- Allow extension-less filename
+    _ -> failParse "Expected filename"
 
 parseFunctionSignatures :: Parser [FunctionSignature]
 parseFunctionSignatures = do
@@ -194,7 +246,7 @@ parseFunctionSignature = do
   paramTypes <- between (expect T.LParen) (expect T.RParen) (sepBy parseParamTypeInSignature (expect T.Comma))
   retType <- parseReturnType
   _ <- expect T.Semicolon
-  pure $ FunctionSignature name paramTypes retType isExtern
+  pure $ FunctionSignature { sigFuncName = name, sigParams = paramTypes, sigReturnType = retType, sigIsExtern = isExtern }
 
 parseParamTypeInSignature :: Parser Type
 parseParamTypeInSignature =

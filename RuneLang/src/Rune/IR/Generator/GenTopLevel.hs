@@ -23,17 +23,22 @@ where
 import Control.Monad.State (modify)
 import Control.Monad.Except (throwError)
 import Data.Map (empty, insert)
-import Rune.AST.Nodes (Field (..), Parameter (..), TopLevelDef (..), Type (..))
+import Rune.AST.Nodes
+  ( Field (..)
+  , Parameter (..)
+  , TopLevelDef (..)
+  , Type (..)
+  )
 import Rune.IR.Generator.GenStatement (genStatement)
 import Rune.IR.IRHelpers (astTypeToIRType, registerVar)
 import Rune.IR.Nodes
-  ( GenState (..),
-    IRFunction (..),
-    IRGen,
-    IRInstruction (..),
-    IROperand (IRParam),
-    IRTopLevel (..),
-    IRType (..),
+  ( GenState (..)
+  , IRFunction (..)
+  , IRGen
+  , IRInstruction (..)
+  , IROperand (IRParam)
+  , IRTopLevel (..)
+  , IRType (..)
   )
 
 --
@@ -43,7 +48,7 @@ import Rune.IR.Nodes
 genTopLevel :: TopLevelDef -> IRGen [IRTopLevel]
 genTopLevel def@DefFunction {} = genFunction def
 genTopLevel str@DefStruct {} = genStruct str
-genTopLevel DefSomewhere {} = pure []
+genTopLevel (DefSomewhere _) = pure []  -- Signatures only, no IR generation needed
 
 --
 -- private

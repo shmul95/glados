@@ -4,6 +4,7 @@
 module Rune.IR.IRHelpers
   ( astTypeToIRType,
     sizeOfIRType,
+    alignmentOfIRType,
     registerVar,
     registerCall,
     newTemp,
@@ -34,6 +35,7 @@ where
 module Rune.IR.IRHelpers
   ( astTypeToIRType,
     sizeOfIRType,
+    alignmentOfIRType,
     registerVar,
     registerCall,
     newTemp,
@@ -63,7 +65,7 @@ import Rune.IR.Nodes (GenState (..), IRGen, IRInstruction (..), IRLabel (..), IR
 import Rune.Semantics.Type (FuncStack)
 import Rune.Semantics.Helper (selectSignature)
 
-import Lib (alignTo, align8, alignSize)
+import Lib (alignTo)
 
 --
 -- type conversion
@@ -166,15 +168,42 @@ sizeOfIRType structs (IRStruct name) =
     sizeOfStructType :: [(String, IRType)] -> Int
     sizeOfStructType fields =
       let (total, _) = foldl step (0, 0) fields
-      in align8 total
+          structAlign = alignmentOfIRType structs (IRStruct name)
+      in alignTo structAlign total
 
     step :: (Int, Int) -> (String, IRType) -> (Int, Int)
     step (offset, _) (_, t) =
       let s       = sizeOfIRType structs t
-          align   = alignSize s
+          align   = alignmentOfIRType structs t
           aligned = alignTo align offset
 
       in (aligned + s, aligned)
+
+-- | Calculate the alignment requirement of a type.
+-- For structs, returns the maximum alignment of all fields.
+-- For scalars, returns the size (capped at 8).
+alignmentOfIRType :: Map.Map String [(String, IRType)] -> IRType -> Int
+alignmentOfIRType _ IRI8      = 1
+alignmentOfIRType _ IRU8      = 1
+alignmentOfIRType _ IRI16     = 2
+alignmentOfIRType _ IRU16     = 2
+alignmentOfIRType _ IRI32     = 4
+alignmentOfIRType _ IRU32     = 4
+alignmentOfIRType _ IRI64     = 8
+alignmentOfIRType _ IRU64     = 8
+alignmentOfIRType _ IRF32     = 4
+alignmentOfIRType _ IRF64     = 8
+alignmentOfIRType _ IRChar    = 1
+alignmentOfIRType _ IRBool    = 1
+alignmentOfIRType _ IRNull    = 8
+alignmentOfIRType _ (IRPtr _) = 8
+alignmentOfIRType _ (IRRef _) = 8
+alignmentOfIRType _ (IRVariadic _) = 8
+alignmentOfIRType structs (IRArray t _) = alignmentOfIRType structs t
+alignmentOfIRType structs (IRStruct name) =
+  case Map.lookup name structs of
+    Nothing -> 8  -- Default to 8-byte alignment if struct not found
+    Just fields -> maximum $ map (alignmentOfIRType structs . snd) fields
 
 getCommonType :: IROperand -> IROperand -> IRType
 getCommonType l r =
