@@ -434,13 +434,24 @@ verifExprWithContext hint vs (ExprAccess pos target field) =
 verifExprWithContext hint vs (ExprStructInit pos name fields) = do
   fields' <- mapM (\(l, e) -> (l,) <$> verifExprWithContext hint vs e) fields
   ss <- gets stStructs
+  currentStruct <- gets stCurrentStruct
+
+  let SourcePos file line col = pos
   case HM.lookup name ss of
-    Just (DefStruct _ sFields _ _ _) -> do
-      let providedFieldNames = map fst fields'
-          missingFields = [(fieldName f, fieldDefault f) | f <- sFields, not (fieldIsStatic f), fieldName f `notElem` providedFieldNames]
-          defaultFields = [(fname, expr) | (fname, Just expr) <- missingFields]
-      pure $ ExprStructInit pos name (fields' ++ defaultFields)
+    Just (DefStruct _ sFields _ isAbstract _) -> do
+      when isAbstract $
+        canAccessAbstractStruct ss currentStruct name
+          (printf "instantiation of abstract struct '%s'" name)
+          (printf "cannot instantiate abstract struct '%s'" name)
+          file line col
+      pure $ ExprStructInit pos name (fields' ++ setDefaultFields fields' sFields)
     _ -> pure $ ExprStructInit pos name fields'
+  where
+    setDefaultFields :: [(String, Expression)] -> [Field] -> [(String, Expression)]
+    setDefaultFields providedFields sFields =
+      let providedFieldNames = map fst providedFields
+          missingFields = [(fieldName f, fieldDefault f) | f <- sFields, not (fieldIsStatic f), fieldName f `notElem` providedFieldNames]
+      in [(fname, expr) | (fname, Just expr) <- missingFields]
 
 verifExprWithContext hint vs (ExprIndex pos target idx) = do
   target' <- verifExprWithContext hint vs target
@@ -613,10 +624,6 @@ resolveCall cPos vPos s hint name args argTypes = do
             Nothing -> lift $ Left $ formatSemanticError err
             Just templateDef -> tryInstantiateTemplate templateDef name args argTypes hint
 
-
-
--- | Check if a member (field or method) can be accessed based on visibility rules
--- Returns True if access is allowed, False otherwise
 -- | Check if a member (field or method) can be accessed based on visibility rules
 -- Returns True if access is allowed, False otherwise
 canAccessMember :: StructStack -> Visibility -> Maybe String -> String -> Bool -> Bool
@@ -628,19 +635,33 @@ canAccessMember _ Private currentStruct targetStruct isSelf =
 canAccessMember ss Protected currentStruct targetStruct isSelf =
   case currentStruct of
     Nothing -> False
-    Just ctx -> (ctx == targetStruct || (isSelf && isDescendantOf ctx targetStruct))
-  where
-    isDescendantOf ctx target
-      | ctx == target = True
-      | otherwise = case HM.lookup ctx ss of
-          Just (DefStruct _ _ _ _ (Just (ext:_))) ->
-            isDescendantOf ext target
-          _ -> False
+    Just ctx -> (ctx == targetStruct || (isSelf && isDescendantOf ss ctx targetStruct))
+
+-- | Check if we can access an abstract struct from current context
+canAccessAbstractStruct :: StructStack -> Maybe String -> String -> String -> String -> String -> Int -> Int -> SemM ()
+canAccessAbstractStruct ss currentStruct sName context errorMsg file line col = do
+  case HM.lookup sName ss of
+    Just (DefStruct _ _ _ True _) -> do
+      case currentStruct of
+        Just ctx | ctx == sName || isDescendantOf ss ctx sName ->
+          pure ()
+        _ -> lift $ Left $ formatSemanticError $ SemanticError file line col
+              context
+              errorMsg
+              ["struct instantiation"]
+    _ -> pure ()
 
 isSelfAccess :: Expression -> Bool
 isSelfAccess (ExprVar _ "self") = True
 isSelfAccess (ExprAccess _ target "__base") = isSelfAccess target
 isSelfAccess _ = False
+
+isDescendantOf :: StructStack -> String -> String -> Bool
+isDescendantOf ss ctx target
+  | ctx == target = True
+  | otherwise = case HM.lookup ctx ss of
+      Just (DefStruct _ _ _ _ (Just (ext:_))) -> isDescendantOf ss ext target
+      _ -> False
 
 -- This function is used to check if a function is static or not.
 -- It's here just to declare 'new' as a default static method.
@@ -736,6 +757,10 @@ verifStaticMethodCall ss fs mangledName currentStruct target method file line co
           (printf "static method call '%s.%s'" target method)
           (printf "method '%s' is not static, use an instance instead" method)
           ["static method call"]
+      canAccessAbstractStruct ss currentStruct target
+        (printf "static method call '%s.%s'" target method)
+        (printf "cannot call static method '%s' on abstract struct '%s' from this context" method target)
+        file line col
       raiseVisibilityError ss visibility currentStruct target False method "method" file line col "static method call"
     Nothing -> pure ()
 
@@ -792,4 +817,3 @@ convertVarToAccess expr ss (Just sName) Nothing (Just method) =
         _                           -> False) ms
 
 convertVarToAccess expr _ _ _ _ = expr
-

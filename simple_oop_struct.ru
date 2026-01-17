@@ -23,6 +23,10 @@ abstract struct Shape
 
     protected def print_hola(self) -> null
     {}
+
+    public static def say_hi() -> null
+    {
+    }
 }
 
 struct Circle extends Shape
