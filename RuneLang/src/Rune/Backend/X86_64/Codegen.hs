@@ -397,9 +397,7 @@ emitCallGen mbExterns structs sm dest funcName args mbType =
   let usesHiddenPtr = case mbType of
                         Just (IRStruct sName) -> sizeOfStruct structs sName > 16
                         _ -> False
-      hiddenPtrSetup = if usesHiddenPtr
-                       then [ emit 1 $ "lea rdi, " <> stackAddr sm dest ]
-                       else []
+      hiddenPtrSetup = [emit 1 $ "lea rdi, " <> stackAddr sm dest | usesHiddenPtr]
       argSetup    = setupCallArgs structs sm args usesHiddenPtr
       usePlt      = case mbExterns of
                       Just externs -> funcName `elem` externs
