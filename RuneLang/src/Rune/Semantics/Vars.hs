@@ -179,6 +179,7 @@ verifTopLevel (DefFunction name params r_t body isExport) = do
               [] -> SourcePos "<unknownPos>" 0 0
 
   checkFnReturn pos name r_t body
+  checkUniqueParamNames pos "function definition" name params
   let vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params
   body' <- verifScope vs body
   pure $ DefFunction finalName params r_t body' isExport
@@ -469,16 +470,16 @@ verifExprWithContext _ _ expr = pure expr
 
 verifMethod :: String -> TopLevelDef -> SemM TopLevelDef
 verifMethod sName (DefFunction methodName params retType body isExport) = do
-  checkMethodParams methodName params
+  let pos = case body of
+              (stmt:_) -> getStmtPos stmt
+              [] -> SourcePos "<unknownPos>" 0 0
+  checkMethodParams methodName params pos
   let params' = if isStaticMethod methodName then params else fixSelfType sName params
       paramTypes = map paramType params'
       baseName = sName ++ "_" ++ methodName
       finalName = mangleName baseName retType paramTypes
 
       vs = HM.fromList $ map (\p -> (paramName p, paramType p)) params'
-      pos = case body of
-              (stmt:_) -> getStmtPos stmt
-              [] -> SourcePos "<unknownPos>" 0 0
   checkFnReturn pos methodName retType body
   oldStruct <- stCurrentStruct <$> get
   modify $ \st -> st { stCurrentStruct = Just sName }
@@ -584,11 +585,27 @@ isStaticMethod :: String -> Bool
 isStaticMethod "new" = True
 isStaticMethod _     = False
 
-checkMethodParams :: String -> [Parameter] -> SemM ()
-checkMethodParams methodName params
-  | isStaticMethod methodName = pure ()  -- Static methods don't need self
+checkMethodParams :: String -> [Parameter] -> SourcePos -> SemM ()
+checkMethodParams methodName params pos
+  | isStaticMethod methodName = checkUniqueParamNames pos "method definition" methodName params
   | otherwise = case params of
-      [] -> lift $ Left $ printf "Instance method '%s' must have at least one parameter (self)" methodName
+      [] -> lift $ Left $ mkErrorReturn pos
+        "at least one parameter (self)"
+        (printf "no parameters in method '%s'" methodName)
+        ["method definition", "parameters"]
       (p:_) | paramName p /= "self" ->
-        lift $ Left $ printf "First parameter of method '%s' must be 'self', got '%s'" methodName (paramName p)
-      _ -> pure ()
+        lift $ Left $ mkErrorReturn pos
+          "first parameter named 'self'"
+          (printf "first parameter is '%s'" (paramName p))
+          ["method definition", "parameters"]
+      _ -> checkUniqueParamNames pos "method definition" methodName params
+
+checkUniqueParamNames :: SourcePos -> String -> String -> [Parameter] -> SemM ()
+checkUniqueParamNames pos context fName params = do
+  let paramNames = map paramName params
+      duplicates = paramNames List.\\ List.nub paramNames
+  unless (null duplicates) $
+    lift $ Left $ mkErrorReturn pos
+      (printf "unique parameter names in function '%s'" fName)
+      (printf "%s '%s' has duplicate parameter names: %s" context fName (show duplicates))
+      ["function definition", "parameters"]
