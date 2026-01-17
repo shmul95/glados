@@ -92,8 +92,8 @@ varsSemanticsTests =
       ],
 
     testGroup "Method Verification"
-      [ expectErr "rejects method with wrong first parameter" methodNoSelfProgram "First parameter of method",
-        expectErr "rejects method with wrong first parameter name" methodWrongFirstParamProgram "First parameter of method"
+      [ expectErr "rejects method with wrong first parameter" methodNoSelfProgram "first parameter named 'self'",
+        expectErr "rejects method with wrong first parameter name" methodWrongFirstParamProgram "first parameter named 'self'"
       ],
 
     testGroup "Method Calls via ExprAccess"
@@ -105,8 +105,8 @@ varsSemanticsTests =
 
     testGroup "Method Body Verification"
       [ expectOk "verifies method with self parameter and body" methodWithBodyProgram,
-        expectErr "rejects method without any parameters" methodNoParamsProgram "must have at least one parameter",
-        expectErr "rejects method with wrong first parameter" methodNoSelfProgram "First parameter of method"
+        expectErr "rejects method without any parameters" methodNoParamsProgram "at least one parameter",
+        expectErr "rejects method with wrong first parameter" methodNoSelfProgram "first parameter named 'self'"
       ],
 
     testGroup "Generic Functions"
