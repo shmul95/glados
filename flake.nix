@@ -28,6 +28,10 @@
 
         nativeBuildInputs = [
           haskellEnv
+
+          pkgs.haskellPackages.cabal-install # Added this!
+          pkgs.haskellPackages.hpack         # To convert package.yaml -> .cabal
+
           pkgs.nasm 
           pkgs.gcc
           pkgs.gnumake
@@ -55,15 +59,45 @@
           nativeBuildInputs = nativeBuildInputs;
           # buildInputs = [ ];
 
+#           # the stack way
+#           buildPhase = ''
+#             export HOME=$TMPDIR
+#             export STACK_ROOT=$TMPDIR/.stack
+#             export STACK_IN_NIX_SHELL=1
+#
+#             # Create a minimal stack config that doesn't need to go online
+#             cat > stack.yaml <<EOF
+# resolver: ghc-9.10.2
+# system-ghc: true
+# install-ghc: false
+# packages:
+#   - '.'
+# EOF
+#             stack config set system-ghc --global true
+#             make all STACK_NIX_FLAGS="--system-ghc --no-install-ghc --offline --nix"
+#           '';
+          # the cabal way
           buildPhase = ''
-            export HOME=$TMPDIR
-            export STACK_ROOT=$TMPDIR/.stack
-            export STACK_IN_NIX_SHELL=1
-            make all STACK_NIX_FLAGS="--system-ghc --no-install-ghc --offline"
+              export HOME=$TMPDIR
+              export CABAL_DIR=$TMPDIR/.cabal
+
+              hpack
+
+              mkdir -p $CABAL_DIR
+              touch $CABAL_DIR/config
+
+              # cabal build --offline --ghc-options="-O2"
+              cabal v2-build \
+                --offline \
+                --with-compiler=${haskellEnv}/bin/ghc \
+                --package-db=clear \
+                --package-db=global \
+                --ghc-options="-O2" \
+                all
           '';
           installPhase = ''
             mkdir -p $out/bin
-            cp rune $out/bin
+            find dist-newstyle -type f -name "rune-exe" -exec cp {} ./rune \;
           '';
         };
         # nix dev shell
