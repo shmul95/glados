@@ -57,7 +57,6 @@
           src = ./RuneLang;
 
           nativeBuildInputs = nativeBuildInputs ++ [ makeWrapper ];
-          # buildInputs = [ nasm gcc ];
 
           buildPhase = ''
               export HOME=$TMPDIR
@@ -85,8 +84,6 @@
                 cp "$BINARY_PATH" $out/bin/.rune-wrapped
                 makeWrapper $out/bin/.rune-wrapped $out/bin/rune \
                     --prefix PATH : ${lib.makeBinPath [ nasm gcc binutils ]}
-                # chmod +x $out/bin/rune
-                # cp $out/bin/rune .
               else
                 echo "Could not find 'rune-exe' in dist-newstyle"
                 find dist-newstyle -type f
