@@ -90,12 +90,9 @@
 
               if [ -z "$BINARY_PATH" ]; then echo "Error: rune-exe not found"; exit 1; fi
 
-              echo "Binary: found at $BINARY_PATH"
               $BINARY_PATH build $LIB_SRC_PATH -shared -o $out/lib/libstd.so
 
-              cp "$BINARY_PATH" $out/bin/.rune-raw
-
-              makeWrapper $out/bin/.rune-raw $out/bin/rune \
+              makeWrapper $BINARY_PATH $out/bin/rune \
                   --prefix PATH : ${lib.makeBinPath [ nasm gcc binutils ]} \
                   --set LD_LIBRARY_PATH "$out/lib" \
                   --set RUNE_LIB_DIR "$out/lib"
