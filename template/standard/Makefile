@@ -22,18 +22,18 @@ SRC			:= $(SRC_PATH)/main.ru
 
 FLAGS 		:= -I$(INC_PATH) -L$(LIB_PATH) -lstd
 
+all: $(NAME)
+
+$(NAME):
+	$(RUNE) build $(SRC) -o $(NAME) $(FLAGS)
+	@echo "Build complete: ./$(NAME)"
+
 init:
 	@echo "Building Rune compiler via Nix..."
 	nix build $(REPO_PATH) --refresh
 	@cp -rf $(RESULT_PATH)/* .
 	@rm $(RESULT_PATH)
 	@echo "Init complete. Compiler and StdLib copied to ./bin and ./lib"
-
-all: $(NAME)
-
-$(NAME):
-	$(RUNE) build $(SRC) -o $(NAME) $(FLAGS)
-	@echo "Build complete: ./$(NAME)"
 
 clean:
 	rm -rf $(shell find . -type f -name "*.o")
