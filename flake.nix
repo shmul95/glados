@@ -90,7 +90,7 @@
               LIB_SRC_PATH=$(find $LIB_PATH -name "*.ru" -type f)
 
               INC_PATH=./inc
-              cp $INC_PATH $out/inc
+              cp -r $INC_PATH $out/inc
 
               if [ -z "$BINARY_PATH" ]; then echo "Error: rune-exe not found"; exit 1; fi
 
