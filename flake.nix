@@ -82,7 +82,6 @@
 
               mkdir -p $out/bin
               mkdir -p $out/lib
-              mkdir -p $out/inc
 
               BINARY_PATH=$(find dist-newstyle -type f -executable -name "rune-exe" | head -n 1)
 
