@@ -15,7 +15,7 @@ LIB_PATH	:= ./lib
 INC_PATH	:= ./inc
 SRC_PATH 	:= ./src
 
-REPO_PATH	:= github:rune-prog-lang/glados/344-nix-build
+REPO_PATH	:= github:rune-prog-lang/glados
 RESULT_PATH := ./result
 
 RUNE		:= $(BIN_PATH)/.rune-raw
