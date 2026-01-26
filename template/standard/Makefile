@@ -5,6 +5,10 @@
 ## Makefile
 ##
 
+# name of your project
+NAME 		:= my_project
+
+
 BIN_PATH	:= ./bin
 LIB_PATH	:= ./lib
 
@@ -16,9 +20,7 @@ RESULT_PATH := ./result
 
 RUNE		:= $(BIN_PATH)/.rune-raw
 
-NAME 		:= my_project
-
-SRC			:= $(SRC_PATH)/main.ru
+SRC			:= $(shell find $(SRC_PATH) -name "*.ru")
 
 FLAGS 		:= -I$(INC_PATH) -L$(LIB_PATH) -lstd
 
