@@ -105,11 +105,16 @@
         };
         # nix dev shell
         devShells.default = mkShell {
-         buildInputs = allPkgs;
-         shellHook = ''
-           export PKG_CONFIG_PATH=${pkgs.lib.makeLibraryPath [ ]}:$PKG_CONFIG_PATH
-           export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ ]}:$LD_LIBRARY_PATH
-         '';
-       };
-   });
+          buildInputs = allPkgs;
+          shellHook = ''
+            export PKG_CONFIG_PATH=${pkgs.lib.makeLibraryPath [ ]}:$PKG_CONFIG_PATH
+            export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ ]}:$LD_LIBRARY_PATH
+          '';
+        };
+      }) // {
+        templates.default = {
+          path = ./template/standard; # Ensure this directory exists in your repo!
+          description = "Standard Rune project template";
+        };
+      };
 }
