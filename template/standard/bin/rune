@@ -1,0 +1,22 @@
+#! /nix/store/lw117lsr8d585xs63kx5k233impyrq7q-bash-5.3p3/bin/bash -e
+PATH=${PATH:+':'$PATH':'}
+PATH=${PATH/':''/nix/store/dwiyp91lmxq864plaas14jm14m87sg3f-binutils-wrapper-2.44/bin'':'/':'}
+PATH='/nix/store/dwiyp91lmxq864plaas14jm14m87sg3f-binutils-wrapper-2.44/bin'$PATH
+PATH=${PATH#':'}
+PATH=${PATH%':'}
+export PATH
+PATH=${PATH:+':'$PATH':'}
+PATH=${PATH/':''/nix/store/r9wbjib6xxjkyb9yvjvrkl4sq61i2lyn-gcc-wrapper-15.2.0/bin'':'/':'}
+PATH='/nix/store/r9wbjib6xxjkyb9yvjvrkl4sq61i2lyn-gcc-wrapper-15.2.0/bin'$PATH
+PATH=${PATH#':'}
+PATH=${PATH%':'}
+export PATH
+PATH=${PATH:+':'$PATH':'}
+PATH=${PATH/':''/nix/store/lywj07fkb4grpp6g7xmq49hg1d2nfsa0-nasm-3.01/bin'':'/':'}
+PATH='/nix/store/lywj07fkb4grpp6g7xmq49hg1d2nfsa0-nasm-3.01/bin'$PATH
+PATH=${PATH#':'}
+PATH=${PATH%':'}
+export PATH
+export LD_LIBRARY_PATH='/nix/store/sxwa29vvgdgk2bb8qi0crcqcbbri6ijf-rune-1.0.0/lib'
+export RUNE_LIB_DIR='/nix/store/sxwa29vvgdgk2bb8qi0crcqcbbri6ijf-rune-1.0.0/lib'
+exec "/nix/store/sxwa29vvgdgk2bb8qi0crcqcbbri6ijf-rune-1.0.0/bin/.rune-raw"  "$@" 
